@@ -6,11 +6,12 @@ Provides embeddings for music tracks without requiring internet or HuggingFace
 
 import json
 import logging
-import ollama
-import numpy as np
-from typing import List, Dict, Any, Optional
-import time
 import os
+import time
+from typing import Any, Dict, List, Optional
+
+import numpy as np
+import ollama
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

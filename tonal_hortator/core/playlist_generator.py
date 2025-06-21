@@ -4,14 +4,16 @@ Generate music playlists using local Ollama embeddings
 This script creates playlists based on semantic search queries
 """
 
-import sqlite3
 import logging
-import time
 import os
 import re
+import sqlite3
+import time
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
+
 import numpy as np
+
 from tonal_hortator.core.embeddings import OllamaEmbeddingService
 from tonal_hortator.core.track_embedder import LocalTrackEmbedder
 

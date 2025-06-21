@@ -4,12 +4,14 @@ Embed music tracks using local Ollama service
 This script embeds track metadata and stores embeddings in SQLite database
 """
 
-import sqlite3
 import logging
-import time
 import os
-from typing import List, Dict, Any, Optional, Tuple
+import sqlite3
+import time
+from typing import Any, Dict, List, Optional, Tuple
+
 import numpy as np
+
 from tonal_hortator.core.embeddings import OllamaEmbeddingService
 
 # Configure logging

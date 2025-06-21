@@ -1,9 +1,11 @@
-import unittest
-import sqlite3
-import numpy as np
 import os
-from tonal_hortator.core.track_embedder import LocalTrackEmbedder
+import sqlite3
+import unittest
+
+import numpy as np
+
 from tonal_hortator.core.playlist_generator import LocalPlaylistGenerator
+from tonal_hortator.core.track_embedder import LocalTrackEmbedder
 
 
 class TestCoreFunctionality(unittest.TestCase):

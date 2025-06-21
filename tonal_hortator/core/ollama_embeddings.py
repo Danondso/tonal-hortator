@@ -1,7 +1,8 @@
-import ollama
-import sqlite3
 import pickle
+import sqlite3
+
 import config
+import ollama
 
 # CONFIG
 model_name = "nomic-embed-text"

@@ -3,11 +3,11 @@
 Parses an Apple Music XML library file and populates a SQLite database.
 """
 
+import logging
 import sqlite3
 import xml.etree.ElementTree as ET
-import logging
-from typing import Dict, Any, Iterator, Optional
 from pathlib import Path
+from typing import Any, Dict, Iterator, Optional
 
 # Configure logging
 logging.basicConfig(
