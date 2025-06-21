@@ -9,9 +9,7 @@ updates:
       time: "09:00"
     open-pull-requests-limit: 10
     reviewers:
-      - "dublinanondson"
-    assignees:
-      - "dublinanondson"
+      - "Danondso"
     commit-message:
       prefix: "pip"
       prefix-development: "pip-dev"
@@ -26,9 +24,7 @@ updates:
       time: "09:00"
     open-pull-requests-limit: 10
     reviewers:
-      - "dublinanondson"
-    assignees:
-      - "dublinanondson"
+      - "Danondso"
     commit-message:
       prefix: "github-actions"
       include: "scope" 
