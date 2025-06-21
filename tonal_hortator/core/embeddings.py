@@ -37,7 +37,7 @@ class OllamaEmbeddingService:
         # Test connection
         self._test_connection()
 
-    def _test_connection(self):
+    def _test_connection(self) -> None:
         """Test connection to Ollama service"""
         try:
             models = self.client.list().get("models", [])
@@ -220,8 +220,12 @@ class OllamaEmbeddingService:
         logger.info(f"🔍 Found {len(results)} similar tracks for query: '{query}'")
         return results
 
+    def close(self) -> None:
+        """Close the Ollama embedding service"""
+        pass
 
-def test_ollama_embeddings():
+
+def test_ollama_embeddings() -> bool:
     """Test the Ollama embedding service"""
     try:
         # Initialize service

@@ -29,7 +29,7 @@ class LibraryParser:
         self.db_path = db_path
         self._create_table()
 
-    def _create_table(self):
+    def _create_table(self) -> None:
         """Creates the 'tracks' table in the database if it doesn't exist."""
         try:
             with sqlite3.connect(self.db_path) as conn:
@@ -214,7 +214,7 @@ class LibraryParser:
         return count
 
 
-def main():
+def main() -> None:
     """Main function to run the parser from the command line."""
     import argparse
 
@@ -227,8 +227,8 @@ def main():
     )
     args = parser.parse_args()
 
-    parser = LibraryParser(db_path=args.db_path)
-    parser.parse_library(xml_path=args.xml_path)
+    library_parser = LibraryParser(db_path=args.db_path)
+    library_parser.parse_library(xml_path=args.xml_path)
 
 
 if __name__ == "__main__":

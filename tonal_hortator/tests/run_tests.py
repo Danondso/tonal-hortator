@@ -11,7 +11,7 @@ import unittest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 
-def create_test_suite():
+def create_test_suite() -> unittest.TestSuite:
     """Create a test suite for all tests"""
     test_suite = unittest.TestSuite()
 
@@ -27,7 +27,7 @@ def create_test_suite():
     return test_suite
 
 
-def run_tests():
+def run_tests() -> int:
     """Run all tests"""
     # Create test suite
     test_suite = create_test_suite()
@@ -47,7 +47,11 @@ def run_tests():
         return 1
 
 
-if __name__ == "__main__":
+def main() -> None:
     # Run tests
     exit_code = run_tests()
     sys.exit(exit_code)
+
+
+if __name__ == "__main__":
+    main()

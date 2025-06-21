@@ -7,6 +7,7 @@ import argparse
 import logging
 import sys
 from pathlib import Path
+from typing import Optional
 
 from ..core.playlist_generator import LocalPlaylistGenerator
 from ..core.track_embedder import LocalTrackEmbedder
@@ -22,11 +23,11 @@ logger = logging.getLogger(__name__)
 
 
 def generate_playlist(
-    query: str = None,
+    query: Optional[str] = None,
     max_tracks: int = 20,
     min_similarity: float = 0.3,
     auto_open: bool = False,
-):
+) -> bool:
     """Generate a playlist with optional Apple Music opening"""
     try:
         logger.info("🚀 Starting playlist generation")
@@ -76,8 +77,12 @@ def generate_playlist(
 
 
 def _generate_single_playlist(
-    generator, query: str, max_tracks: int, min_similarity: float, auto_open: bool
-):
+    generator: LocalPlaylistGenerator,
+    query: str,
+    max_tracks: int,
+    min_similarity: float,
+    auto_open: bool,
+) -> bool:
     """Generate a single playlist"""
     try:
         # Generate playlist
@@ -111,7 +116,7 @@ def _generate_single_playlist(
         return False
 
 
-def embed_tracks(batch_size: int = 100):
+def embed_tracks(batch_size: int = 100) -> bool:
     """Embed all tracks in the database"""
     try:
         logger.info("🚀 Starting track embedding process")
@@ -143,7 +148,7 @@ def embed_tracks(batch_size: int = 100):
         return False
 
 
-def import_library(xml_path: str, db_path: str = "music_library.db"):
+def import_library(xml_path: str, db_path: str = "music_library.db") -> bool:
     """Parse the Apple Music XML library and populate the database."""
     try:
         logger.info(f"🚀 Starting library import from: {xml_path}")
@@ -165,7 +170,7 @@ def import_library(xml_path: str, db_path: str = "music_library.db"):
         return False
 
 
-def main():
+def main() -> int:
     """Main CLI entry point"""
     parser = argparse.ArgumentParser(
         description="Tonal Hortator - AI-powered local music playlist generator",

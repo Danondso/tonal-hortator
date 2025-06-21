@@ -352,7 +352,7 @@ class LocalPlaylistGenerator:
             return tracks
 
         # Group tracks by artist
-        artist_groups = {}
+        artist_groups: dict[str, list] = {}
         for track in tracks:
             artist = track.get("artist", "").strip().lower()
             if artist:
@@ -531,7 +531,7 @@ class LocalPlaylistGenerator:
             logger.error(f"❌ Error saving playlist: {e}")
             raise
 
-    def print_playlist_summary(self, tracks: List[Dict[str, Any]], query: str):
+    def print_playlist_summary(self, tracks: List[Dict[str, Any]], query: str) -> None:
         """Print a summary of the generated playlist"""
         print(f"\n🎵 Playlist for: '{query}'")
         print(f"📊 {len(tracks)} tracks found")
@@ -573,7 +573,7 @@ class LocalPlaylistGenerator:
         return None
 
 
-def main():
+def main() -> None:
     """Main function for interactive playlist generation"""
     try:
         logger.info("🚀 Starting local playlist generator")
