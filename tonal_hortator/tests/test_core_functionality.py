@@ -1,6 +1,7 @@
 import os
 import sqlite3
 import unittest
+from unittest.mock import Mock, patch
 
 import numpy as np
 
@@ -16,24 +17,21 @@ class TestCoreFunctionality(unittest.TestCase):
         self.conn = sqlite3.connect(self.db_path)
         self.cursor = self.conn.cursor()
 
-        # Create tracks table
+        # Create tracks table with the correct schema
         self.cursor.execute(
             """
             CREATE TABLE tracks (
-                id INTEGER PRIMARY KEY, title TEXT, artist TEXT, album TEXT, genre TEXT,
-                year INTEGER, play_count INTEGER, album_artist TEXT, composer TEXT, bpm INTEGER,
+                id INTEGER PRIMARY KEY, 
+                title TEXT, 
+                artist TEXT, 
+                album TEXT, 
+                genre TEXT,
+                year INTEGER, 
+                play_count INTEGER, 
+                album_artist TEXT, 
+                composer TEXT, 
+                bpm INTEGER,
                 location TEXT
-            )
-        """
-        )
-
-        # Create track_embeddings table
-        self.cursor.execute(
-            """
-            CREATE TABLE track_embeddings (
-                track_id INTEGER PRIMARY KEY,
-                embedding BLOB,
-                embedding_text TEXT
             )
         """
         )
@@ -62,9 +60,23 @@ class TestCoreFunctionality(unittest.TestCase):
         """Close the database connection."""
         self.conn.close()
 
-    def test_track_embedding(self) -> None:
+    @patch('tonal_hortator.core.embeddings.ollama')
+    def test_track_embedding(self, mock_ollama) -> None:
         """Test that a single track can be successfully embedded."""
-        embedder = LocalTrackEmbedder(db_path=self.db_path)
+        # Mock the Ollama client and embeddings
+        mock_client = Mock()
+        mock_ollama.Client.return_value = mock_client
+        
+        # Mock the list() method to return a proper structure
+        mock_client.list.return_value = {
+            "models": [{"name": "nomic-embed-text:latest"}]
+        }
+        
+        # Mock the embeddings response
+        mock_embedding = np.random.rand(384).astype(np.float32)  # Typical embedding size
+        mock_client.embeddings.return_value = {"embedding": mock_embedding.tolist()}
+        
+        embedder = LocalTrackEmbedder(db_path=self.db_path, conn=self.conn)
         embedded_count = embedder.embed_all_tracks()
         self.assertEqual(embedded_count, 1)
 
@@ -73,28 +85,60 @@ class TestCoreFunctionality(unittest.TestCase):
         count = self.cursor.fetchone()[0]
         self.assertEqual(count, 1)
 
-    def test_playlist_generation(self) -> None:
+    @patch('tonal_hortator.core.embeddings.ollama')
+    def test_playlist_generation(self, mock_ollama) -> None:
         """Test that a simple playlist can be generated."""
+        # Mock the Ollama client and embeddings
+        mock_client = Mock()
+        mock_ollama.Client.return_value = mock_client
+        
+        # Mock the list() method to return a proper structure
+        mock_client.list.return_value = {
+            "models": [{"name": "nomic-embed-text:latest"}]
+        }
+        
+        # Mock the embeddings response
+        mock_embedding = np.random.rand(384).astype(np.float32)
+        mock_client.embeddings.return_value = {"embedding": mock_embedding.tolist()}
+        
         # First, ensure the track is embedded
-        embedder = LocalTrackEmbedder(db_path=self.db_path)
+        embedder = LocalTrackEmbedder(db_path=self.db_path, conn=self.conn)
         embedder.embed_all_tracks()
 
-        # Now, generate a playlist
+        # Now, generate a playlist - create a new embedder for the playlist generator
+        embedder_for_playlist = LocalTrackEmbedder(db_path=self.db_path, conn=self.conn)
         playlist_generator = LocalPlaylistGenerator(db_path=self.db_path)
+        playlist_generator.track_embedder = embedder_for_playlist
         playlist = playlist_generator.generate_playlist("a test song")
 
         self.assertIsNotNone(playlist)
         self.assertEqual(len(playlist), 1)
         self.assertEqual(playlist[0]["name"], "Test Song")
 
-    def test_generate_playlist(self) -> None:
+    @patch('tonal_hortator.core.embeddings.ollama')
+    def test_generate_playlist(self, mock_ollama) -> None:
         """Test that a simple playlist can be generated."""
+        # Mock the Ollama client and embeddings
+        mock_client = Mock()
+        mock_ollama.Client.return_value = mock_client
+        
+        # Mock the list() method to return a proper structure
+        mock_client.list.return_value = {
+            "models": [{"name": "nomic-embed-text:latest"}]
+        }
+        
+        # Mock the embeddings response
+        mock_embedding = np.random.rand(384).astype(np.float32)
+        mock_client.embeddings.return_value = {"embedding": mock_embedding.tolist()}
+        
         # First, ensure the track is embedded
-        embedder = LocalTrackEmbedder(db_path=self.db_path)
+        embedder = LocalTrackEmbedder(db_path=self.db_path, conn=self.conn)
         embedder.embed_all_tracks()
 
-        # Now, generate a playlist
+        # Now, generate a playlist - create a new embedder for the playlist generator
+        embedder_for_playlist = LocalTrackEmbedder(db_path=self.db_path, conn=self.conn)
         playlist_generator = LocalPlaylistGenerator(db_path=self.db_path)
+        playlist_generator.track_embedder = embedder_for_playlist
         playlist = playlist_generator.generate_playlist("a test song")
 
         self.assertIsNotNone(playlist)
@@ -102,18 +146,15 @@ class TestCoreFunctionality(unittest.TestCase):
         self.assertEqual(playlist[0]["name"], "Test Song")
 
     def test_another_function(self) -> None:
-        # This function is mentioned in the original code but not implemented in the test_generate_playlist function
-        # It's unclear what this function is supposed to test, so it's left unchanged
+        """Placeholder test function."""
         pass
 
     def test_yet_another_function(self) -> None:
-        # This function is mentioned in the original code but not implemented in the test_generate_playlist function
-        # It's unclear what this function is supposed to test, so it's left unchanged
+        """Placeholder test function."""
         pass
 
     def test_final_function(self) -> None:
-        # This function is mentioned in the original code but not implemented in the test_generate_playlist function
-        # It's unclear what this function is supposed to test, so it's left unchanged
+        """Placeholder test function."""
         pass
 
 
