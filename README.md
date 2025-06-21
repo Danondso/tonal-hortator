@@ -189,10 +189,6 @@ This project uses comprehensive GitHub Actions workflows for continuous integrat
   - Checks for known vulnerabilities in dependencies
   - Runs on all pull requests
 
-- **Release Pipeline** (`.github/workflows/release.yml`): Automated PyPI publishing
-  - Triggers on GitHub releases
-  - Builds and publishes to PyPI
-
 ### Development Tools
 
 Install development dependencies for local quality checks:

@@ -34,6 +34,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install pytest pytest-cov flake8 black isort mypy
+        pip install -e .
     
     - name: Lint with flake8
       run: |
@@ -82,6 +83,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install bandit safety
+        pip install -e .
     
     - name: Run security checks with bandit
       run: |
@@ -92,7 +94,7 @@ jobs:
         safety check --json --output safety-report.json || true
     
     - name: Upload security reports
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: security-reports
         path: |
@@ -125,7 +127,7 @@ jobs:
         twine check dist/*
     
     - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: dist
         path: dist/ 
