@@ -1,5 +1,5 @@
 numpy<3.0
-huggingface-hub<0.17.0
+huggingface-hub<0.34.0
 coverage
 requests
 loguru
