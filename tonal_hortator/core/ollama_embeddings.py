@@ -11,16 +11,20 @@ conn = sqlite3.connect(config.DB_PATH)
 c = conn.cursor()
 
 # CREATE EMBEDDING TABLE
-c.execute("""
+c.execute(
+    """
 CREATE TABLE IF NOT EXISTS track_embeddings (
     track_id INTEGER PRIMARY KEY,
     embedding BLOB
 )
-""")
+"""
+)
 conn.commit()
 
 # FETCH TRACKS
-tracks = c.execute("SELECT id, title, artist, album, genre, year FROM tracks").fetchall()
+tracks = c.execute(
+    "SELECT id, title, artist, album, genre, year FROM tracks"
+).fetchall()
 
 # EMBED TRACKS
 instruction = "Represent this music track for semantic search:"
@@ -34,7 +38,10 @@ for t in tracks:
 
     embedding_blob = pickle.dumps(embedding)
 
-    c.execute("INSERT OR REPLACE INTO track_embeddings (track_id, embedding) VALUES (?, ?)", (track_id, embedding_blob))
+    c.execute(
+        "INSERT OR REPLACE INTO track_embeddings (track_id, embedding) VALUES (?, ?)",
+        (track_id, embedding_blob),
+    )
 
 conn.commit()
 conn.close()

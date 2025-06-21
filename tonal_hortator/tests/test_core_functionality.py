@@ -5,6 +5,7 @@ import os
 from tonal_hortator.core.track_embedder import LocalTrackEmbedder
 from tonal_hortator.core.playlist_generator import LocalPlaylistGenerator
 
+
 class TestCoreFunctionality(unittest.TestCase):
 
     def setUp(self):
@@ -14,28 +15,45 @@ class TestCoreFunctionality(unittest.TestCase):
         self.cursor = self.conn.cursor()
 
         # Create tracks table
-        self.cursor.execute("""
+        self.cursor.execute(
+            """
             CREATE TABLE tracks (
                 id INTEGER PRIMARY KEY, title TEXT, artist TEXT, album TEXT, genre TEXT,
                 year INTEGER, play_count INTEGER, album_artist TEXT, composer TEXT, bpm INTEGER,
                 location TEXT
             )
-        """)
+        """
+        )
 
         # Create track_embeddings table
-        self.cursor.execute("""
+        self.cursor.execute(
+            """
             CREATE TABLE track_embeddings (
                 track_id INTEGER PRIMARY KEY,
                 embedding BLOB,
                 embedding_text TEXT
             )
-        """)
+        """
+        )
 
         # Insert a sample track
-        self.cursor.execute("""
+        self.cursor.execute(
+            """
             INSERT INTO tracks (id, title, artist, album, genre, year, play_count, bpm, location)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (1, 'Test Song', 'Test Artist', 'Test Album', 'Rock', 2023, 42, 120, '/path/to/test.mp3'))
+        """,
+            (
+                1,
+                "Test Song",
+                "Test Artist",
+                "Test Album",
+                "Rock",
+                2023,
+                42,
+                120,
+                "/path/to/test.mp3",
+            ),
+        )
         self.conn.commit()
 
     def tearDown(self):
@@ -62,10 +80,11 @@ class TestCoreFunctionality(unittest.TestCase):
         # Now, generate a playlist
         playlist_generator = LocalPlaylistGenerator(db_path=self.db_path)
         playlist = playlist_generator.generate_playlist_from_query("a test song")
-        
+
         self.assertIsNotNone(playlist)
         self.assertEqual(len(playlist), 1)
-        self.assertEqual(playlist[0]['name'], 'Test Song')
+        self.assertEqual(playlist[0]["name"], "Test Song")
 
-if __name__ == '__main__':
-    unittest.main() 
+
+if __name__ == "__main__":
+    unittest.main()
