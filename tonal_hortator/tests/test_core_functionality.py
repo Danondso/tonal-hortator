@@ -60,22 +60,24 @@ class TestCoreFunctionality(unittest.TestCase):
         """Close the database connection."""
         self.conn.close()
 
-    @patch('tonal_hortator.core.embeddings.ollama')
+    @patch("tonal_hortator.core.embeddings.ollama")
     def test_track_embedding(self, mock_ollama) -> None:
         """Test that a single track can be successfully embedded."""
         # Mock the Ollama client and embeddings
         mock_client = Mock()
         mock_ollama.Client.return_value = mock_client
-        
+
         # Mock the list() method to return a proper structure
         mock_client.list.return_value = {
             "models": [{"name": "nomic-embed-text:latest"}]
         }
-        
+
         # Mock the embeddings response
-        mock_embedding = np.random.rand(384).astype(np.float32)  # Typical embedding size
+        mock_embedding = np.random.rand(384).astype(
+            np.float32
+        )  # Typical embedding size
         mock_client.embeddings.return_value = {"embedding": mock_embedding.tolist()}
-        
+
         embedder = LocalTrackEmbedder(db_path=self.db_path, conn=self.conn)
         embedded_count = embedder.embed_all_tracks()
         self.assertEqual(embedded_count, 1)
@@ -85,22 +87,22 @@ class TestCoreFunctionality(unittest.TestCase):
         count = self.cursor.fetchone()[0]
         self.assertEqual(count, 1)
 
-    @patch('tonal_hortator.core.embeddings.ollama')
+    @patch("tonal_hortator.core.embeddings.ollama")
     def test_playlist_generation(self, mock_ollama) -> None:
         """Test that a simple playlist can be generated."""
         # Mock the Ollama client and embeddings
         mock_client = Mock()
         mock_ollama.Client.return_value = mock_client
-        
+
         # Mock the list() method to return a proper structure
         mock_client.list.return_value = {
             "models": [{"name": "nomic-embed-text:latest"}]
         }
-        
+
         # Mock the embeddings response
         mock_embedding = np.random.rand(384).astype(np.float32)
         mock_client.embeddings.return_value = {"embedding": mock_embedding.tolist()}
-        
+
         # First, ensure the track is embedded
         embedder = LocalTrackEmbedder(db_path=self.db_path, conn=self.conn)
         embedder.embed_all_tracks()
@@ -115,22 +117,22 @@ class TestCoreFunctionality(unittest.TestCase):
         self.assertEqual(len(playlist), 1)
         self.assertEqual(playlist[0]["name"], "Test Song")
 
-    @patch('tonal_hortator.core.embeddings.ollama')
+    @patch("tonal_hortator.core.embeddings.ollama")
     def test_generate_playlist(self, mock_ollama) -> None:
         """Test that a simple playlist can be generated."""
         # Mock the Ollama client and embeddings
         mock_client = Mock()
         mock_ollama.Client.return_value = mock_client
-        
+
         # Mock the list() method to return a proper structure
         mock_client.list.return_value = {
             "models": [{"name": "nomic-embed-text:latest"}]
         }
-        
+
         # Mock the embeddings response
         mock_embedding = np.random.rand(384).astype(np.float32)
         mock_client.embeddings.return_value = {"embedding": mock_embedding.tolist()}
-        
+
         # First, ensure the track is embedded
         embedder = LocalTrackEmbedder(db_path=self.db_path, conn=self.conn)
         embedder.embed_all_tracks()
