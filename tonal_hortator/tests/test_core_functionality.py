@@ -146,18 +146,6 @@ class TestCoreFunctionality(unittest.TestCase):
         self.assertEqual(len(playlist), 1)
         self.assertEqual(playlist[0]["name"], "Test Song")
 
-    def test_another_function(self) -> None:
-        """Placeholder test function."""
-        pass
-
-    def test_yet_another_function(self) -> None:
-        """Placeholder test function."""
-        pass
-
-    def test_final_function(self) -> None:
-        """Placeholder test function."""
-        pass
-
 
 if __name__ == "__main__":
     unittest.main()

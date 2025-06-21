@@ -295,16 +295,6 @@ class LocalTrackEmbedder:
             logger.error(f"❌ Error getting embedding stats: {e}")
             raise
 
-    def _some_function(self) -> None:
-        # This method is mentioned in the original file but not implemented in the new file
-        # It's left unchanged as it was in the original file
-        pass
-
-    def close(self) -> None:
-        # This method is mentioned in the original file but not implemented in the new file
-        # It's left unchanged as it was in the original file
-        pass
-
 
 def main() -> None:
     """Main function to embed all tracks"""
