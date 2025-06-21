@@ -254,8 +254,6 @@ Examples:
                 min_similarity=args.min_similarity,
                 auto_open=args.auto_open,
             )  # Interactive mode
-        elif args.command == 'cleanup':
-            success = cleanup_embeddings(db_path=args.db_path)
         else:
             parser.print_help()
             return 1
