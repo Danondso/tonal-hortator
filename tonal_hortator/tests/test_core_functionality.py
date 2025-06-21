@@ -1,4 +1,3 @@
-import os
 import sqlite3
 import unittest
 from unittest.mock import Mock, patch
@@ -21,15 +20,15 @@ class TestCoreFunctionality(unittest.TestCase):
         self.cursor.execute(
             """
             CREATE TABLE tracks (
-                id INTEGER PRIMARY KEY, 
-                title TEXT, 
-                artist TEXT, 
-                album TEXT, 
+                id INTEGER PRIMARY KEY,
+                title TEXT,
+                artist TEXT,
+                album TEXT,
                 genre TEXT,
-                year INTEGER, 
-                play_count INTEGER, 
-                album_artist TEXT, 
-                composer TEXT, 
+                year INTEGER,
+                play_count INTEGER,
+                album_artist TEXT,
+                composer TEXT,
                 bpm INTEGER,
                 location TEXT
             )

@@ -6,13 +6,12 @@ Main CLI interface for Tonal Hortator
 import argparse
 import logging
 import sys
-from pathlib import Path
 from typing import Optional
 
-from ..core.playlist_generator import LocalPlaylistGenerator
-from ..core.track_embedder import LocalTrackEmbedder
-from ..utils.apple_music import open_in_apple_music
-from ..utils.library_parser import LibraryParser
+from tonal_hortator.core.playlist_generator import LocalPlaylistGenerator
+from tonal_hortator.core.track_embedder import LocalTrackEmbedder
+from tonal_hortator.utils.apple_music import open_in_apple_music
+from tonal_hortator.utils.library_parser import LibraryParser
 
 # Configure logging
 logging.basicConfig(

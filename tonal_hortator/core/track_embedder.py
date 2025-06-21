@@ -5,7 +5,6 @@ This script embeds track metadata and stores embeddings in SQLite database
 """
 
 import logging
-import os
 import sqlite3
 import time
 from typing import Any, Dict, List, Optional, Tuple
@@ -61,7 +60,7 @@ class LocalTrackEmbedder:
             # Check if embeddings table exists
             cursor.execute(
                 """
-                SELECT name FROM sqlite_master 
+                SELECT name FROM sqlite_master
                 WHERE type='table' AND name='track_embeddings'
             """
             )
@@ -211,8 +210,8 @@ class LocalTrackEmbedder:
                 # Use bulk insert for better performance
                 cursor.executemany(
                     """
-                    INSERT OR REPLACE INTO track_embeddings 
-                    (track_id, embedding, embedding_text) 
+                    INSERT OR REPLACE INTO track_embeddings
+                    (track_id, embedding, embedding_text)
                     VALUES (?, ?, ?)
                 """,
                     insert_data,

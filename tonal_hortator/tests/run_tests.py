@@ -43,7 +43,7 @@ def run_tests() -> int:
         print("\nOverall: ✅ ALL TESTS PASSED")
         return 0
     else:
-        print(f"\nOverall: ❌ SOME TESTS FAILED")
+        print("\nOverall: ❌ SOME TESTS FAILED")
         return 1
 
 
@@ -54,4 +54,6 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    print("Running tests...")
+    print("=" * 50)
     main()

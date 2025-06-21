@@ -4,9 +4,7 @@ Local embedding service using Ollama
 Provides embeddings for music tracks without requiring internet or HuggingFace
 """
 
-import json
 import logging
-import os
 import time
 from typing import Any, Dict, List, Optional
 

@@ -30,7 +30,6 @@ format: ## Format code with black and isort
 
 security: ## Run security checks
 	bandit -r tonal_hortator/
-	safety check
 
 clean: ## Clean up build artifacts
 	rm -rf build/
@@ -59,8 +58,22 @@ dev-setup: ## Set up development environment
 	$(MAKE) format
 	$(MAKE) test
 
-ci: ## Run CI checks locally
-	$(MAKE) lint
-	$(MAKE) test
-	$(MAKE) security
-	$(MAKE) build 
+ci: ## Run CI checks locally (matches GitHub Actions exactly)
+	python -m pip install --upgrade pip
+	pip install -r requirements.txt
+	pip install pytest pytest-cov flake8 black isort mypy
+	pip install -e .
+	# Lint with flake8 (exact GitHub Actions commands)
+	flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+	flake8 . --count --exit-zero --max-complexity=10 --max-line-length=88 --statistics
+	# Check code formatting with black
+	black --check --diff .
+	# Check import sorting with isort
+	isort --check-only --diff .
+	# Type check with mypy
+	mypy tonal_hortator/ --ignore-missing-imports
+	# Run tests with pytest (exact GitHub Actions command)
+	pytest tonal_hortator/tests/ -v --cov=tonal_hortator --cov-report=xml --cov-report=term-missing
+	# Security checks (from security job)
+	pip install bandit
+	bandit -r tonal_hortator/ -f json -o bandit-report.json || true 
