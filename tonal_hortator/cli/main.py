@@ -6,7 +6,8 @@ Main CLI interface for Tonal Hortator
 import argparse
 import logging
 import sys
-from pathlib import Path
+import sqlite3
+import numpy as np
 
 from ..core.playlist_generator import LocalPlaylistGenerator
 from ..core.track_embedder import LocalTrackEmbedder
@@ -153,6 +154,49 @@ def import_library(xml_path: str, db_path: str = "music_library.db"):
         return False
 
 
+def cleanup_embeddings(db_path: str = "music_library.db"):
+    """Clean up invalid embeddings from the database"""
+    try:
+        logger.info(f"🔍 Cleaning up embeddings in: {db_path}")
+        conn = sqlite3.connect(db_path)
+        cur = conn.cursor()
+
+        # Count total embeddings
+        cur.execute("SELECT COUNT(*) FROM track_embeddings")
+        total = cur.fetchone()[0]
+
+        # Find invalid embeddings (empty or wrong dimension)
+        cur.execute("SELECT track_id, embedding FROM track_embeddings")
+        to_delete = []
+        EMBEDDING_DIM = 768  # For nomic-embed-text
+        
+        for track_id, blob in cur.fetchall():
+            try:
+                arr = np.frombuffer(blob, dtype=np.float32)
+                if arr.size != EMBEDDING_DIM:
+                    to_delete.append(track_id)
+            except Exception:
+                to_delete.append(track_id)
+
+        # Delete invalid embeddings
+        for track_id in to_delete:
+            cur.execute("DELETE FROM track_embeddings WHERE track_id = ?", (track_id,))
+        conn.commit()
+
+        logger.info(f"✅ Removed {len(to_delete)} invalid embeddings out of {total} total.")
+        if to_delete:
+            logger.info(f"🗑️  Track IDs removed: {to_delete}")
+        else:
+            logger.info("🎉 No invalid embeddings found!")
+        
+        conn.close()
+        return True
+
+    except Exception as e:
+        logger.error(f"❌ Error during cleanup: {e}")
+        return False
+
+
 def main():
     """Main CLI entry point"""
     parser = argparse.ArgumentParser(
@@ -165,6 +209,7 @@ Examples:
   tonal-hortator embed
   tonal-hortator interactive
   tonal-hortator import-library "/path/to/your/library.xml"
+  tonal-hortator cleanup
         """
     )
     
@@ -192,6 +237,10 @@ Examples:
     interactive_parser.add_argument('--min-similarity', type=float, default=0.3, help='Minimum similarity threshold')
     interactive_parser.add_argument('--auto-open', action='store_true', help='Automatically open in Apple Music')
     
+    # Cleanup command
+    cleanup_parser = subparsers.add_parser('cleanup', help='Clean up invalid embeddings from database')
+    cleanup_parser.add_argument('--db-path', default='music_library.db', help='Path to the SQLite database file')
+    
     args = parser.parse_args()
     
     if not args.command:
@@ -216,6 +265,8 @@ Examples:
                 min_similarity=args.min_similarity,
                 auto_open=args.auto_open
             )  # Interactive mode
+        elif args.command == 'cleanup':
+            success = cleanup_embeddings(db_path=args.db_path)
         else:
             parser.print_help()
             return 1

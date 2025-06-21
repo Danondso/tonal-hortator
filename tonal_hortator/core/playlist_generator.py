@@ -9,6 +9,7 @@ import logging
 import time
 import os
 import re
+import urllib.parse
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 import numpy as np
@@ -331,7 +332,6 @@ class LocalPlaylistGenerator:
             return ""
         
         # Remove common suffixes in parentheses
-        import re
         base = re.sub(r'\s*\([^)]*\)\s*$', '', title)
         
         # Remove common suffixes
@@ -358,7 +358,6 @@ class LocalPlaylistGenerator:
         normalized = location.lower().replace('\\', '/')
         
         # Remove common OS-specific prefixes with username
-        import re
         # Match /users/<username>/, /home/<username>/, c:/users/<username>/, etc.
         match = re.match(r"^(?:/users/|/home/|c:/users/|d:/users/|e:/users/)([^/]+)/(.+)$", normalized)
         if match:
@@ -423,7 +422,6 @@ class LocalPlaylistGenerator:
                         # Convert file:// URLs to local paths for better Apple Music compatibility
                         if location.startswith('file://'):
                             # Remove file:// prefix and decode URL encoding
-                            import urllib.parse
                             local_path = urllib.parse.unquote(location[7:])
                             f.write(f"{local_path}\n")
                         else:
