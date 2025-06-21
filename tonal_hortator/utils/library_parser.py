@@ -7,7 +7,7 @@ import logging
 import sqlite3
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Any, Dict, Iterator, Optional
+from typing import Any, Callable, Dict, Iterator, Optional
 
 # Configure logging
 logging.basicConfig(
@@ -110,6 +110,64 @@ class LibraryParser:
             logger.error(f"❌ Failed to parse XML file: {e}")
             return
 
+    def _process_string_field(self, value_elem: ET.Element) -> Optional[str]:
+        """Process a string field from XML"""
+        return value_elem.text
+
+    def _process_int_field(self, value_elem: ET.Element) -> int:
+        """Process an integer field from XML"""
+        return int(value_elem.text) if value_elem.text else 0
+
+    def _process_optional_int_field(self, value_elem: ET.Element) -> Optional[int]:
+        """Process an optional integer field from XML"""
+        return int(value_elem.text) if value_elem.text else None
+
+    def _get_field_processors(self) -> Dict[str, Callable[[ET.Element], Any]]:
+        """Get mapping of field names to their processing functions"""
+        return {
+            "Name": lambda elem: self._process_string_field(elem),
+            "Artist": lambda elem: self._process_string_field(elem),
+            "Album Artist": lambda elem: self._process_string_field(elem),
+            "Composer": lambda elem: self._process_string_field(elem),
+            "Album": lambda elem: self._process_string_field(elem),
+            "Genre": lambda elem: self._process_string_field(elem),
+            "Year": lambda elem: self._process_optional_int_field(elem),
+            "Total Time": lambda elem: self._process_int_field(elem),
+            "Track Number": lambda elem: self._process_int_field(elem),
+            "Disc Number": lambda elem: self._process_int_field(elem),
+            "Play Count": lambda elem: self._process_int_field(elem),
+            "Date Added": lambda elem: self._process_string_field(elem),
+            "Location": lambda elem: self._process_string_field(elem),
+        }
+
+    def _get_field_mapping(self) -> Dict[str, str]:
+        """Get mapping of XML field names to data dictionary keys"""
+        return {
+            "Name": "name",
+            "Artist": "artist",
+            "Album Artist": "album_artist",
+            "Composer": "composer",
+            "Album": "album",
+            "Genre": "genre",
+            "Year": "year",
+            "Total Time": "total_time",
+            "Track Number": "track_number",
+            "Disc Number": "disc_number",
+            "Play Count": "play_count",
+            "Date Added": "date_added",
+            "Location": "location",
+        }
+
+    def _process_track_field(
+        self, key_name: Optional[str], value_elem: ET.Element, data: Dict[str, Any]
+    ) -> None:
+        """Process a single track field based on its key name"""
+        field_processors = self._get_field_processors()
+        field_mapping = self._get_field_mapping()
+
+        if key_name in field_processors and key_name in field_mapping:
+            data[field_mapping[key_name]] = field_processors[key_name](value_elem)
+
     def _extract_track_data(self, track_dict: ET.Element) -> Optional[Dict[str, Any]]:
         """
         Extracts relevant data for a single track from its XML element.
@@ -135,37 +193,12 @@ class LibraryParser:
             "date_added": None,
             "location": None,
         }
+
         it = iter(track_dict)
         for key_elem in it:
             key_name = key_elem.text
             value_elem = next(it)
-
-            if key_name == "Name":
-                data["name"] = value_elem.text
-            elif key_name == "Artist":
-                data["artist"] = value_elem.text
-            elif key_name == "Album Artist":
-                data["album_artist"] = value_elem.text
-            elif key_name == "Composer":
-                data["composer"] = value_elem.text
-            elif key_name == "Album":
-                data["album"] = value_elem.text
-            elif key_name == "Genre":
-                data["genre"] = value_elem.text
-            elif key_name == "Year":
-                data["year"] = int(value_elem.text) if value_elem.text else None
-            elif key_name == "Total Time":
-                data["total_time"] = int(value_elem.text) if value_elem.text else 0
-            elif key_name == "Track Number":
-                data["track_number"] = int(value_elem.text) if value_elem.text else 0
-            elif key_name == "Disc Number":
-                data["disc_number"] = int(value_elem.text) if value_elem.text else 0
-            elif key_name == "Play Count":
-                data["play_count"] = int(value_elem.text) if value_elem.text else 0
-            elif key_name == "Date Added":
-                data["date_added"] = value_elem.text
-            elif key_name == "Location":
-                data["location"] = value_elem.text
+            self._process_track_field(key_name, value_elem, data)
 
         return data if data["name"] else None
 

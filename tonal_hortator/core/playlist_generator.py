@@ -341,14 +341,8 @@ class LocalPlaylistGenerator:
 
         return final_results
 
-    def _smart_title_deduplication(
-        self, tracks: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        """Smart deduplication for titles with slight variations (e.g., 'Song (Remix)' vs 'Song')"""
-        if len(tracks) <= 1:
-            return tracks
-
-        # Group tracks by artist
+    def _group_tracks_by_artist(self, tracks: List[Dict[str, Any]]) -> dict[str, list]:
+        """Group tracks by artist for deduplication"""
         artist_groups: dict[str, list] = {}
         for track in tracks:
             artist = track.get("artist", "").strip().lower()
@@ -356,36 +350,62 @@ class LocalPlaylistGenerator:
                 if artist not in artist_groups:
                     artist_groups[artist] = []
                 artist_groups[artist].append(track)
+        return artist_groups
+
+    def _find_best_track_for_base_title(
+        self, artist_tracks: List[Dict[str, Any]], base_title: str
+    ) -> Optional[Dict[str, Any]]:
+        """Find the track with the highest similarity score for a given base title"""
+        best_track = None
+        best_score = -1
+        for track in artist_tracks:
+            title = track.get("name", "").strip().lower()
+            track_base = self._extract_base_title(title)
+            if track_base == base_title:
+                score = track.get("similarity_score", 0)
+                if score > best_score:
+                    best_score = score
+                    best_track = track
+        return best_track
+
+    def _process_artist_tracks(
+        self, artist_tracks: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """Process tracks for a single artist to remove duplicates"""
+        if len(artist_tracks) == 1:
+            return [artist_tracks[0]]
 
         deduplicated = []
+        processed_titles = set()
 
-        for artist, artist_tracks in artist_groups.items():
-            if len(artist_tracks) == 1:
-                deduplicated.append(artist_tracks[0])
-                continue
+        for track in artist_tracks:
+            title = track.get("name", "").strip().lower()
+            base_title = self._extract_base_title(title)
 
-            # For multiple tracks by same artist, check for similar titles
-            processed_titles = set()
-
-            for track in artist_tracks:
-                title = track.get("name", "").strip().lower()
-                base_title = self._extract_base_title(title)
-
-                if base_title and base_title not in processed_titles:
-                    processed_titles.add(base_title)
-                    # Keep the track with highest similarity score
-                    best_track = track
-                    for other_track in artist_tracks:
-                        other_title = other_track.get("name", "").strip().lower()
-                        other_base = self._extract_base_title(other_title)
-                        if other_base == base_title:
-                            if other_track.get("similarity_score", 0) > best_track.get(
-                                "similarity_score", 0
-                            ):
-                                best_track = other_track
+            if base_title and base_title not in processed_titles:
+                processed_titles.add(base_title)
+                best_track = self._find_best_track_for_base_title(
+                    artist_tracks, base_title
+                )
+                if best_track:
                     deduplicated.append(best_track)
-                elif not base_title:
-                    deduplicated.append(track)
+            elif not base_title:
+                deduplicated.append(track)
+
+        return deduplicated
+
+    def _smart_title_deduplication(
+        self, tracks: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """Smart deduplication for titles with slight variations (e.g., 'Song (Remix)' vs 'Song')"""
+        if len(tracks) <= 1:
+            return tracks
+
+        artist_groups = self._group_tracks_by_artist(tracks)
+        deduplicated = []
+
+        for artist_tracks in artist_groups.values():
+            deduplicated.extend(self._process_artist_tracks(artist_tracks))
 
         return deduplicated
 
@@ -570,6 +590,78 @@ class LocalPlaylistGenerator:
         return None
 
 
+def _check_embeddings_available(generator: LocalPlaylistGenerator) -> bool:
+    """Check if embeddings are available in the database"""
+    stats = generator.track_embedder.get_embedding_stats()
+    logger.info(f"📊 Database stats: {stats}")
+
+    if stats["tracks_with_embeddings"] == 0:
+        logger.warning("No embeddings found. Please run embed_tracks_local.py first.")
+        return False
+    return True
+
+
+def _process_playlist_request(generator: LocalPlaylistGenerator, query: str) -> bool:
+    """Process a single playlist request"""
+    try:
+        # Generate playlist
+        tracks = generator.generate_playlist(query, max_tracks=20)
+
+        if not tracks:
+            print("❌ No tracks found for your query. Try a different search term.")
+            return False
+
+        # Print summary
+        generator.print_playlist_summary(tracks, query)
+
+        # Ask if user wants to save
+        save = input("\nSave playlist to file? (y/n): ").strip().lower()
+        if save in ["y", "yes"]:
+            filepath = generator.save_playlist_m3u(tracks, query)
+            print(f"✅ Playlist saved to: {filepath}")
+
+            # Ask if user wants to open in Apple Music
+            open_music = input("Open in Apple Music? (y/n): ").strip().lower()
+            if open_music in ["y", "yes"]:
+                try:
+                    import subprocess
+
+                    subprocess.run(["open", "-a", "Music", filepath], check=True)
+                    print("🎵 Opened in Apple Music!")
+                except Exception as e:
+                    print(f"❌ Could not open in Apple Music: {e}")
+                    print(
+                        "💡 You can open it manually with: python open_in_apple_music.py"
+                    )
+
+        return True
+
+    except Exception as e:
+        logger.error(f"❌ Error generating playlist: {e}")
+        print(f"❌ Error: {e}")
+        return False
+
+
+def _run_interactive_loop(generator: LocalPlaylistGenerator) -> None:
+    """Run the interactive playlist generation loop"""
+    print("\n🎵 Local Playlist Generator")
+    print("=" * 40)
+
+    while True:
+        query = input("\nEnter your playlist query (or 'quit' to exit): ").strip()
+
+        if query.lower() in ["quit", "exit", "q"]:
+            break
+
+        if not query:
+            print("Please enter a query.")
+            continue
+
+        _process_playlist_request(generator, query)
+
+    print("\n👋 Thanks for using the Local Playlist Generator!")
+
+
 def main() -> None:
     """Main function for interactive playlist generation"""
     try:
@@ -578,70 +670,12 @@ def main() -> None:
         # Initialize generator
         generator = LocalPlaylistGenerator()
 
-        # Get embedding stats
-        stats = generator.track_embedder.get_embedding_stats()
-        logger.info(f"📊 Database stats: {stats}")
-
-        if stats["tracks_with_embeddings"] == 0:
-            logger.warning(
-                "No embeddings found. Please run embed_tracks_local.py first."
-            )
+        # Check if embeddings are available
+        if not _check_embeddings_available(generator):
             return
 
-        # Interactive mode
-        print("\n🎵 Local Playlist Generator")
-        print("=" * 40)
-
-        while True:
-            query = input("\nEnter your playlist query (or 'quit' to exit): ").strip()
-
-            if query.lower() in ["quit", "exit", "q"]:
-                break
-
-            if not query:
-                print("Please enter a query.")
-                continue
-
-            try:
-                # Generate playlist
-                tracks = generator.generate_playlist(query, max_tracks=20)
-
-                if not tracks:
-                    print(
-                        "❌ No tracks found for your query. Try a different search term."
-                    )
-                    continue
-
-                # Print summary
-                generator.print_playlist_summary(tracks, query)
-
-                # Ask if user wants to save
-                save = input("\nSave playlist to file? (y/n): ").strip().lower()
-                if save in ["y", "yes"]:
-                    filepath = generator.save_playlist_m3u(tracks, query)
-                    print(f"✅ Playlist saved to: {filepath}")
-
-                    # Ask if user wants to open in Apple Music
-                    open_music = input("Open in Apple Music? (y/n): ").strip().lower()
-                    if open_music in ["y", "yes"]:
-                        try:
-                            import subprocess
-
-                            subprocess.run(
-                                ["open", "-a", "Music", filepath], check=True
-                            )
-                            print("🎵 Opened in Apple Music!")
-                        except Exception as e:
-                            print(f"❌ Could not open in Apple Music: {e}")
-                            print(
-                                "💡 You can open it manually with: python open_in_apple_music.py"
-                            )
-
-            except Exception as e:
-                logger.error(f"❌ Error generating playlist: {e}")
-                print(f"❌ Error: {e}")
-
-        print("\n👋 Thanks for using the Local Playlist Generator!")
+        # Run interactive loop
+        _run_interactive_loop(generator)
 
     except Exception as e:
         logger.error(f"❌ Error in main function: {e}")

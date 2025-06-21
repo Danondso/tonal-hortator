@@ -80,6 +80,26 @@ class OllamaEmbeddingService:
             logger.error(f"❌ Error getting embedding for text '{text[:50]}...': {e}")
             raise
 
+    def _process_batch(self, batch_texts: List[str]) -> List[np.ndarray]:
+        batch_embeddings = []
+        for text in batch_texts:
+            result = self.client.embeddings(model=self.model_name, prompt=text)
+            batch_embeddings.append(np.array(result["embedding"], dtype=np.float32))
+        return batch_embeddings
+
+    def _fallback_individual_embeddings(
+        self, batch_texts: List[str]
+    ) -> List[np.ndarray]:
+        embeddings = []
+        for text in batch_texts:
+            try:
+                embedding = self.get_embedding(text)
+                embeddings.append(embedding)
+            except Exception as e_ind:
+                logger.error(f"❌ Failed to embed text: '{text[:50]}...': {e_ind}")
+                embeddings.append(np.zeros(768, dtype=np.float32))
+        return embeddings
+
     def get_embeddings_batch(
         self, texts: List[str], batch_size: int = 100
     ) -> List[np.ndarray]:
@@ -115,15 +135,7 @@ class OllamaEmbeddingService:
             batch_start = time.time()
 
             try:
-                # Process texts individually within the batch since the library's batching has issues.
-                batch_embeddings = []
-                for text in batch_texts:
-                    # This call gets a single embedding
-                    result = self.client.embeddings(model=self.model_name, prompt=text)
-                    batch_embeddings.append(
-                        np.array(result["embedding"], dtype=np.float32)
-                    )
-
+                batch_embeddings = self._process_batch(batch_texts)
                 if len(batch_embeddings) == len(batch_texts):
                     all_embeddings.extend(batch_embeddings)
                     batch_time = time.time() - batch_start
@@ -133,7 +145,6 @@ class OllamaEmbeddingService:
                         f"❌ Mismatched embedding count. Got {len(batch_embeddings)} for {len(batch_texts)} prompts."
                     )
                     raise Exception("Incomplete batch response from Ollama library")
-
             except Exception as e:
                 logger.error(
                     f"❌ Batch embedding request failed for batch {batch_num}: {e}"
@@ -141,16 +152,7 @@ class OllamaEmbeddingService:
                 logger.info(
                     "🔄 Falling back to individual embeddings for this batch (redundant, but safe)..."
                 )
-                for text in batch_texts:
-                    try:
-                        embedding = self.get_embedding(text)
-                        all_embeddings.append(embedding)
-                    except Exception as e_ind:
-                        logger.error(
-                            f"❌ Failed to embed text: '{text[:50]}...': {e_ind}"
-                        )
-                        # Assuming nomic-embed-text which has dimension 768
-                        all_embeddings.append(np.zeros(768, dtype=np.float32))
+                all_embeddings.extend(self._fallback_individual_embeddings(batch_texts))
 
         logger.info(f"✅ Generated {len(all_embeddings)} embeddings total")
         return all_embeddings
