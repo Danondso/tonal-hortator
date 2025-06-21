@@ -166,6 +166,96 @@ coverage run -m tonal_hortator.tests.run_tests
 coverage report
 ```
 
+## 🔄 CI/CD & Quality Assurance
+
+This project uses comprehensive GitHub Actions workflows for continuous integration and quality assurance.
+
+### Automated Workflows
+
+- **CI Pipeline** (`.github/workflows/ci.yml`): Runs on every push and PR
+  - **Testing**: Multi-Python version testing (3.11, 3.12)
+  - **Linting**: flake8, black, isort code formatting checks
+  - **Type Checking**: mypy static type analysis
+  - **Security**: bandit and safety vulnerability scanning
+  - **Build**: Package building and validation
+  - **Coverage**: Code coverage reporting
+
+- **CodeQL Security** (`.github/workflows/codeql.yml`): Advanced security analysis
+  - Automated security scanning
+  - Weekly scheduled scans
+  - Vulnerability detection
+
+- **Dependency Review** (`.github/workflows/dependency-review.yml`): Dependency security
+  - Checks for known vulnerabilities in dependencies
+  - Runs on all pull requests
+
+- **Release Pipeline** (`.github/workflows/release.yml`): Automated PyPI publishing
+  - Triggers on GitHub releases
+  - Builds and publishes to PyPI
+
+### Development Tools
+
+Install development dependencies for local quality checks:
+
+```bash
+pip install -r requirements-dev.txt
+```
+
+### Pre-commit Hooks
+
+Set up pre-commit hooks for automatic code quality checks:
+
+```bash
+# Install pre-commit
+pip install pre-commit
+
+# Install the git hook scripts
+pre-commit install
+
+# Run against all files
+pre-commit run --all-files
+```
+
+### Local Quality Checks
+
+Run quality checks locally before committing:
+
+```bash
+# Code formatting
+black .
+isort .
+
+# Linting
+flake8 .
+
+# Type checking
+mypy tonal_hortator/
+
+# Security checks
+bandit -r tonal_hortator/
+safety check
+
+# Tests with coverage
+pytest tests/ -v --cov=tonal_hortator --cov-report=html
+```
+
+### Automated Dependency Updates
+
+Dependabot is configured to automatically:
+- Check for dependency updates weekly
+- Create pull requests for security updates
+- Update both Python packages and GitHub Actions
+
+### Quality Gates
+
+All pull requests must pass:
+- ✅ All tests passing
+- ✅ Code coverage maintained
+- ✅ No linting errors
+- ✅ Type checking passes
+- ✅ Security scans clean
+- ✅ Build successful
+
 ## 🔧 Configuration
 
 ### Environment Variables
@@ -204,6 +294,30 @@ The playlist generator uses multiple deduplication strategies:
 5. Commit your changes: `git commit -am 'Add feature'`
 6. Push to the branch: `git push origin feature-name`
 7. Submit a pull request
+
+### Development Setup
+
+For contributors, set up the full development environment:
+
+```bash
+# Clone and setup
+git clone https://github.com/yourusername/tonal-hortator-v2.git
+cd tonal-hortator-v2
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+pip install -r requirements-dev.txt
+
+# Install pre-commit hooks
+pre-commit install
+
+# Install package in development mode
+pip install -e .
+```
 
 ## 📝 License
 
