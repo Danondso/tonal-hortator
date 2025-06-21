@@ -10,4 +10,4 @@ __all__ = [
     "OllamaEmbeddingService",
     "LocalPlaylistGenerator",
     "LocalTrackEmbedder",
-] 
+]

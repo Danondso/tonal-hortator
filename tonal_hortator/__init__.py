@@ -1,8 +1,9 @@
+#!/usr/bin/env python3
 """
-Tonal Hortator - AI-powered local music playlist generator
+Tonal Hortator - Local Music Playlist Generator
 
-A Python package for generating music playlists using local Ollama embeddings
-and semantic search, with seamless Apple Music integration.
+A Python package that generates music playlists using semantic search
+with local AI embeddings, featuring seamless Apple Music integration.
 """
 
 __version__ = "2.0.0"
@@ -15,6 +16,6 @@ from .core.track_embedder import LocalTrackEmbedder
 
 __all__ = [
     "OllamaEmbeddingService",
-    "LocalPlaylistGenerator", 
+    "LocalPlaylistGenerator",
     "LocalTrackEmbedder",
-] 
+]
