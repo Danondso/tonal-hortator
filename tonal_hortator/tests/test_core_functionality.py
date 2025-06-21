@@ -61,7 +61,7 @@ class TestCoreFunctionality(unittest.TestCase):
         self.conn.close()
 
     @patch("tonal_hortator.core.embeddings.ollama")
-    def test_track_embedding(self, mock_ollama) -> None:
+    def test_track_embedding(self, mock_ollama: Mock) -> None:
         """Test that a single track can be successfully embedded."""
         # Mock the Ollama client and embeddings
         mock_client = Mock()
@@ -88,7 +88,7 @@ class TestCoreFunctionality(unittest.TestCase):
         self.assertEqual(count, 1)
 
     @patch("tonal_hortator.core.embeddings.ollama")
-    def test_playlist_generation(self, mock_ollama) -> None:
+    def test_playlist_generation(self, mock_ollama: Mock) -> None:
         """Test that a simple playlist can be generated."""
         # Mock the Ollama client and embeddings
         mock_client = Mock()
@@ -118,7 +118,7 @@ class TestCoreFunctionality(unittest.TestCase):
         self.assertEqual(playlist[0]["name"], "Test Song")
 
     @patch("tonal_hortator.core.embeddings.ollama")
-    def test_generate_playlist(self, mock_ollama) -> None:
+    def test_generate_playlist(self, mock_ollama: Mock) -> None:
         """Test that a simple playlist can be generated."""
         # Mock the Ollama client and embeddings
         mock_client = Mock()
