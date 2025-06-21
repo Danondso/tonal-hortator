@@ -1,0 +1,16 @@
+InstructorEmbedding
+sentence-transformers>=2.5.0
+numpy<2.0
+huggingface-hub<0.17.0
+coverage
+requests
+pandas
+scikit-learn
+pyyaml
+tonal_hortator
+loguru
+appdirs
+tabulate
+rich
+beets
+ollama
