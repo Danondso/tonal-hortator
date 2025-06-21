@@ -26,6 +26,22 @@ multi_line_output = 3
 line_length = 88
 known_first_party = ["tonal_hortator"]
 sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+skip_glob = [
+    "*/venv/*",
+    "*/.venv/*",
+    "*/env/*",
+    "*/ENV/*",
+    "*/tonal-hortator-v2-env/*",
+    "*/site-packages/*",
+    "*/dist-packages/*",
+    "*/__pycache__/*",
+    "*/build/*",
+    "*/dist/*",
+    "*/.eggs/*",
+    "*/.tox/*",
+    "*/.pytest_cache/*",
+    "*/.mypy_cache/*"
+]
 
 [tool.mypy]
 python_version = "3.11"
