@@ -17,20 +17,18 @@ logger = logging.getLogger(__name__)
 
 
 class LibraryParser:
-    """Parses an Apple Music XML library and stores tracks in a database."""
+    """Parser for Apple Music XML library files."""
 
     def __init__(self, db_path: str = "music_library.db"):
-        """
-        Initializes the LibraryParser.
-
-        Args:
-            db_path: The path to the SQLite database file.
-        """
         self.db_path = db_path
         self._create_table()
 
+        # Cache field processors and mappings as class attributes
+        self._field_processors = self._get_field_processors()
+        self._field_mapping = self._get_field_mapping()
+
     def _create_table(self) -> None:
-        """Creates the 'tracks' table in the database if it doesn't exist."""
+        """Creates the tracks table if it doesn't exist."""
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
@@ -162,11 +160,10 @@ class LibraryParser:
         self, key_name: Optional[str], value_elem: ET.Element, data: Dict[str, Any]
     ) -> None:
         """Process a single track field based on its key name"""
-        field_processors = self._get_field_processors()
-        field_mapping = self._get_field_mapping()
-
-        if key_name in field_processors and key_name in field_mapping:
-            data[field_mapping[key_name]] = field_processors[key_name](value_elem)
+        if key_name in self._field_processors and key_name in self._field_mapping:
+            data[self._field_mapping[key_name]] = self._field_processors[key_name](
+                value_elem
+            )
 
     def _extract_track_data(self, track_dict: ET.Element) -> Optional[Dict[str, Any]]:
         """
