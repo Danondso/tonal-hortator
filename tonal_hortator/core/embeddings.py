@@ -4,73 +4,101 @@ Local embedding service using Ollama
 Provides embeddings for music tracks without requiring internet or HuggingFace
 """
 
-import logging
 import time
 from typing import Any, Dict, List, Optional
 
 import numpy as np
 import ollama
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 
 class OllamaEmbeddingService:
-    """Local embedding service using Ollama"""
+    """Service for generating embeddings using Ollama."""
 
     def __init__(
         self, model_name: str = "nomic-embed-text:latest", host: Optional[str] = None
     ):
-        """
-        Initialize the Ollama embedding service
-
-        Args:
-            model_name: Name of the embedding model in Ollama
-            host: Ollama API host URL (e.g., http://localhost:11434)
-        """
         self.model_name = model_name
-        self.client = ollama.Client(host=host)
-
-        # Test connection
+        self.host = host
+        self.client: Optional[ollama.Client] = None
+        self._embedding_dimension: Optional[int] = None  # Cache for embedding dimension
         self._test_connection()
 
     def _test_connection(self) -> None:
-        """Test connection to Ollama service"""
+        """Test connection to Ollama and validate model availability."""
         try:
-            models = self.client.list().get("models", [])
-            model_names = [model.get("name", "") for model in models]
-            if self.model_name in model_names:
-                logger.info(
-                    f"✅ Connected to Ollama and found model: {self.model_name}"
-                )
-            else:
+            self.client = ollama.Client(host=self.host)
+            if self.client is None:
+                raise Exception("Failed to initialize Ollama client")
+
+            models = self.client.list()
+            model_names = [model["name"] for model in models["models"]]
+
+            if self.model_name not in model_names:
                 logger.warning(
-                    f"⚠️  Model {self.model_name} not found in Ollama. Available models: {model_names}"
+                    f"⚠️  Model '{self.model_name}' not found in available models: {model_names}"
                 )
-                logger.info(f"Attempting to pull model '{self.model_name}'...")
-                self.client.pull(self.model_name)
-                logger.info(f"✅ Successfully pulled model '{self.model_name}'")
+                logger.info("💡 Available models:")
+                for model in models["models"]:
+                    logger.info(f"   - {model['name']}")
+                raise Exception(f"Model '{self.model_name}' not available")
+
+            logger.info(f"✅ Connected to Ollama with model: {self.model_name}")
+
+            # Get embedding dimension from a test embedding
+            self._get_embedding_dimension()
+
         except Exception as e:
-            logger.error(f"❌ Error connecting to Ollama or pulling model: {e}")
+            logger.error(f"❌ Failed to connect to Ollama: {e}")
             raise
+
+    def _get_embedding_dimension(self) -> int:
+        """Get the embedding dimension from the model by making a test embedding."""
+        if self._embedding_dimension is not None:
+            return self._embedding_dimension
+
+        if self.client is None:
+            raise Exception("Ollama client not initialized")
+
+        try:
+            # Use a simple test text to get the embedding dimension
+            test_text = "test"
+            result = self.client.embeddings(model=self.model_name, prompt=test_text)
+            self._embedding_dimension = len(result["embedding"])
+            logger.info(f"📏 Detected embedding dimension: {self._embedding_dimension}")
+            return self._embedding_dimension
+        except Exception as e:
+            logger.error(f"❌ Failed to get embedding dimension: {e}")
+            # Fallback to a reasonable default
+            self._embedding_dimension = 384
+            logger.warning(
+                f"⚠️  Using fallback embedding dimension: {self._embedding_dimension}"
+            )
+            return self._embedding_dimension
 
     def get_embedding(self, text: str) -> np.ndarray:
         """
         Get embedding for a single text string
 
         Args:
-            text: Text to embed
+            text: Text string to embed
 
         Returns:
-            numpy array of the embedding
+            Numpy array representing the embedding
         """
+        if self.client is None:
+            raise Exception("Ollama client not initialized")
+
+        if not text or not text.strip():
+            logger.warning("Empty text provided for embedding")
+            return np.zeros(self._get_embedding_dimension(), dtype=np.float32)
+
         try:
             start_time = time.time()
             result = self.client.embeddings(model=self.model_name, prompt=text)
+            embedding = np.array(result["embedding"], dtype=np.float32)
             embedding_time = time.time() - start_time
 
-            embedding = np.array(result["embedding"], dtype=np.float32)
             logger.debug(
                 f"Generated embedding in {embedding_time:.3f}s (dim: {len(embedding)})"
             )
@@ -81,6 +109,9 @@ class OllamaEmbeddingService:
             raise
 
     def _process_batch(self, batch_texts: List[str]) -> List[np.ndarray]:
+        if self.client is None:
+            raise Exception("Ollama client not initialized")
+
         batch_embeddings = []
         for text in batch_texts:
             result = self.client.embeddings(model=self.model_name, prompt=text)
@@ -91,13 +122,14 @@ class OllamaEmbeddingService:
         self, batch_texts: List[str]
     ) -> List[np.ndarray]:
         embeddings = []
+        embedding_dim = self._get_embedding_dimension()
         for text in batch_texts:
             try:
                 embedding = self.get_embedding(text)
                 embeddings.append(embedding)
             except Exception as e_ind:
                 logger.error(f"❌ Failed to embed text: '{text[:50]}...': {e_ind}")
-                embeddings.append(np.zeros(768, dtype=np.float32))
+                embeddings.append(np.zeros(embedding_dim, dtype=np.float32))
         return embeddings
 
     def get_embeddings_batch(
