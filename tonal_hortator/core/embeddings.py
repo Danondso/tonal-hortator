@@ -24,6 +24,46 @@ class OllamaEmbeddingService:
         self._embedding_dimension: Optional[int] = None  # Cache for embedding dimension
         self._test_connection()
 
+    def _extract_model_list(self, models_response: object) -> list[Any]:
+        """Extract model list from various response formats"""
+        if hasattr(models_response, "models"):
+            # ListResponse object
+            return list(models_response.models)
+        elif isinstance(models_response, dict) and "models" in models_response:
+            return list(models_response["models"])
+        elif isinstance(models_response, list):
+            return models_response
+        else:
+            raise Exception(
+                f"Unexpected models response format: {type(models_response)}"
+            )
+
+    def _extract_model_names(self, model_list: list[Any]) -> list[str]:
+        """Extract model names from model list"""
+        model_names: list[str] = []
+        for model in model_list:
+            if hasattr(model, "model"):
+                # Model object
+                model_names.append(model.model)
+            elif isinstance(model, dict) and "name" in model:
+                model_names.append(model["name"])
+            elif isinstance(model, str):
+                model_names.append(model)
+            else:
+                logger.warning(f"Skipping invalid model entry: {model}")
+        return model_names
+
+    def _validate_model_availability(self, model_names: List[str]) -> None:
+        """Validate that the required model is available"""
+        if self.model_name not in model_names:
+            logger.warning(
+                f"⚠️  Model '{self.model_name}' not found in available models: {model_names}"
+            )
+            logger.info("💡 Available models:")
+            for name in model_names:
+                logger.info(f"   - {name}")
+            raise Exception(f"Model '{self.model_name}' not available")
+
     def _test_connection(self) -> None:
         """Test connection to Ollama and validate model availability."""
         try:
@@ -32,16 +72,14 @@ class OllamaEmbeddingService:
                 raise Exception("Failed to initialize Ollama client")
 
             models = self.client.list()
-            model_names = [model["name"] for model in models["models"]]
+            logger.debug(f"Ollama models response: {models}")
 
-            if self.model_name not in model_names:
-                logger.warning(
-                    f"⚠️  Model '{self.model_name}' not found in available models: {model_names}"
-                )
-                logger.info("💡 Available models:")
-                for model in models["models"]:
-                    logger.info(f"   - {model['name']}")
-                raise Exception(f"Model '{self.model_name}' not available")
+            # Extract model list and names
+            model_list = self._extract_model_list(models)
+            model_names = self._extract_model_names(model_list)
+
+            # Validate model availability
+            self._validate_model_availability(model_names)
 
             logger.info(f"✅ Connected to Ollama with model: {self.model_name}")
 
