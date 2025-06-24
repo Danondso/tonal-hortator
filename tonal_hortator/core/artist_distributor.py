@@ -144,7 +144,10 @@ class ArtistDistributor:
         """Group tracks by artist"""
         artist_groups: dict[str, list] = {}
         for track in tracks:
-            artist = track.get("artist", "").strip()
+            artist = track.get("artist", "")
+            if artist is None:
+                artist = ""
+            artist = artist.strip()
             if artist:
                 if artist not in artist_groups:
                     artist_groups[artist] = []

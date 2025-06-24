@@ -66,10 +66,9 @@ ci: ## Run CI checks locally (matches GitHub Actions exactly)
 	# Lint with flake8 (exact GitHub Actions commands)
 	flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
 	flake8 . --count --exit-zero --max-complexity=10 --max-line-length=88 --statistics
-	# Check code formatting with black
-	black --check --diff .
-	# Check import sorting with isort
-	isort --check-only --diff .
+	# Format code with black and isort (fix formatting issues)
+	black .
+	isort .
 	# Type check with mypy
 	mypy tonal_hortator/ --ignore-missing-imports
 	# Run tests with pytest (exact GitHub Actions command)

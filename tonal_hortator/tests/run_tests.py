@@ -19,10 +19,20 @@ def create_test_suite() -> unittest.TestSuite:
     loader = unittest.TestLoader()
 
     # Import test cases
+    from tonal_hortator.tests.test_artist_distributor import TestArtistDistributor
+    from tonal_hortator.tests.test_cli import TestCLI, TestCLIImports
     from tonal_hortator.tests.test_core_functionality import TestCoreFunctionality
+    from tonal_hortator.tests.test_track_embedder import TestLocalTrackEmbedder
+    from tonal_hortator.tests.test_utils import TestAppleMusicUtils, TestLibraryParser
 
     # Add tests to suite
     test_suite.addTest(loader.loadTestsFromTestCase(TestCoreFunctionality))
+    test_suite.addTest(loader.loadTestsFromTestCase(TestCLI))
+    test_suite.addTest(loader.loadTestsFromTestCase(TestCLIImports))
+    test_suite.addTest(loader.loadTestsFromTestCase(TestAppleMusicUtils))
+    test_suite.addTest(loader.loadTestsFromTestCase(TestLibraryParser))
+    test_suite.addTest(loader.loadTestsFromTestCase(TestArtistDistributor))
+    test_suite.addTest(loader.loadTestsFromTestCase(TestLocalTrackEmbedder))
 
     return test_suite
 
