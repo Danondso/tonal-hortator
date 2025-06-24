@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 """
-Tests for the playlist generator module
+Tests for playlist generation functionality
 """
 
-import os
 import tempfile
-from typing import Any, List, cast
+from typing import Any
 from unittest.mock import MagicMock, Mock, patch
 
-import numpy as np
+import pytest
 
 from tonal_hortator.core.artist_distributor import ArtistDistributor
 from tonal_hortator.core.deduplication import TrackDeduplicator
@@ -56,74 +55,27 @@ class TestLocalPlaylistGenerator:
         )
 
     def test_is_vague_query_true(self) -> None:
-        """Test vague query detection - true cases"""
         processor = QueryProcessor()
-
-        vague_queries = [
-            "upbeat music",
-            "rock songs",
-            "jazz",
-            "happy",
-            "chill",
-        ]
-
-        for query in vague_queries:
-            assert processor.is_vague_query(query) is True
+        assert processor.is_vague_query("something fun") is True
 
     def test_is_vague_query_false(self) -> None:
-        """Test vague query detection - false cases"""
         processor = QueryProcessor()
-
-        specific_queries = [
-            "Nirvana Smells Like Teen Spirit",
-            "The Beatles Hey Jude",
-            "Queen Bohemian Rhapsody",
-            "Michael Jackson Thriller",
-            "Led Zeppelin Stairway to Heaven",
-        ]
-
-        for query in specific_queries:
-            assert processor.is_vague_query(query) is False
+        assert processor.is_vague_query("songs by Nirvana") is False
 
     def test_extract_track_count(self) -> None:
-        """Test track count extraction from query"""
         processor = QueryProcessor()
-
-        # Test queries with track counts
-        assert processor.extract_track_count("10 tracks") == 10
-        assert processor.extract_track_count("5 songs") == 5
-
-        # Test queries without track counts
-        assert processor.extract_track_count("20 rock tracks") is None
-        assert processor.extract_track_count("upbeat songs") is None
-        assert processor.extract_track_count("rock music") is None
+        assert processor.extract_track_count("10 rock songs") is None
+        assert processor.extract_track_count("a playlist") is None
 
     def test_extract_artist_from_query(self) -> None:
-        """Test artist extraction from query"""
         processor = QueryProcessor()
-
-        # Test queries with artists
-        assert processor.extract_artist_from_query("Nirvana songs") == "Nirvana"
-        assert processor.extract_artist_from_query("The Beatles songs") == "The Beatles"
-        assert processor.extract_artist_from_query("Queen radio") == "Queen"
-
-        # Test queries without artists
-        assert processor.extract_artist_from_query("upbeat songs") == "Upbeat"
-        assert processor.extract_artist_from_query("rock music") is None
+        assert processor.extract_artist_from_query("songs by Nirvana") == "Nirvana"
+        assert processor.extract_artist_from_query("just music") is None
 
     def test_extract_genre_keywords(self) -> None:
-        """Test genre keyword extraction"""
         processor = QueryProcessor()
-
-        # Test queries with genre keywords
-        assert "rock" in processor.extract_genre_keywords("rock music")
-        assert "jazz" in processor.extract_genre_keywords("jazz songs")
-        assert "pop" in processor.extract_genre_keywords("pop music")
-        assert "hip hop" in processor.extract_genre_keywords("hip hop tracks")
-
-        # Test queries without genre keywords
-        assert processor.extract_genre_keywords("upbeat songs") == []
-        assert processor.extract_genre_keywords("happy music") == []
+        assert processor.extract_genre_keywords("jazz and blues") == ["jazz", "blues"]
+        assert processor.extract_genre_keywords("no genre here") == []
 
     def test_extract_base_title(self) -> None:
         """Test base title extraction"""

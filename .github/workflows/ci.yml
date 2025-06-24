@@ -58,11 +58,14 @@ jobs:
     - name: Run tests with pytest
       run: |
         pytest tonal_hortator/tests/ -v --cov=tonal_hortator --cov-report=xml --cov-report=term-missing
-    
+
+    - name: Enforce coverage percentage gate
+      run: |
+        coverage report --fail-under=85
+
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v5
       with:
-        file: ./coverage.xml
         flags: unittests
         name: codecov-umbrella
         fail_ci_if_error: false
