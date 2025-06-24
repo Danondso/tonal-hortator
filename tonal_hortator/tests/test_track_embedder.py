@@ -59,9 +59,45 @@ class TestLocalTrackEmbedder(unittest.TestCase):
 
         # Insert some test tracks
         test_tracks = [
-            (1, "Test Song 1", "Test Artist 1", "Test Album 1", "Rock", 2023, 42, "Test Artist 1", "Test Composer 1", 120, "/path/to/song1.mp3"),
-            (2, "Test Song 2", "Test Artist 2", "Test Album 2", "Jazz", 2022, 15, "Test Artist 2", "Test Composer 2", 90, "/path/to/song2.mp3"),
-            (3, "Test Song 3", "Test Artist 3", "Test Album 3", "Pop", 2021, 30, "Test Artist 3", "Test Composer 3", 110, "/path/to/song3.mp3"),
+            (
+                1,
+                "Test Song 1",
+                "Test Artist 1",
+                "Test Album 1",
+                "Rock",
+                2023,
+                42,
+                "Test Artist 1",
+                "Test Composer 1",
+                120,
+                "/path/to/song1.mp3",
+            ),
+            (
+                2,
+                "Test Song 2",
+                "Test Artist 2",
+                "Test Album 2",
+                "Jazz",
+                2022,
+                15,
+                "Test Artist 2",
+                "Test Composer 2",
+                90,
+                "/path/to/song2.mp3",
+            ),
+            (
+                3,
+                "Test Song 3",
+                "Test Artist 3",
+                "Test Album 3",
+                "Pop",
+                2021,
+                30,
+                "Test Artist 3",
+                "Test Composer 3",
+                110,
+                "/path/to/song3.mp3",
+            ),
         ]
 
         self.cursor.executemany(
@@ -264,7 +300,9 @@ class TestLocalTrackEmbedder(unittest.TestCase):
         embedder = LocalTrackEmbedder(db_path=self.db_path, conn=self.conn)
 
         # Patch create_track_embedding_text to return a string
-        embedder.embedding_service.create_track_embedding_text = lambda track: f"{track['title']}, {track['artist']}"
+        embedder.embedding_service.create_track_embedding_text = (
+            lambda track: f"{track['title']}, {track['artist']}"
+        )
 
         # Create test tracks
         tracks = [
@@ -288,7 +326,9 @@ class TestLocalTrackEmbedder(unittest.TestCase):
             np.random.rand(384).astype(np.float32),
             np.random.rand(384).astype(np.float32),
         ]
-        embedder.embedding_service.get_embeddings_batch = mock_embedding_service.get_embeddings_batch
+        embedder.embedding_service.get_embeddings_batch = (
+            mock_embedding_service.get_embeddings_batch
+        )
 
         result = embedder.embed_tracks_batch(tracks, batch_size=1)
 
@@ -397,7 +437,11 @@ class TestLocalTrackEmbedder(unittest.TestCase):
         # Create test data with duplicate track ID
         tracks = [
             {"id": 1, "title": "Test Song 1", "artist": "Test Artist 1"},
-            {"id": 1, "title": "Test Song 1", "artist": "Test Artist 1"},  # Duplicate ID
+            {
+                "id": 1,
+                "title": "Test Song 1",
+                "artist": "Test Artist 1",
+            },  # Duplicate ID
         ]
         embeddings = [
             np.random.rand(384).astype(np.float32),

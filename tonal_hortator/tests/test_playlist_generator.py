@@ -53,8 +53,13 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
 
         # Mock embeddings and track data
         mock_embeddings = [[0.1] * 384] * 5
-        mock_track_data = [{"id": i, "name": f"Track {i}", "artist": f"Artist {i}"} for i in range(5)]
-        self.mock_track_embedder.get_all_embeddings.return_value = (mock_embeddings, mock_track_data)
+        mock_track_data = [
+            {"id": i, "name": f"Track {i}", "artist": f"Artist {i}"} for i in range(5)
+        ]
+        self.mock_track_embedder.get_all_embeddings.return_value = (
+            mock_embeddings,
+            mock_track_data,
+        )
 
         # Mock similarity search results
         mock_tracks = [
@@ -66,7 +71,9 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
 
         # Mock deduplication and artist randomization
         self.mock_deduplicator.deduplicate_tracks.return_value = mock_tracks
-        self.mock_artist_distributor.apply_artist_randomization.return_value = mock_tracks
+        self.mock_artist_distributor.apply_artist_randomization.return_value = (
+            mock_tracks
+        )
 
         # Generate playlist
         result = self.generator.generate_playlist(mock_query, max_tracks=3)
@@ -76,7 +83,9 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         self.assertEqual(result[0]["name"], "Song 1")
 
         # Verify method calls
-        self.mock_query_processor.extract_track_count.assert_called_once_with(mock_query)
+        self.mock_query_processor.extract_track_count.assert_called_once_with(
+            mock_query
+        )
         self.mock_track_embedder.get_all_embeddings.assert_called_once()
         self.mock_embedding_service.similarity_search.assert_called_once()
         self.mock_deduplicator.deduplicate_tracks.assert_called_once()
@@ -112,8 +121,13 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
 
         # Mock embeddings and track data
         mock_embeddings = [[0.1] * 384] * 5
-        mock_track_data = [{"id": i, "name": f"Track {i}", "artist": f"Artist {i}"} for i in range(5)]
-        self.mock_track_embedder.get_all_embeddings.return_value = (mock_embeddings, mock_track_data)
+        mock_track_data = [
+            {"id": i, "name": f"Track {i}", "artist": f"Artist {i}"} for i in range(5)
+        ]
+        self.mock_track_embedder.get_all_embeddings.return_value = (
+            mock_embeddings,
+            mock_track_data,
+        )
 
         # Mock similarity search results
         mock_tracks = [
@@ -124,7 +138,9 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
 
         # Mock deduplication and artist randomization
         self.mock_deduplicator.deduplicate_tracks.return_value = mock_tracks
-        self.mock_artist_distributor.apply_artist_randomization.return_value = mock_tracks
+        self.mock_artist_distributor.apply_artist_randomization.return_value = (
+            mock_tracks
+        )
 
         # Generate playlist
         result = self.generator.generate_playlist(mock_query, max_tracks=2)
@@ -141,7 +157,9 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         """Test playlist generation with exception handling"""
         # Mock query processing to raise exception
         mock_query = "test query"
-        self.mock_track_embedder.get_all_embeddings.side_effect = Exception("Database error")
+        self.mock_track_embedder.get_all_embeddings.side_effect = Exception(
+            "Database error"
+        )
 
         # Generate playlist
         with self.assertRaises(Exception):
@@ -158,8 +176,13 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
 
         # Mock embeddings and track data
         mock_embeddings = [[0.1] * 384] * 5
-        mock_track_data = [{"id": i, "name": f"Track {i}", "artist": f"Artist {i}"} for i in range(5)]
-        self.mock_track_embedder.get_all_embeddings.return_value = (mock_embeddings, mock_track_data)
+        mock_track_data = [
+            {"id": i, "name": f"Track {i}", "artist": f"Artist {i}"} for i in range(5)
+        ]
+        self.mock_track_embedder.get_all_embeddings.return_value = (
+            mock_embeddings,
+            mock_track_data,
+        )
 
         # Mock similarity search results
         mock_tracks = [
@@ -173,7 +196,9 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
 
         # Mock deduplication and artist randomization
         self.mock_deduplicator.deduplicate_tracks.return_value = mock_tracks
-        self.mock_artist_distributor.apply_artist_randomization.return_value = mock_tracks
+        self.mock_artist_distributor.apply_artist_randomization.return_value = (
+            mock_tracks
+        )
 
         # Generate playlist with custom max_tracks
         result = self.generator.generate_playlist(mock_query, max_tracks=5)
@@ -194,7 +219,9 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         result = self.generator._extract_playlist_parameters(mock_query, 20)
 
         self.assertEqual(result, 15)
-        self.mock_query_processor.extract_track_count.assert_called_once_with(mock_query)
+        self.mock_query_processor.extract_track_count.assert_called_once_with(
+            mock_query
+        )
 
     def test_filter_by_artist_with_artist(self):
         """Test filtering by artist when artist is found in query"""
@@ -203,7 +230,11 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
 
         mock_results = [
             {"name": "Bohemian Rhapsody", "artist": "Queen", "similarity_score": 0.8},
-            {"name": "Stairway to Heaven", "artist": "Led Zeppelin", "similarity_score": 0.7},
+            {
+                "name": "Stairway to Heaven",
+                "artist": "Led Zeppelin",
+                "similarity_score": 0.7,
+            },
         ]
 
         result = self.generator._filter_by_artist(mock_query, mock_results)
@@ -217,8 +248,18 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         self.mock_query_processor.extract_genre_keywords.return_value = ["rock"]
 
         mock_results = [
-            {"name": "Rock Song", "artist": "Rock Artist", "genre": "rock", "similarity_score": 0.8},
-            {"name": "Jazz Song", "artist": "Jazz Artist", "genre": "jazz", "similarity_score": 0.7},
+            {
+                "name": "Rock Song",
+                "artist": "Rock Artist",
+                "genre": "rock",
+                "similarity_score": 0.8,
+            },
+            {
+                "name": "Jazz Song",
+                "artist": "Jazz Artist",
+                "genre": "jazz",
+                "similarity_score": 0.7,
+            },
         ]
 
         result = self.generator._apply_genre_filtering(mock_query, mock_results)

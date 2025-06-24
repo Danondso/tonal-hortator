@@ -6,8 +6,8 @@ Tests for playlist output functionality
 import os
 import tempfile
 import unittest
-from unittest.mock import Mock, patch, mock_open
 from datetime import datetime
+from unittest.mock import Mock, mock_open, patch
 
 from tonal_hortator.core.playlist_output import PlaylistOutput
 
@@ -49,7 +49,9 @@ class TestPlaylistOutput(unittest.TestCase):
         """Test successful M3U playlist creation"""
         with tempfile.TemporaryDirectory() as temp_dir:
             query = "Classic Rock Songs"
-            filepath = self.output.save_playlist_m3u(self.sample_tracks, query, temp_dir)
+            filepath = self.output.save_playlist_m3u(
+                self.sample_tracks, query, temp_dir
+            )
 
             # Check file was created
             self.assertTrue(os.path.exists(filepath))
@@ -72,7 +74,9 @@ class TestPlaylistOutput(unittest.TestCase):
 
             # Check file paths
             self.assertIn("/Users/test/Music/Queen/Bohemian Rhapsody.mp3", content)
-            self.assertIn("/Users/test/Music/Led Zeppelin/Stairway to Heaven.mp3", content)
+            self.assertIn(
+                "/Users/test/Music/Led Zeppelin/Stairway to Heaven.mp3", content
+            )
 
             # Check metadata
             self.assertIn("Album: A Night at the Opera", content)
@@ -97,7 +101,7 @@ class TestPlaylistOutput(unittest.TestCase):
             # Should create a valid filename without problematic characters
             self.assertIsNotNone(filepath)
             self.assertTrue(os.path.exists(filepath))
-            
+
             # Check that the filename contains the sanitized query
             filename = os.path.basename(filepath)
             self.assertIn("Rock-Roll-Heavy-Metal-90s", filename)
@@ -106,7 +110,9 @@ class TestPlaylistOutput(unittest.TestCase):
         """Test M3U playlist creation with very long query"""
         with tempfile.TemporaryDirectory() as temp_dir:
             long_query = "A" * 100  # Very long query
-            filepath = self.output.save_playlist_m3u(self.sample_tracks, long_query, temp_dir)
+            filepath = self.output.save_playlist_m3u(
+                self.sample_tracks, long_query, temp_dir
+            )
 
             # Check filename length is limited
             filename = os.path.basename(filepath)
@@ -127,7 +133,9 @@ class TestPlaylistOutput(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             query = "Test Query"
-            filepath = self.output.save_playlist_m3u(tracks_with_missing, query, temp_dir)
+            filepath = self.output.save_playlist_m3u(
+                tracks_with_missing, query, temp_dir
+            )
 
             with open(filepath, "r", encoding="utf-8") as f:
                 content = f.read()
@@ -136,7 +144,9 @@ class TestPlaylistOutput(unittest.TestCase):
             self.assertIn("#EXTINF:0,Unknown Artist - Unknown Track", content)
             self.assertIn("Album: Unknown Album", content)
             self.assertIn("Similarity: 0.000", content)
-            self.assertIn("# Missing file location for: Unknown Artist - Unknown Track", content)
+            self.assertIn(
+                "# Missing file location for: Unknown Artist - Unknown Track", content
+            )
 
     def test_save_playlist_m3u_url_encoding(self):
         """Test M3U playlist creation with URL-encoded file paths"""
@@ -153,13 +163,17 @@ class TestPlaylistOutput(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             query = "Test"
-            filepath = self.output.save_playlist_m3u(tracks_with_encoded, query, temp_dir)
+            filepath = self.output.save_playlist_m3u(
+                tracks_with_encoded, query, temp_dir
+            )
 
             with open(filepath, "r", encoding="utf-8") as f:
                 content = f.read()
 
             # Check URL decoding
-            self.assertIn("/Users/test/Music/Test Artist/Test Song with Spaces.mp3", content)
+            self.assertIn(
+                "/Users/test/Music/Test Artist/Test Song with Spaces.mp3", content
+            )
             self.assertNotIn("%20", content)
 
     def test_save_playlist_m3u_non_file_url(self):
@@ -191,7 +205,9 @@ class TestPlaylistOutput(unittest.TestCase):
             mock_makedirs.side_effect = PermissionError("Permission denied")
 
             with self.assertRaises(PermissionError):
-                self.output.save_playlist_m3u(self.sample_tracks, "Test", "invalid/path")
+                self.output.save_playlist_m3u(
+                    self.sample_tracks, "Test", "invalid/path"
+                )
 
     def test_save_playlist_m3u_write_error(self):
         """Test M3U playlist creation with file write errors"""
@@ -296,7 +312,9 @@ class TestPlaylistOutput(unittest.TestCase):
         """Test M3U playlist creation timestamp format"""
         with tempfile.TemporaryDirectory() as temp_dir:
             query = "Test"
-            filepath = self.output.save_playlist_m3u(self.sample_tracks, query, temp_dir)
+            filepath = self.output.save_playlist_m3u(
+                self.sample_tracks, query, temp_dir
+            )
 
             # Check timestamp format in filename
             filename = os.path.basename(filepath)
@@ -305,8 +323,10 @@ class TestPlaylistOutput(unittest.TestCase):
             # Check timestamp format in file content
             with open(filepath, "r", encoding="utf-8") as f:
                 content = f.read()
-                self.assertRegex(content, r"Generated: \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}")
+                self.assertRegex(
+                    content, r"Generated: \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}"
+                )
 
 
 if __name__ == "__main__":
-    unittest.main() 
+    unittest.main()

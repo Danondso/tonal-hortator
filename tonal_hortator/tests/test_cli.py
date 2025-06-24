@@ -135,9 +135,7 @@ class TestCLI(unittest.TestCase):
             result = self.cli.process_playlist_request("test query")
 
         self.assertTrue(result)
-        mock_output.save_playlist_m3u.assert_called_once_with(
-            mock_tracks, "test query"
-        )
+        mock_output.save_playlist_m3u.assert_called_once_with(mock_tracks, "test query")
 
     @patch("subprocess.run")
     def test_process_playlist_request_open_music(self, mock_subprocess):

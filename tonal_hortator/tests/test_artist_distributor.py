@@ -150,7 +150,9 @@ class TestArtistDistributor(unittest.TestCase):
                 }
             )
 
-        with patch("tonal_hortator.core.artist_distributor.random.shuffle") as mock_shuffle:
+        with patch(
+            "tonal_hortator.core.artist_distributor.random.shuffle"
+        ) as mock_shuffle:
             result = self.distributor.apply_artist_randomization(
                 diverse_tracks, 10, is_vague=True
             )
@@ -161,7 +163,7 @@ class TestArtistDistributor(unittest.TestCase):
         # Debug: Let's check if the method is actually calling shuffle
         # The issue might be that the method is not entering the shuffle condition
         # Let's check the actual implementation logic
-        
+
         # For now, let's just check that the method returns the expected result
         # and skip the shuffle assertion until we understand the logic better
         self.assertEqual(len(result), 6)
