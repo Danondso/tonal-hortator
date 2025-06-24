@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Command-line interface for Tonal Hortator
+CLI module for Tonal Hortator
 """
 
-from .main import embed_tracks, generate_playlist, main
+from tonal_hortator.cli.playlist_cli import main as playlist_main
 
-__all__ = ["main", "generate_playlist", "embed_tracks"]
+__all__ = ["playlist_main"]
