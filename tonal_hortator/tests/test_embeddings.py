@@ -285,7 +285,7 @@ class TestOllamaEmbeddingService:
         service = OllamaEmbeddingService()
 
         track_data = {
-            "title": "Test Song",
+            "name": "Test Song",
             "artist": "Test Artist",
             "album": "Test Album",
             "genre": "Rock",
@@ -311,7 +311,7 @@ class TestOllamaEmbeddingService:
 
         service = OllamaEmbeddingService()
 
-        track_data = {"title": "Test Song", "artist": "Test Artist"}
+        track_data = {"name": "Test Song", "artist": "Test Artist"}
 
         result = service.create_track_embedding_text(track_data)
 
@@ -337,9 +337,9 @@ class TestOllamaEmbeddingService:
             np.array([0.2, 0.3, 0.4], dtype=np.float32),
         ]
         track_data = [
-            {"title": "Track 1", "artist": "Artist 1"},
-            {"title": "Track 2", "artist": "Artist 2"},
-            {"title": "Track 3", "artist": "Artist 3"},
+            {"name": "Track 1", "artist": "Artist 1"},
+            {"name": "Track 2", "artist": "Artist 2"},
+            {"name": "Track 3", "artist": "Artist 3"},
         ]
 
         # Mock the embedding generation for the query
@@ -352,8 +352,8 @@ class TestOllamaEmbeddingService:
         )
 
         assert len(results) == 2
-        assert results[0]["title"] == "Track 1"  # Highest similarity
-        assert results[1]["title"] == "Track 3"  # Second highest similarity
+        assert results[0]["name"] == "Track 1"  # Highest similarity
+        assert results[1]["name"] == "Track 3"  # Second highest similarity
 
     @patch("tonal_hortator.core.embeddings.ollama.Client")
     def test_similarity_search_empty_data(self, mock_client_class: Mock) -> None:
@@ -403,3 +403,29 @@ class TestOllamaEmbeddingService:
 
         # Should use the detected dimension (2)
         assert service._embedding_dimension == 2
+
+    # Test data
+    test_tracks = [
+        {
+            "id": 1,
+            "name": "Test Song 1",
+            "artist": "Test Artist 1",
+            "album": "Test Album 1",
+            "genre": "Rock",
+            "year": 2020,
+            "play_count": 10,
+            "bpm": 120,
+            "location": "/path/to/song1.mp3",
+        },
+        {
+            "id": 2,
+            "name": "Test Song 2",
+            "artist": "Test Artist 2",
+            "album": "Test Album 2",
+            "genre": "Jazz",
+            "year": 2021,
+            "play_count": 5,
+            "bpm": 90,
+            "location": "/path/to/song2.mp3",
+        },
+    ]

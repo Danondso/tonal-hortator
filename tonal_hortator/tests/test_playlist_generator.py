@@ -150,21 +150,21 @@ class TestLocalPlaylistGenerator:
 
     @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
     @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
-    def test_extract_base_title(
+    def test_extract_base_name(
         self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
     ) -> None:
-        """Test base title extraction"""
+        """Test base name extraction"""
         generator = LocalPlaylistGenerator()
 
-        # Test with common suffixes
-        assert generator._extract_base_title("Song (Remix)") == "Song"
-        assert generator._extract_base_title("Track (Live)") == "Track"
-        assert generator._extract_base_title("Music (Acoustic)") == "Music"
-        assert generator._extract_base_title("Hit (Radio Edit)") == "Hit"
+        # Test various name patterns
+        assert generator._extract_base_name("Song (Remix)") == "Song"
+        assert generator._extract_base_name("Track (Live)") == "Track"
+        assert generator._extract_base_name("Music (Acoustic)") == "Music"
+        assert generator._extract_base_name("Hit (Radio Edit)") == "Hit"
 
-        # Test without suffixes
-        assert generator._extract_base_title("Simple Song") == "Simple Song"
-        assert generator._extract_base_title("") == ""
+        # Test names without suffixes
+        assert generator._extract_base_name("Simple Song") == "Simple Song"
+        assert generator._extract_base_name("") == ""
 
     @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
     @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
@@ -234,23 +234,28 @@ class TestLocalPlaylistGenerator:
 
     @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
     @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
-    def test_smart_title_deduplication(
+    def test_smart_name_deduplication(
         self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
     ) -> None:
-        """Test smart title deduplication"""
+        """Test smart name deduplication"""
         generator = LocalPlaylistGenerator()
 
         tracks = [
             {"name": "Song (Remix)", "artist": "Artist1", "similarity_score": 0.8},
-            {"name": "Song (Live)", "artist": "Artist2", "similarity_score": 0.7},
-            {"name": "Song", "artist": "Artist3", "similarity_score": 0.9},
-            {"name": "Different Song", "artist": "Artist4", "similarity_score": 0.6},
+            {"name": "Song (Live)", "artist": "Artist1", "similarity_score": 0.7},
+            {"name": "Song", "artist": "Artist1", "similarity_score": 0.9},
+            {"name": "Different Song", "artist": "Artist2", "similarity_score": 0.6},
         ]
 
-        result = generator._smart_title_deduplication(tracks)
+        result = generator._smart_name_deduplication(tracks)
 
-        # Should keep all tracks since they have different artists or base titles
-        assert len(result) == 4
+        # Should keep only 2 tracks: the best "Song" variant by Artist1 and "Different Song" by Artist2
+        assert len(result) == 2
+        # The "Song" track with highest similarity score (0.9) should be kept
+        song_track = next(track for track in result if track["name"] == "Song")
+        assert song_track["similarity_score"] == 0.9
+        # The "Different Song" track should be kept
+        assert any(track["name"] == "Different Song" for track in result)
 
     @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
     @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")

@@ -332,10 +332,10 @@ class LocalPlaylistGenerator:
         )
 
         # Strategy 4: Smart deduplication for similar titles with slight variations
-        smart_deduplicated = self._smart_title_deduplication(final_deduplicated)
+        smart_deduplicated = self._smart_name_deduplication(final_deduplicated)
 
         logger.info(
-            f"🧠 Smart title deduplication: {len(final_deduplicated)} → {len(smart_deduplicated)} tracks"
+            f"🧠 Smart name deduplication: {len(final_deduplicated)} → {len(smart_deduplicated)} tracks"
         )
 
         # Strategy 5: Enforce artist diversity (NEW)
@@ -362,16 +362,16 @@ class LocalPlaylistGenerator:
                 artist_groups[artist].append(track)
         return artist_groups
 
-    def _find_best_track_for_base_title(
-        self, artist_tracks: List[Dict[str, Any]], base_title: str
+    def _find_best_track_for_base_name(
+        self, artist_tracks: List[Dict[str, Any]], base_name: str
     ) -> Optional[Dict[str, Any]]:
-        """Find the track with the highest similarity score for a given base title"""
+        """Find the track with the highest similarity score for a given base name"""
         best_track = None
         best_score = -1
         for track in artist_tracks:
-            title = track.get("name", "").strip().lower()
-            track_base = self._extract_base_title(title)
-            if track_base == base_title:
+            name = track.get("name", "").strip().lower()
+            track_base = self._extract_base_name(name)
+            if track_base == base_name:
                 score = track.get("similarity_score", 0)
                 if score > best_score:
                     best_score = score
@@ -386,74 +386,61 @@ class LocalPlaylistGenerator:
             return [artist_tracks[0]]
 
         deduplicated = []
-        processed_titles = set()
+        processed_names = set()
 
         for track in artist_tracks:
-            title = track.get("name", "").strip().lower()
-            base_title = self._extract_base_title(title)
+            name = track.get("name", "").strip().lower()
+            base_name = self._extract_base_name(name)
 
-            if base_title and base_title not in processed_titles:
-                processed_titles.add(base_title)
-                best_track = self._find_best_track_for_base_title(
-                    artist_tracks, base_title
+            if base_name and base_name not in processed_names:
+                processed_names.add(base_name)
+                best_track = self._find_best_track_for_base_name(
+                    artist_tracks, base_name
                 )
                 if best_track:
                     deduplicated.append(best_track)
-            elif not base_title:
+            elif not base_name:
                 deduplicated.append(track)
 
         return deduplicated
 
-    def _smart_title_deduplication(
+    def _smart_name_deduplication(
         self, tracks: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        """Smart deduplication for titles with slight variations (e.g., 'Song (Remix)' vs 'Song')"""
-        if len(tracks) <= 1:
+        """Remove duplicate tracks based on name and artist similarity"""
+        if not tracks:
             return tracks
 
-        artist_groups = self._group_tracks_by_artist(tracks)
-        deduplicated = []
+        # Group tracks by base name and artist
+        name_artist_groups: Dict[str, List[Dict[str, Any]]] = {}
 
-        for artist_tracks in artist_groups.values():
-            deduplicated.extend(self._process_artist_tracks(artist_tracks))
+        for track in tracks:
+            base_name = self._extract_base_name(track.get("name", ""))
+            artist = track.get("artist", "")
+            key = f"{base_name}|{artist}"
+
+            if key not in name_artist_groups:
+                name_artist_groups[key] = []
+            name_artist_groups[key].append(track)
+
+        # Keep the track with highest similarity score from each group
+        deduplicated = []
+        for group in name_artist_groups.values():
+            if len(group) == 1:
+                deduplicated.append(group[0])
+            else:
+                # Sort by similarity score (descending) and keep the best
+                best_track = max(group, key=lambda t: t.get("similarity_score", 0))
+                deduplicated.append(best_track)
 
         return deduplicated
 
-    def _extract_base_title(self, title: str) -> str:
-        """Extract base title by removing common suffixes and variations"""
-        if not title:
-            return ""
-
-        # Remove common suffixes in parentheses
+    def _extract_base_name(self, name: str) -> str:
+        """Extract base name by removing common suffixes in parentheses"""
+        # Remove common suffixes like (Remix), (Live), (Acoustic), etc.
         import re
 
-        base = re.sub(r"\s*\([^)]*\)\s*$", "", title)
-
-        # Remove common suffixes
-        suffixes_to_remove = [
-            " (remix)",
-            " (remastered)",
-            " (live)",
-            " (acoustic)",
-            " (radio edit)",
-            " (extended)",
-            " (clean)",
-            " (explicit)",
-            " (original mix)",
-            " (club mix)",
-            " (dub mix)",
-            " - remix",
-            " - remastered",
-            " - live",
-            " - acoustic",
-        ]
-
-        for suffix in suffixes_to_remove:
-            if base.lower().endswith(suffix.lower()):
-                base = base[: -len(suffix)]
-                break
-
-        return base.strip()
+        return re.sub(r"\s*\([^)]*\)$", "", name).strip()
 
     def _normalize_file_location(self, location: str) -> str:
         """Normalize file location for deduplication and Apple Music compatibility"""
@@ -521,7 +508,7 @@ class LocalPlaylistGenerator:
                 for i, track in enumerate(tracks, 1):
                     # Get track info
                     artist = track.get("artist", "Unknown")
-                    title = track.get("name", "Unknown")
+                    name = track.get("name", "Unknown")
                     album = track.get("album", "Unknown")
                     duration = track.get("duration_ms", 0) // 1000  # Convert to seconds
                     similarity = track.get("similarity_score", 0)
@@ -529,7 +516,7 @@ class LocalPlaylistGenerator:
 
                     # Write extended info line
                     # Format: #EXTINF:duration,artist - title
-                    f.write(f"#EXTINF:{duration},{artist} - {title}\n")
+                    f.write(f"#EXTINF:{duration},{artist} - {name}\n")
 
                     # Write file path
                     if location:
@@ -544,7 +531,7 @@ class LocalPlaylistGenerator:
                             f.write(f"{location}\n")
                     else:
                         # If no location, write a comment
-                        f.write(f"# Missing file location for: {artist} - {title}\n")
+                        f.write(f"# Missing file location for: {artist} - {name}\n")
 
                     # Write additional metadata as comments
                     f.write(f"# Album: {album}\n")

@@ -230,7 +230,6 @@ class OllamaEmbeddingService:
     def create_track_embedding_text(self, track: Dict[str, Any]) -> str:
         """Create text representation of track for embedding"""
         parts = [
-            track.get("name"),
             track.get("artist"),
             track.get("album"),
             track.get("album_artist"),
