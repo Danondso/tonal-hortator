@@ -96,7 +96,7 @@ class LocalTrackEmbedder:
             cursor.execute(
                 """
                 SELECT
-                    t.id, t.title as name, t.artist, t.album, t.genre, t.year,
+                    t.id, t.name as name, t.artist, t.album, t.genre, t.year,
                     t.play_count, t.album_artist, t.composer, t.bpm
                 FROM tracks t
                 LEFT JOIN track_embeddings te ON t.id = te.track_id
@@ -159,8 +159,10 @@ class LocalTrackEmbedder:
 
             # Get embeddings from Ollama (using optimized batch API)
             try:
-                embeddings = self.embedding_service.get_embeddings_batch(
-                    embedding_texts, batch_size=50
+                embeddings: List[np.ndarray] = (
+                    self.embedding_service.get_embeddings_batch(
+                        embedding_texts, batch_size=50
+                    )
                 )
 
                 # Store embeddings in database
@@ -236,7 +238,7 @@ class LocalTrackEmbedder:
                 """
                 SELECT
                     te.embedding,
-                    t.id, t.title as name, t.artist, t.album, t.genre, t.year,
+                    t.id, t.name as name, t.artist, t.album, t.genre, t.year,
                     t.play_count, t.album_artist, t.composer, t.bpm, t.location
                 FROM track_embeddings te
                 JOIN tracks t ON te.track_id = t.id
@@ -244,7 +246,7 @@ class LocalTrackEmbedder:
             )
 
             rows = cursor.fetchall()
-            embeddings = [
+            embeddings: List[np.ndarray] = [
                 np.frombuffer(row["embedding"], dtype=np.float32) for row in rows
             ]
             track_data = [dict(row) for row in rows]

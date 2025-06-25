@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Local embedding service using Ollama
-Provides embeddings for music tracks without requiring internet or HuggingFace
+Provides embeddings for music tracks without
 """
 
 import time
@@ -24,7 +24,7 @@ class OllamaEmbeddingService:
         self._embedding_dimension: Optional[int] = None  # Cache for embedding dimension
         self._test_connection()
 
-    def _extract_model_list(self, models_response: object) -> list[Any]:
+    def _extract_model_list(self, models_response: object) -> List[Any]:
         """Extract model list from various response formats"""
         if hasattr(models_response, "models"):
             # ListResponse object
@@ -38,9 +38,9 @@ class OllamaEmbeddingService:
                 f"Unexpected models response format: {type(models_response)}"
             )
 
-    def _extract_model_names(self, model_list: list[Any]) -> list[str]:
+    def _extract_model_names(self, model_list: List[Any]) -> List[str]:
         """Extract model names from model list"""
-        model_names: list[str] = []
+        model_names: List[str] = []
         for model in model_list:
             if hasattr(model, "model"):
                 # Model object
@@ -134,7 +134,7 @@ class OllamaEmbeddingService:
         try:
             start_time = time.time()
             result = self.client.embeddings(model=self.model_name, prompt=text)
-            embedding = np.array(result["embedding"], dtype=np.float32)
+            embedding: np.ndarray = np.array(result["embedding"], dtype=np.float32)
             embedding_time = time.time() - start_time
 
             logger.debug(
@@ -150,7 +150,7 @@ class OllamaEmbeddingService:
         if self.client is None:
             raise Exception("Ollama client not initialized")
 
-        batch_embeddings = []
+        batch_embeddings: List[np.ndarray] = []
         for text in batch_texts:
             result = self.client.embeddings(model=self.model_name, prompt=text)
             batch_embeddings.append(np.array(result["embedding"], dtype=np.float32))
@@ -229,8 +229,11 @@ class OllamaEmbeddingService:
 
     def create_track_embedding_text(self, track: Dict[str, Any]) -> str:
         """Create text representation of track for embedding"""
+        # Use "name" field for track name
+        track_name = track.get("name")
+
         parts = [
-            track.get("name"),
+            track_name,
             track.get("artist"),
             track.get("album"),
             track.get("album_artist"),

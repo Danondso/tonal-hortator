@@ -6,7 +6,7 @@ Tests for playlist generator functionality
 import os
 import tempfile
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 from tonal_hortator.core.playlist_generator import LocalPlaylistGenerator
 
@@ -14,7 +14,7 @@ from tonal_hortator.core.playlist_generator import LocalPlaylistGenerator
 class TestLocalPlaylistGenerator(unittest.TestCase):
     """Test Local Playlist Generator functionality"""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test fixtures"""
         self.temp_dir = tempfile.mkdtemp()
         self.db_path = os.path.join(self.temp_dir, "test_generator.db")
@@ -36,13 +36,13 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         self.generator.deduplicator = self.mock_deduplicator
         self.generator.embedding_service = self.mock_embedding_service
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         """Clean up test fixtures"""
         import shutil
 
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    def test_generate_playlist_success(self):
+    def test_generate_playlist_success(self) -> None:
         """Test successful playlist generation"""
         # Mock query processing
         mock_query = "test query"
@@ -91,7 +91,7 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         self.mock_deduplicator.deduplicate_tracks.assert_called_once()
         self.mock_artist_distributor.apply_artist_randomization.assert_called_once()
 
-    def test_generate_playlist_no_tracks_found(self):
+    def test_generate_playlist_no_tracks_found(self) -> None:
         """Test playlist generation when no tracks are found"""
         # Mock query processing
         mock_query = "test query"
@@ -110,7 +110,7 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         # Verify result
         self.assertEqual(result, [])
 
-    def test_generate_playlist_vague_query(self):
+    def test_generate_playlist_vague_query(self) -> None:
         """Test playlist generation with vague query"""
         # Mock query processing
         mock_query = "test query"
@@ -153,7 +153,7 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
             mock_tracks, 2, True
         )
 
-    def test_generate_playlist_exception_handling(self):
+    def test_generate_playlist_exception_handling(self) -> None:
         """Test playlist generation with exception handling"""
         # Mock query processing to raise exception
         mock_query = "test query"
@@ -165,7 +165,7 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         with self.assertRaises(Exception):
             self.generator.generate_playlist(mock_query, max_tracks=3)
 
-    def test_generate_playlist_with_custom_max_tracks(self):
+    def test_generate_playlist_with_custom_max_tracks(self) -> None:
         """Test playlist generation with custom max_tracks"""
         # Mock query processing
         mock_query = "test query"
@@ -211,7 +211,7 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
             mock_query, mock_embeddings, mock_track_data, top_k=25
         )
 
-    def test_extract_playlist_parameters_with_count(self):
+    def test_extract_playlist_parameters_with_count(self) -> None:
         """Test parameter extraction when track count is found in query"""
         mock_query = "15 tracks of rock music"
         self.mock_query_processor.extract_track_count.return_value = 15
@@ -223,7 +223,7 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
             mock_query
         )
 
-    def test_filter_by_artist_with_artist(self):
+    def test_filter_by_artist_with_artist(self) -> None:
         """Test filtering by artist when artist is found in query"""
         mock_query = "songs by Queen"
         self.mock_query_processor.extract_artist_from_query.return_value = "Queen"
@@ -242,7 +242,7 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]["artist"], "Queen")
 
-    def test_apply_genre_filtering_with_genre(self):
+    def test_apply_genre_filtering_with_genre(self) -> None:
         """Test genre filtering when genre keywords are found"""
         mock_query = "rock music"
         self.mock_query_processor.extract_genre_keywords.return_value = ["rock"]

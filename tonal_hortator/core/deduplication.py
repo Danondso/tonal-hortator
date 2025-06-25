@@ -6,7 +6,7 @@ Handles multiple deduplication strategies for track lists
 
 import logging
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -50,11 +50,11 @@ class TrackDeduplicator:
 
         # Apply multiple deduplication strategies
         location_deduplicated = self._deduplicate_by_location(filtered)
-        combination_deduplicated = self._deduplicate_by_title_artist(
+        combination_deduplicated = self._deduplicate_by_name_artist(
             location_deduplicated
         )
         id_deduplicated = self._deduplicate_by_track_id(combination_deduplicated)
-        smart_deduplicated = self._smart_title_deduplication(id_deduplicated)
+        smart_deduplicated = self._smart_name_deduplication(id_deduplicated)
 
         logger.info(
             f"✅ Final deduplication summary: {len(tracks)} → {len(smart_deduplicated)} tracks"
@@ -82,28 +82,28 @@ class TrackDeduplicator:
         )
         return location_deduplicated
 
-    def _deduplicate_by_title_artist(
+    def _deduplicate_by_name_artist(
         self, tracks: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        """Deduplicate by title/artist combination"""
+        """Deduplicate by name/artist combination"""
         seen_combinations = set()
-        combination_deduplicated = []
+        deduplicated = []
 
         for track in tracks:
-            title = track.get("name", "").strip().lower()
+            name = track.get("name", "").strip().lower()
             artist = track.get("artist", "").strip().lower()
-            combination = f"{title}|{artist}"
+            combination = f"{name}|{artist}"
 
-            if combination and combination not in seen_combinations:
+            if combination not in seen_combinations:
                 seen_combinations.add(combination)
-                combination_deduplicated.append(track)
-            elif not combination:  # Include tracks without title/artist
-                combination_deduplicated.append(track)
+                deduplicated.append(track)
+            elif not combination:  # Include tracks without name/artist
+                deduplicated.append(track)
 
         logger.info(
-            f"🎵 Title/Artist deduplication: {len(tracks)} → {len(combination_deduplicated)} tracks"
+            f"🎵 Name/Artist deduplication: {len(tracks)} → {len(deduplicated)} tracks"
         )
-        return combination_deduplicated
+        return deduplicated
 
     def _deduplicate_by_track_id(
         self, tracks: List[Dict[str, Any]]
@@ -123,84 +123,83 @@ class TrackDeduplicator:
         )
         return final_deduplicated
 
-    def _smart_title_deduplication(
+    def _smart_name_deduplication(
         self, tracks: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        """Smart deduplication for titles with slight variations (e.g., 'Song (Remix)' vs 'Song')"""
-        if len(tracks) <= 1:
+        """Smart deduplication for names with slight variations (e.g., 'Song (Remix)' vs 'Song')"""
+        if not tracks:
             return tracks
 
-        artist_groups = self._group_tracks_by_artist(tracks)
-        deduplicated = []
+        # Group tracks by artist for more accurate deduplication
+        artist_tracks: Dict[str, List[Dict[str, Any]]] = {}
+        for track in tracks:
+            artist = track.get("artist", "").strip().lower()
+            if artist not in artist_tracks:
+                artist_tracks[artist] = []
+            artist_tracks[artist].append(track)
 
-        for artist_tracks in artist_groups.values():
-            deduplicated.extend(self._process_artist_tracks(artist_tracks))
+        deduplicated = []
+        for artist, artist_track_list in artist_tracks.items():
+            deduplicated.extend(
+                self._deduplicate_artist_tracks_by_name(artist_track_list)
+            )
 
         logger.info(
-            f"🧠 Smart title deduplication: {len(tracks)} → {len(deduplicated)} tracks"
+            f"🧠 Smart name deduplication: {len(tracks)} → {len(deduplicated)} tracks"
         )
         return deduplicated
 
-    def _group_tracks_by_artist(self, tracks: List[Dict[str, Any]]) -> dict[str, list]:
-        """Group tracks by artist for deduplication"""
-        artist_groups: dict[str, list] = {}
-        for track in tracks:
-            artist = track.get("artist", "").strip().lower()
-            if artist:
-                if artist not in artist_groups:
-                    artist_groups[artist] = []
-                artist_groups[artist].append(track)
-        return artist_groups
-
-    def _process_artist_tracks(
-        self, artist_tracks: List[Dict[str, Any]]
+    def _deduplicate_artist_tracks_by_name(
+        self, tracks: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        """Process tracks for a single artist to remove duplicates"""
-        if len(artist_tracks) == 1:
-            return [artist_tracks[0]]
+        """Deduplicate tracks by the same artist using smart name matching"""
+        if not tracks:
+            return tracks
 
+        # Sort by similarity score (descending) to keep the best matches
+        tracks.sort(key=lambda x: x.get("similarity_score", 0), reverse=True)
+
+        processed_names = set()
         deduplicated = []
-        processed_titles = set()
 
-        for track in artist_tracks:
-            title = track.get("name", "").strip().lower()
-            base_title = self._extract_base_title(title)
+        for track in tracks:
+            name = track.get("name", "").strip().lower()
+            base_name = self._extract_base_name(name)
 
-            if base_title and base_title not in processed_titles:
-                processed_titles.add(base_title)
-                best_track = self._find_best_track_for_base_title(
-                    artist_tracks, base_title
-                )
-                if best_track:
-                    deduplicated.append(best_track)
-            elif not base_title:
+            if base_name and base_name not in processed_names:
+                processed_names.add(base_name)
+                best_track = self._find_best_track_for_base_name(tracks, base_name)
+                deduplicated.append(best_track)
+            elif not base_name:
                 deduplicated.append(track)
 
         return deduplicated
 
-    def _find_best_track_for_base_title(
-        self, artist_tracks: List[Dict[str, Any]], base_title: str
-    ) -> Optional[Dict[str, Any]]:
-        """Find the track with the highest similarity score for a given base title"""
+    def _find_best_track_for_base_name(
+        self, tracks: List[Dict[str, Any]], base_name: str
+    ) -> Dict[str, Any]:
+        """Find the track with the highest similarity score for a given base name"""
         best_track = None
         best_score = -1
-        for track in artist_tracks:
-            title = track.get("name", "").strip().lower()
-            track_base = self._extract_base_title(title)
-            if track_base == base_title:
+
+        for track in tracks:
+            name = track.get("name", "").strip().lower()
+            track_base = self._extract_base_name(name)
+            if track_base == base_name:
                 score = track.get("similarity_score", 0)
                 if score > best_score:
                     best_score = score
                     best_track = track
-        return best_track
 
-    def _extract_base_title(self, title: str) -> str:
-        """Extract base title by removing common suffixes and variations"""
-        if not title:
+        return best_track or tracks[0]
+
+    def _extract_base_name(self, name: str) -> str:
+        """Extract base name by removing common suffixes and variations"""
+        if not name:
             return ""
 
-        # Remove common suffixes in parentheses
-        base = re.sub(r"\s*\([^)]*\)\s*$", "", title)
+        # Remove common suffixes like (Remix), (Live), etc.
+        base = re.sub(r"\s*\([^)]*\)\s*$", "", name)
 
         # Remove common suffixes
         for suffix in self.suffixes_to_remove:

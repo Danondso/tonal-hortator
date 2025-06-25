@@ -6,7 +6,7 @@ This script creates playlists based on semantic search queries
 
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from tonal_hortator.core.artist_distributor import ArtistDistributor
 from tonal_hortator.core.deduplication import TrackDeduplicator
@@ -112,7 +112,7 @@ class LocalPlaylistGenerator:
 
     def _get_embeddings_for_search(
         self,
-    ) -> tuple[Optional[List[Any]], Optional[List[Dict[str, Any]]]]:
+    ) -> Tuple[Optional[List[Any]], Optional[List[Dict[str, Any]]]]:
         """Get embeddings from the database, generating them if necessary"""
         embeddings, track_data = self.track_embedder.get_all_embeddings()
         if not embeddings or not track_data:

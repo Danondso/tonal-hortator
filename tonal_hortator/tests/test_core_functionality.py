@@ -21,37 +21,32 @@ class TestCoreFunctionality(unittest.TestCase):
             """
             CREATE TABLE tracks (
                 id INTEGER PRIMARY KEY,
-                title TEXT,
+                name TEXT,
                 artist TEXT,
+                album_artist TEXT,
+                composer TEXT,
                 album TEXT,
                 genre TEXT,
                 year INTEGER,
+                total_time INTEGER,
+                track_number INTEGER,
+                disc_number INTEGER,
                 play_count INTEGER,
-                album_artist TEXT,
-                composer TEXT,
                 bpm INTEGER,
                 location TEXT
             )
         """
         )
 
-        # Insert a sample track
+        # Insert test data
         self.cursor.execute(
             """
-            INSERT INTO tracks (id, title, artist, album, genre, year, play_count, bpm, location)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-            (
-                1,
-                "Test Song",
-                "Test Artist",
-                "Test Album",
-                "Rock",
-                2023,
-                42,
-                120,
-                "/path/to/test.mp3",
-            ),
+            INSERT INTO tracks (id, name, artist, album_artist, composer, album, genre, year, total_time, track_number, disc_number, play_count, bpm, location)
+            VALUES 
+                (1, 'Test Song 1', 'Test Artist 1', 'Test Album Artist 1', 'Composer 1', 'Test Album 1', 'Rock', 2020, 210000, 1, 1, 10, 120, '/path/to/song1.mp3'),
+                (2, 'Test Song 2', 'Test Artist 2', 'Test Album Artist 2', 'Composer 2', 'Test Album 2', 'Jazz', 2021, 180000, 2, 1, 5, 90, '/path/to/song2.mp3'),
+                (3, 'Test Song 3', 'Test Artist 1', 'Test Album Artist 1', 'Composer 1', 'Test Album 1', 'Rock', 2020, 200000, 3, 1, 15, 130, '/path/to/song3.mp3')
+        """
         )
         self.conn.commit()
 
@@ -72,14 +67,14 @@ class TestCoreFunctionality(unittest.TestCase):
         }
 
         # Mock the embeddings response
-        mock_embedding = np.random.rand(384).astype(
+        mock_embedding: np.ndarray = np.random.rand(384).astype(
             np.float32
         )  # Typical embedding size
         mock_client.embeddings.return_value = {"embedding": mock_embedding.tolist()}
 
         embedder = LocalTrackEmbedder(db_path=self.db_path, conn=self.conn)
         embedded_count = embedder.embed_all_tracks()
-        self.assertEqual(embedded_count, 1)
+        self.assertEqual(embedded_count, 3)
 
         # Verify the embedding was stored
         self.cursor.execute("SELECT COUNT(*) FROM track_embeddings WHERE track_id = 1")
@@ -99,7 +94,7 @@ class TestCoreFunctionality(unittest.TestCase):
         }
 
         # Mock the embeddings response
-        mock_embedding = np.random.rand(384).astype(np.float32)
+        mock_embedding: np.ndarray = np.random.rand(384).astype(np.float32)
         mock_client.embeddings.return_value = {"embedding": mock_embedding.tolist()}
 
         # First, ensure the track is embedded
@@ -113,8 +108,10 @@ class TestCoreFunctionality(unittest.TestCase):
         playlist = playlist_generator.generate_playlist("a test song")
 
         self.assertIsNotNone(playlist)
-        self.assertEqual(len(playlist), 1)
-        self.assertEqual(playlist[0]["name"], "Test Song")
+        self.assertEqual(len(playlist), 3)
+        self.assertEqual(playlist[0]["name"], "Test Song 1")
+        self.assertEqual(playlist[1]["name"], "Test Song 3")
+        self.assertEqual(playlist[2]["name"], "Test Song 2")
 
     @patch("tonal_hortator.core.embeddings.ollama")
     def test_generate_playlist(self, mock_ollama: Mock) -> None:
@@ -129,7 +126,7 @@ class TestCoreFunctionality(unittest.TestCase):
         }
 
         # Mock the embeddings response
-        mock_embedding = np.random.rand(384).astype(np.float32)
+        mock_embedding: np.ndarray = np.random.rand(384).astype(np.float32)
         mock_client.embeddings.return_value = {"embedding": mock_embedding.tolist()}
 
         # First, ensure the track is embedded
@@ -143,8 +140,10 @@ class TestCoreFunctionality(unittest.TestCase):
         playlist = playlist_generator.generate_playlist("a test song")
 
         self.assertIsNotNone(playlist)
-        self.assertEqual(len(playlist), 1)
-        self.assertEqual(playlist[0]["name"], "Test Song")
+        self.assertEqual(len(playlist), 3)
+        self.assertEqual(playlist[0]["name"], "Test Song 1")
+        self.assertEqual(playlist[1]["name"], "Test Song 3")
+        self.assertEqual(playlist[2]["name"], "Test Song 2")
 
 
 if __name__ == "__main__":

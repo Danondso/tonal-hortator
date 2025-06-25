@@ -140,9 +140,11 @@ class ArtistDistributor:
             # Not enough artists to randomize, return original order
             return tracks[:max_tracks]
 
-    def _group_tracks_by_artist(self, tracks: List[Dict[str, Any]]) -> dict[str, list]:
+    def _group_tracks_by_artist(
+        self, tracks: List[Dict[str, Any]]
+    ) -> Dict[str, List[Dict[str, Any]]]:
         """Group tracks by artist"""
-        artist_groups: dict[str, list] = {}
+        artist_groups: Dict[str, List[Dict[str, Any]]] = {}
         for track in tracks:
             artist = track.get("artist", "")
             if artist is None:
@@ -199,17 +201,17 @@ class ArtistDistributor:
         return distributed
 
     def _create_artist_queues(
-        self, artist_groups: dict[str, list[dict[str, Any]]]
-    ) -> dict[str, list[dict[str, Any]]]:
+        self, artist_groups: Dict[str, List[Dict[str, Any]]]
+    ) -> Dict[str, List[Dict[str, Any]]]:
         """Create queues for each artist's tracks"""
-        artist_queues: dict[str, list[dict[str, Any]]] = {}
-        for artist, artist_tracks in artist_groups.items():
-            artist_queues[artist] = artist_tracks.copy()
-        return artist_queues
+        queues: Dict[str, List[Dict[str, Any]]] = {}
+        for artist, tracks in artist_groups.items():
+            queues[artist] = list(tracks)
+        return queues
 
     def _round_robin_distribute(
         self,
-        artist_queues: dict[str, list[dict[str, Any]]],
+        artist_queues: Dict[str, List[Dict[str, Any]]],
         tracks: List[Dict[str, Any]],
         distributed: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
@@ -241,7 +243,7 @@ class ArtistDistributor:
 
     def _add_remaining_tracks(
         self,
-        artist_queues: dict[str, list[dict[str, Any]]],
+        artist_queues: Dict[str, List[Dict[str, Any]]],
         tracks: List[Dict[str, Any]],
         distributed: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:

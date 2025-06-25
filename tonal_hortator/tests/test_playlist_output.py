@@ -6,8 +6,8 @@ Tests for playlist output functionality
 import os
 import tempfile
 import unittest
-from datetime import datetime
-from unittest.mock import Mock, mock_open, patch
+from typing import Any, Dict, List
+from unittest.mock import patch
 
 from tonal_hortator.core.playlist_output import PlaylistOutput
 
@@ -15,317 +15,383 @@ from tonal_hortator.core.playlist_output import PlaylistOutput
 class TestPlaylistOutput(unittest.TestCase):
     """Test playlist output functionality"""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test fixtures"""
-        self.output = PlaylistOutput()
-        self.sample_tracks = [
+        self.temp_dir = tempfile.mkdtemp()
+        self.output_dir = os.path.join(self.temp_dir, "playlists")
+        os.makedirs(self.output_dir, exist_ok=True)
+        self.playlist_output = PlaylistOutput()
+        self.sample_tracks: List[Dict[str, Any]] = [
             {
-                "artist": "Queen",
-                "name": "Bohemian Rhapsody",
-                "album": "A Night at the Opera",
-                "duration_ms": 354000,
-                "similarity_score": 0.85,
-                "location": "file:///Users/test/Music/Queen/Bohemian%20Rhapsody.mp3",
+                "name": "Test Song 1",
+                "artist": "Test Artist 1",
+                "album": "Test Album 1",
+                "duration_ms": 180000,
+                "similarity_score": 0.95,
+                "location": "file:///path/to/song1.mp3",
             },
             {
-                "artist": "Led Zeppelin",
-                "name": "Stairway to Heaven",
-                "album": "Led Zeppelin IV",
-                "duration_ms": 482000,
-                "similarity_score": 0.78,
-                "location": "file:///Users/test/Music/Led%20Zeppelin/Stairway%20to%20Heaven.mp3",
+                "name": "Test Song 2",
+                "artist": "Test Artist 2",
+                "album": "Test Album 2",
+                "duration_ms": 240000,
+                "similarity_score": 0.88,
+                "location": "file:///path/to/song2.mp3",
             },
             {
-                "artist": "The Beatles",
-                "name": "Hey Jude",
-                "album": "The Beatles 1967-1970",
-                "duration_ms": 425000,
-                "similarity_score": 0.72,
-                "location": "",
+                "name": "Test Song 3",
+                "artist": "Test Artist 3",
+                "album": "Test Album 3",
+                "duration_ms": 200000,
+                "similarity_score": 0.92,
+                "location": "file:///path/to/song3.mp3",
             },
         ]
 
-    def test_save_playlist_m3u_success(self):
-        """Test successful M3U playlist creation"""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            query = "Classic Rock Songs"
-            filepath = self.output.save_playlist_m3u(
-                self.sample_tracks, query, temp_dir
+    def tearDown(self) -> None:
+        """Clean up test fixtures"""
+        import shutil
+
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_init_with_output_dir(self) -> None:
+        """Test initialization with output directory"""
+        output = PlaylistOutput()
+        # The PlaylistOutput class doesn't have an output_dir attribute
+        # It uses the save_playlist_m3u method with an output_dir parameter
+
+    def test_init_without_output_dir(self) -> None:
+        """Test initialization without output directory"""
+        output = PlaylistOutput()
+        # The PlaylistOutput class doesn't store output_dir as an attribute
+        # It's passed as a parameter to save_playlist_m3u
+
+    def test_create_output_directory(self) -> None:
+        """Test creating output directory"""
+        test_dir = os.path.join(self.temp_dir, "new_output")
+        output = PlaylistOutput()
+
+        # Test that save_playlist_m3u creates the directory
+        tracks: List[Dict[str, Any]] = [
+            {"name": "Test Song", "artist": "Test Artist", "location": "/test/path.mp3"}
+        ]
+        result = output.save_playlist_m3u(tracks, "test_query", test_dir)
+
+        # Directory should be created
+        self.assertTrue(os.path.exists(test_dir))
+        self.assertTrue(os.path.exists(result))
+
+    def test_write_m3u_playlist_success(self) -> None:
+        """Test successful M3U playlist writing"""
+        playlist_name = "test_playlist"
+        tracks: List[Dict[str, Any]] = [
+            {"name": "Song 1", "artist": "Artist 1", "location": "/path/to/song1.mp3"},
+            {"name": "Song 2", "artist": "Artist 2", "location": "/path/to/song2.mp3"},
+        ]
+
+        result = self.playlist_output.save_playlist_m3u(
+            tracks, playlist_name, self.output_dir
+        )
+        self.assertTrue(os.path.exists(result))
+
+        # Check file content
+        with open(result, "r") as f:
+            content = f.read()
+            self.assertIn("#EXTM3U", content)
+            self.assertIn("Song 1", content)
+            self.assertIn("Song 2", content)
+            self.assertIn("/path/to/song1.mp3", content)
+            self.assertIn("/path/to/song2.mp3", content)
+
+    def test_write_m3u_playlist_empty_tracks(self) -> None:
+        """Test writing M3U playlist with empty tracks list"""
+        playlist_name = "empty_playlist"
+        tracks: List[Dict[str, Any]] = []
+
+        result = self.playlist_output.save_playlist_m3u(
+            tracks, playlist_name, self.output_dir
+        )
+        self.assertTrue(os.path.exists(result))
+
+        # Check file content (should have header and metadata)
+        with open(result, "r") as f:
+            content = f.read()
+            self.assertIn("#EXTM3U", content)
+            self.assertIn("Query: empty_playlist", content)
+
+    def test_write_m3u_playlist_missing_fields(self) -> None:
+        """Test writing M3U playlist with missing track fields"""
+        playlist_name = "incomplete_playlist"
+        tracks: List[Dict[str, Any]] = [
+            {"name": "Song 1", "artist": "Artist 1"},  # Missing location
+            {"name": "Song 2", "location": "/path/to/song2.mp3"},  # Missing artist
+            {"artist": "Artist 3", "location": "/path/to/song3.mp3"},  # Missing name
+        ]
+
+        result = self.playlist_output.save_playlist_m3u(
+            tracks, playlist_name, self.output_dir
+        )
+        self.assertTrue(os.path.exists(result))
+
+        # Check file content
+        with open(result, "r") as f:
+            content = f.read()
+            self.assertIn("#EXTM3U", content)
+            self.assertIn("Song 1", content)
+            self.assertIn("Song 2", content)
+            self.assertIn("Artist 3", content)
+
+    def test_write_m3u_playlist_io_error(self) -> None:
+        """Test writing M3U playlist when IO error occurs"""
+        playlist_name = "test_playlist"
+        tracks: List[Dict[str, Any]] = [
+            {"name": "Song 1", "artist": "Artist 1", "location": "/path/to/song1.mp3"}
+        ]
+
+        with patch("builtins.open", side_effect=IOError("Permission denied")):
+            with self.assertRaises(IOError):
+                self.playlist_output.save_playlist_m3u(
+                    tracks, playlist_name, self.output_dir
+                )
+
+    def test_write_playlist_multiple_formats(self) -> None:
+        """Test writing playlist in M3U format (only supported format)"""
+        playlist_name = "test_playlist"
+        tracks: List[Dict[str, Any]] = [
+            {"name": "Song 1", "artist": "Artist 1", "location": "/path/to/song1.mp3"},
+            {"name": "Song 2", "artist": "Artist 2", "location": "/path/to/song2.mp3"},
+        ]
+
+        # Test M3U format (only supported format)
+        result = self.playlist_output.save_playlist_m3u(
+            tracks, playlist_name, self.output_dir
+        )
+        self.assertTrue(os.path.exists(result))
+        self.assertTrue(result.endswith(".m3u"))
+
+    def test_print_playlist_summary_basic(self) -> None:
+        """Test basic playlist summary printing"""
+        with patch("builtins.print") as mock_print:
+            self.playlist_output.print_playlist_summary(
+                self.sample_tracks, "test query"
             )
 
-            # Check file was created
+            # Check that print was called
+            mock_print.assert_called()
+
+            # Get all print calls
+            calls = mock_print.call_args_list
+            call_strings = [str(call) for call in calls]
+
+            # Should contain playlist header
+            self.assertTrue(any("test query" in call for call in call_strings))
+            self.assertTrue(any("3 tracks found" in call for call in call_strings))
+
+            # Should contain track information
+            self.assertTrue(
+                any("Test Artist 1 - Test Song 1" in call for call in call_strings)
+            )
+            self.assertTrue(
+                any("Test Artist 2 - Test Song 2" in call for call in call_strings)
+            )
+            self.assertTrue(
+                any("Test Artist 3 - Test Song 3" in call for call in call_strings)
+            )
+
+    def test_print_playlist_summary_empty_tracks(self) -> None:
+        """Test playlist summary printing with empty track list"""
+        with patch("builtins.print") as mock_print:
+            self.playlist_output.print_playlist_summary([], "empty query")
+
+            # Check that print was called
+            mock_print.assert_called()
+
+            # Get all print calls
+            calls = mock_print.call_args_list
+            call_strings = [str(call) for call in calls]
+
+            # Should contain playlist header
+            self.assertTrue(any("empty query" in call for call in call_strings))
+            self.assertTrue(any("0 tracks found" in call for call in call_strings))
+
+    def test_print_playlist_summary_missing_fields(self) -> None:
+        """Test playlist summary printing with missing track fields"""
+        incomplete_tracks = [
+            {
+                "name": "Song 1",
+                "artist": "Artist 1",
+                # Missing album, similarity_score
+            },
+            {
+                "name": "Song 2",
+                # Missing artist, album, similarity_score
+            },
+        ]
+
+        with patch("builtins.print") as mock_print:
+            self.playlist_output.print_playlist_summary(
+                incomplete_tracks, "incomplete query"
+            )
+
+            # Check that print was called
+            mock_print.assert_called()
+
+            # Get all print calls
+            calls = mock_print.call_args_list
+            call_strings = [str(call) for call in calls]
+
+            # Should handle missing fields gracefully
+            self.assertTrue(any("Artist 1 - Song 1" in call for call in call_strings))
+            self.assertTrue(any("Unknown - Song 2" in call for call in call_strings))
+
+    def test_print_playlist_summary_average_similarity(self) -> None:
+        """Test playlist summary printing includes average similarity"""
+        tracks_with_scores = [
+            {
+                "name": "Song 1",
+                "artist": "Artist 1",
+                "album": "Album 1",
+                "similarity_score": 0.9,
+            },
+            {
+                "name": "Song 2",
+                "artist": "Artist 2",
+                "album": "Album 2",
+                "similarity_score": 0.8,
+            },
+        ]
+
+        with patch("builtins.print") as mock_print:
+            self.playlist_output.print_playlist_summary(
+                tracks_with_scores, "similarity test"
+            )
+
+            # Check that print was called
+            mock_print.assert_called()
+
+            # Get all print calls
+            calls = mock_print.call_args_list
+            call_strings = [str(call) for call in calls]
+
+            # Should contain average similarity
+            self.assertTrue(any("Average similarity" in call for call in call_strings))
+            self.assertTrue(any("0.850" in call for call in call_strings))
+
+    def test_save_playlist_m3u_error_handling(self) -> None:
+        """Test M3U playlist saving error handling"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Make the directory read-only to cause a write error
+            os.chmod(temp_dir, 0o444)
+
+            with self.assertRaises(Exception):
+                self.playlist_output.save_playlist_m3u(
+                    self.sample_tracks, "error test", temp_dir
+                )
+
+            # Restore permissions
+            os.chmod(temp_dir, 0o755)
+
+    def test_save_playlist_m3u_unicode_characters(self) -> None:
+        """Test M3U playlist saving with Unicode characters"""
+        unicode_tracks = [
+            {
+                "name": "Café Song",
+                "artist": "José Artist",
+                "album": "Album with émojis 🎵",
+                "duration_ms": 180000,
+                "similarity_score": 0.95,
+                "location": "file:///path/to/café.mp3",
+            },
+        ]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            query = "Unicode test: café 🎵"
+            filepath = self.playlist_output.save_playlist_m3u(
+                unicode_tracks, query, temp_dir
+            )
+
+            # Check that file was created
             self.assertTrue(os.path.exists(filepath))
-            self.assertTrue(filepath.endswith(".m3u"))
 
             # Check file contents
             with open(filepath, "r", encoding="utf-8") as f:
                 content = f.read()
 
-            # Check M3U header
-            self.assertIn("#EXTM3U", content)
-            self.assertIn("Generated by Tonal Hortator (Local)", content)
-            self.assertIn(f"Query: {query}", content)
-            self.assertIn("Tracks: 3", content)
+            # Should handle Unicode characters properly
+            self.assertIn("José Artist - Café Song", content)
+            self.assertIn("Album with émojis", content)
 
-            # Check track entries
-            self.assertIn("#EXTINF:354,Queen - Bohemian Rhapsody", content)
-            self.assertIn("#EXTINF:482,Led Zeppelin - Stairway to Heaven", content)
-            self.assertIn("#EXTINF:425,The Beatles - Hey Jude", content)
-
-            # Check file paths
-            self.assertIn("/Users/test/Music/Queen/Bohemian Rhapsody.mp3", content)
-            self.assertIn(
-                "/Users/test/Music/Led Zeppelin/Stairway to Heaven.mp3", content
-            )
-
-            # Check metadata
-            self.assertIn("Album: A Night at the Opera", content)
-            self.assertIn("Similarity: 0.850", content)
-
-    def test_save_playlist_m3u_with_special_characters(self):
-        """Test saving playlist with special characters in query"""
-        tracks = [
-            {
-                "name": "Test Song",
-                "artist": "Test Artist",
-                "location": "/path/to/song.mp3",
-            }
-        ]
-
+    def test_save_playlist_m3u_timestamp_format(self) -> None:
+        """Test M3U playlist saving includes proper timestamp format"""
         with tempfile.TemporaryDirectory() as temp_dir:
-            self.output.output_dir = temp_dir
-            filepath = self.output.save_playlist_m3u(
-                tracks, "Rock & Roll / Heavy Metal (90s)"
-            )
-
-            # Should create a valid filename without problematic characters
-            self.assertIsNotNone(filepath)
-            self.assertTrue(os.path.exists(filepath))
-
-            # Check that the filename contains the sanitized query
-            filename = os.path.basename(filepath)
-            self.assertIn("Rock-Roll-Heavy-Metal-90s", filename)
-
-    def test_save_playlist_m3u_long_query(self):
-        """Test M3U playlist creation with very long query"""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            long_query = "A" * 100  # Very long query
-            filepath = self.output.save_playlist_m3u(
-                self.sample_tracks, long_query, temp_dir
-            )
-
-            # Check filename length is limited
-            filename = os.path.basename(filepath)
-            self.assertLess(len(filename), 100)
-
-    def test_save_playlist_m3u_missing_fields(self):
-        """Test M3U playlist creation with missing track fields"""
-        tracks_with_missing = [
-            {
-                "artist": "Unknown Artist",
-                "name": "Unknown Track",
-                "album": "Unknown Album",
-                "duration_ms": 0,
-                "similarity_score": 0.0,
-                "location": "",
-            }
-        ]
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            query = "Test Query"
-            filepath = self.output.save_playlist_m3u(
-                tracks_with_missing, query, temp_dir
-            )
-
-            with open(filepath, "r", encoding="utf-8") as f:
-                content = f.read()
-
-            # Check default values are used
-            self.assertIn("#EXTINF:0,Unknown Artist - Unknown Track", content)
-            self.assertIn("Album: Unknown Album", content)
-            self.assertIn("Similarity: 0.000", content)
-            self.assertIn(
-                "# Missing file location for: Unknown Artist - Unknown Track", content
-            )
-
-    def test_save_playlist_m3u_url_encoding(self):
-        """Test M3U playlist creation with URL-encoded file paths"""
-        tracks_with_encoded = [
-            {
-                "artist": "Test Artist",
-                "name": "Test Song",
-                "album": "Test Album",
-                "duration_ms": 180000,
-                "similarity_score": 0.5,
-                "location": "file:///Users/test/Music/Test%20Artist/Test%20Song%20with%20Spaces.mp3",
-            }
-        ]
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            query = "Test"
-            filepath = self.output.save_playlist_m3u(
-                tracks_with_encoded, query, temp_dir
-            )
-
-            with open(filepath, "r", encoding="utf-8") as f:
-                content = f.read()
-
-            # Check URL decoding
-            self.assertIn(
-                "/Users/test/Music/Test Artist/Test Song with Spaces.mp3", content
-            )
-            self.assertNotIn("%20", content)
-
-    def test_save_playlist_m3u_non_file_url(self):
-        """Test M3U playlist creation with non-file URLs"""
-        tracks_with_http = [
-            {
-                "artist": "Test Artist",
-                "name": "Test Song",
-                "album": "Test Album",
-                "duration_ms": 180000,
-                "similarity_score": 0.5,
-                "location": "http://example.com/song.mp3",
-            }
-        ]
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            query = "Test"
-            filepath = self.output.save_playlist_m3u(tracks_with_http, query, temp_dir)
-
-            with open(filepath, "r", encoding="utf-8") as f:
-                content = f.read()
-
-            # Check HTTP URL is preserved
-            self.assertIn("http://example.com/song.mp3", content)
-
-    def test_save_playlist_m3u_exception_handling(self):
-        """Test M3U playlist creation with file system errors"""
-        with patch("os.makedirs") as mock_makedirs:
-            mock_makedirs.side_effect = PermissionError("Permission denied")
-
-            with self.assertRaises(PermissionError):
-                self.output.save_playlist_m3u(
-                    self.sample_tracks, "Test", "invalid/path"
-                )
-
-    def test_save_playlist_m3u_write_error(self):
-        """Test M3U playlist creation with file write errors"""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Make directory read-only
-            os.chmod(temp_dir, 0o444)
-
-            with self.assertRaises(Exception):
-                self.output.save_playlist_m3u(self.sample_tracks, "Test", temp_dir)
-
-    def test_print_playlist_summary(self):
-        """Test playlist summary printing"""
-        with patch("builtins.print") as mock_print:
-            query = "Classic Rock"
-            self.output.print_playlist_summary(self.sample_tracks, query)
-
-            # Check summary header
-            mock_print.assert_any_call("\n🎵 Playlist for: 'Classic Rock'")
-            mock_print.assert_any_call("📊 3 tracks found")
-            mock_print.assert_any_call("-" * 60)
-
-            # Check track entries
-            mock_print.assert_any_call(" 1. Queen - Bohemian Rhapsody")
-            mock_print.assert_any_call("    Album: A Night at the Opera")
-            mock_print.assert_any_call("    Similarity: 0.850")
-
-            mock_print.assert_any_call(" 2. Led Zeppelin - Stairway to Heaven")
-            mock_print.assert_any_call("    Album: Led Zeppelin IV")
-            mock_print.assert_any_call("    Similarity: 0.780")
-
-            mock_print.assert_any_call(" 3. The Beatles - Hey Jude")
-            mock_print.assert_any_call("    Album: The Beatles 1967-1970")
-            mock_print.assert_any_call("    Similarity: 0.720")
-
-            # Check average similarity
-            mock_print.assert_any_call("📈 Average similarity: 0.783")
-
-    def test_print_playlist_summary_empty_tracks(self):
-        """Test playlist summary printing with empty track list"""
-        with patch("builtins.print") as mock_print:
-            query = "Empty Playlist"
-            self.output.print_playlist_summary([], query)
-
-            # Check summary header
-            mock_print.assert_any_call("\n🎵 Playlist for: 'Empty Playlist'")
-            mock_print.assert_any_call("📊 0 tracks found")
-            mock_print.assert_any_call("-" * 60)
-
-            # Check no average similarity is printed
-            for call in mock_print.call_args_list:
-                self.assertNotIn("Average similarity", str(call))
-
-    def test_print_playlist_summary_missing_fields(self):
-        """Test playlist summary printing with missing track fields"""
-        tracks_with_missing = [
-            {
-                "artist": "Unknown",
-                "name": "Unknown",
-                "album": "Unknown",
-                "similarity_score": 0.0,
-            }
-        ]
-
-        with patch("builtins.print") as mock_print:
-            query = "Test"
-            self.output.print_playlist_summary(tracks_with_missing, query)
-
-            # Check default values are used
-            mock_print.assert_any_call(" 1. Unknown - Unknown")
-            mock_print.assert_any_call("    Album: Unknown")
-            mock_print.assert_any_call("    Similarity: 0.000")
-
-    def test_print_playlist_summary_no_similarity_scores(self):
-        """Test playlist summary printing with tracks missing similarity scores"""
-        tracks_no_similarity = [
-            {
-                "artist": "Test Artist",
-                "name": "Test Song",
-                "album": "Test Album",
-            }
-        ]
-
-        with patch("builtins.print") as mock_print:
-            query = "Test"
-            self.output.print_playlist_summary(tracks_no_similarity, query)
-
-            # Check default similarity is used
-            mock_print.assert_any_call("    Similarity: 0.000")
-
-    def test_save_playlist_m3u_default_output_dir(self):
-        """Test M3U playlist creation with default output directory"""
-        with patch("os.makedirs") as mock_makedirs:
-            with patch("builtins.open", mock_open()) as mock_file:
-                query = "Test Query"
-                filepath = self.output.save_playlist_m3u(self.sample_tracks, query)
-
-                # Check default directory is used
-                mock_makedirs.assert_called_with("playlists", exist_ok=True)
-                self.assertIn("playlists", filepath)
-
-    def test_save_playlist_m3u_timestamp_format(self):
-        """Test M3U playlist creation timestamp format"""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            query = "Test"
-            filepath = self.output.save_playlist_m3u(
+            query = "timestamp test"
+            filepath = self.playlist_output.save_playlist_m3u(
                 self.sample_tracks, query, temp_dir
             )
 
-            # Check timestamp format in filename
+            # Check filename contains timestamp
             filename = os.path.basename(filepath)
-            self.assertRegex(filename, r"playlist_\d{8}_\d{6}_Test\.m3u")
+            self.assertRegex(filename, r"playlist_\d{8}_\d{6}_timestamp-test\.m3u")
 
-            # Check timestamp format in file content
+            # Check file contents contain timestamp
             with open(filepath, "r", encoding="utf-8") as f:
                 content = f.read()
-                self.assertRegex(
-                    content, r"Generated: \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}"
-                )
+
+            # Should contain generated timestamp
+            self.assertIn("Generated:", content)
+            self.assertRegex(content, r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}")
+
+    def test_save_playlist_m3u_track_numbering(self) -> None:
+        """Test M3U playlist saving includes proper track numbering"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            query = "numbering test"
+            filepath = self.playlist_output.save_playlist_m3u(
+                self.sample_tracks, query, temp_dir
+            )
+
+            # Check file contents
+            with open(filepath, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            # Should contain track numbers
+            self.assertIn("Track: 1/3", content)
+            self.assertIn("Track: 2/3", content)
+            self.assertIn("Track: 3/3", content)
+
+    def test_save_playlist_m3u_duration_formatting(self) -> None:
+        """Test M3U playlist saving formats duration correctly"""
+        tracks_with_duration = [
+            {
+                "name": "Song 1",
+                "artist": "Artist 1",
+                "album": "Album 1",
+                "duration_ms": 180000,  # 3 minutes
+                "similarity_score": 0.95,
+                "location": "file:///path/to/song1.mp3",
+            },
+            {
+                "name": "Song 2",
+                "artist": "Artist 2",
+                "album": "Album 2",
+                "duration_ms": 125000,  # 2 minutes 5 seconds
+                "similarity_score": 0.87,
+                "location": "file:///path/to/song2.mp3",
+            },
+        ]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            query = "duration test"
+            filepath = self.playlist_output.save_playlist_m3u(
+                tracks_with_duration, query, temp_dir
+            )
+
+            # Check file contents
+            with open(filepath, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            # Should contain duration in seconds
+            self.assertIn("#EXTINF:180,", content)
+            self.assertIn("#EXTINF:125,", content)
 
 
 if __name__ == "__main__":

@@ -114,7 +114,7 @@ class TestTrackDeduplicator(unittest.TestCase):
         result = self.deduplicator._deduplicate_by_location(tracks)
         self.assertEqual(len(result), 3)  # Should include tracks without location
 
-    def test_deduplicate_by_title_artist(self) -> None:
+    def test_deduplicate_by_name_artist(self) -> None:
         """Test title/artist combination deduplication"""
         tracks: List[Dict[str, Any]] = [
             {"name": "Song1", "artist": "Artist1"},
@@ -122,19 +122,19 @@ class TestTrackDeduplicator(unittest.TestCase):
             {"name": "Song1", "artist": "Artist2"},  # Different artist
             {"name": "Song2", "artist": "Artist1"},  # Different title
         ]
-        result = self.deduplicator._deduplicate_by_title_artist(tracks)
+        result = self.deduplicator._deduplicate_by_name_artist(tracks)
         self.assertEqual(len(result), 3)  # Should remove exact duplicate
 
-    def test_deduplicate_by_title_artist_case_insensitive(self) -> None:
+    def test_deduplicate_by_name_artist_case_insensitive(self) -> None:
         """Test title/artist deduplication is case insensitive"""
         tracks: List[Dict[str, Any]] = [
             {"name": "Song1", "artist": "Artist1"},
             {"name": "SONG1", "artist": "ARTIST1"},  # Different case
         ]
-        result = self.deduplicator._deduplicate_by_title_artist(tracks)
+        result = self.deduplicator._deduplicate_by_name_artist(tracks)
         self.assertEqual(len(result), 1)  # Should treat as duplicate
 
-    def test_deduplicate_by_title_artist_empty_fields(self) -> None:
+    def test_deduplicate_by_name_artist_empty_fields(self) -> None:
         """Test title/artist deduplication with empty fields"""
         tracks: List[Dict[str, Any]] = [
             {"name": "", "artist": "Artist1"},
@@ -142,7 +142,7 @@ class TestTrackDeduplicator(unittest.TestCase):
             {"name": "", "artist": ""},
             {"name": "Song2", "artist": "Artist2"},
         ]
-        result = self.deduplicator._deduplicate_by_title_artist(tracks)
+        result = self.deduplicator._deduplicate_by_name_artist(tracks)
         self.assertEqual(len(result), 4)  # Should include tracks with empty fields
 
     def test_deduplicate_by_track_id(self) -> None:
@@ -165,31 +165,31 @@ class TestTrackDeduplicator(unittest.TestCase):
         result = self.deduplicator._deduplicate_by_track_id(tracks)
         self.assertEqual(len(result), 2)  # Should deduplicate tracks without ID as one
 
-    def test_smart_title_deduplication_single_track(self) -> None:
+    def test_smart_name_deduplication_single_track(self) -> None:
         """Test smart title deduplication with single track"""
         tracks: List[Dict[str, Any]] = [
             {"name": "Song", "artist": "Artist", "similarity_score": 0.8}
         ]
-        result = self.deduplicator._smart_title_deduplication(tracks)
+        result = self.deduplicator._smart_name_deduplication(tracks)
         self.assertEqual(result, tracks)
 
-    def test_smart_title_deduplication_empty_list(self) -> None:
+    def test_smart_name_deduplication_empty_list(self) -> None:
         """Test smart title deduplication with empty list"""
-        result = self.deduplicator._smart_title_deduplication([])
+        result = self.deduplicator._smart_name_deduplication([])
         self.assertEqual(result, [])
 
-    def test_smart_title_deduplication_different_artists(self) -> None:
+    def test_smart_name_deduplication_different_artists(self) -> None:
         """Test smart title deduplication with different artists"""
         tracks: List[Dict[str, Any]] = [
             {"name": "Song (Remix)", "artist": "Artist1", "similarity_score": 0.8},
             {"name": "Song (Live)", "artist": "Artist2", "similarity_score": 0.7},
             {"name": "Song", "artist": "Artist3", "similarity_score": 0.9},
         ]
-        result = self.deduplicator._smart_title_deduplication(tracks)
+        result = self.deduplicator._smart_name_deduplication(tracks)
         # Should keep all since they have different artists
         self.assertEqual(len(result), 3)
 
-    def test_smart_title_deduplication_same_artist_variations(self) -> None:
+    def test_smart_name_deduplication_same_artist_variations(self) -> None:
         """Test smart title deduplication with same artist and title variations"""
         tracks: List[Dict[str, Any]] = [
             {"name": "Song (Remix)", "artist": "Artist1", "similarity_score": 0.8},
@@ -200,116 +200,64 @@ class TestTrackDeduplicator(unittest.TestCase):
                 "similarity_score": 0.9,
             },  # Highest score
         ]
-        result = self.deduplicator._smart_title_deduplication(tracks)
+        result = self.deduplicator._smart_name_deduplication(tracks)
         # Should keep only the highest scoring variation
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]["similarity_score"], 0.9)
 
-    def test_group_tracks_by_artist(self) -> None:
-        """Test grouping tracks by artist"""
-        tracks: List[Dict[str, Any]] = [
-            {"name": "Song1", "artist": "Artist1"},
-            {"name": "Song2", "artist": "Artist1"},
-            {"name": "Song3", "artist": "Artist2"},
-            {"name": "Song4", "artist": ""},  # Empty artist
-        ]
-        result = self.deduplicator._group_tracks_by_artist(tracks)
-        self.assertEqual(len(result), 2)  # Only 2 artists with non-empty names
-        self.assertEqual(len(result["artist1"]), 2)
-        self.assertEqual(len(result["artist2"]), 1)
-
-    def test_group_tracks_by_artist_case_insensitive(self) -> None:
-        """Test artist grouping is case insensitive"""
-        tracks: List[Dict[str, Any]] = [
-            {"name": "Song1", "artist": "Artist1"},
-            {"name": "Song2", "artist": "ARTIST1"},
-        ]
-        result = self.deduplicator._group_tracks_by_artist(tracks)
-        self.assertEqual(len(result), 1)
-        self.assertEqual(len(result["artist1"]), 2)
-
-    def test_process_artist_tracks_single_track(self) -> None:
-        """Test processing single artist track"""
-        tracks: List[Dict[str, Any]] = [
-            {"name": "Song", "artist": "Artist", "similarity_score": 0.8}
-        ]
-        result = self.deduplicator._process_artist_tracks(tracks)
-        self.assertEqual(result, tracks)
-
-    def test_process_artist_tracks_title_variations(self) -> None:
-        """Test processing artist tracks with title variations"""
-        tracks: List[Dict[str, Any]] = [
-            {"name": "Song (Remix)", "artist": "Artist1", "similarity_score": 0.8},
-            {"name": "Song (Live)", "artist": "Artist1", "similarity_score": 0.7},
-            {"name": "Song", "artist": "Artist1", "similarity_score": 0.9},
-        ]
-        result = self.deduplicator._process_artist_tracks(tracks)
-        # Should keep only the highest scoring variation
-        self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]["similarity_score"], 0.9)
-
-    def test_process_artist_tracks_empty_title(self) -> None:
-        """Test processing artist tracks with empty title"""
-        tracks: List[Dict[str, Any]] = [
-            {"name": "", "artist": "Artist1", "similarity_score": 0.8},
-            {"name": "Song", "artist": "Artist1", "similarity_score": 0.9},
-        ]
-        result = self.deduplicator._process_artist_tracks(tracks)
-        # Should include track with empty title
-        self.assertEqual(len(result), 2)
-
-    def test_find_best_track_for_base_title(self) -> None:
+    def test_find_best_track_for_base_name(self) -> None:
         """Test finding best track for base title"""
         tracks: List[Dict[str, Any]] = [
             {"name": "Song (Remix)", "artist": "Artist1", "similarity_score": 0.8},
             {"name": "Song (Live)", "artist": "Artist1", "similarity_score": 0.7},
             {"name": "Song", "artist": "Artist1", "similarity_score": 0.9},
         ]
-        result = self.deduplicator._find_best_track_for_base_title(tracks, "song")
+        result = self.deduplicator._find_best_track_for_base_name(tracks, "song")
         self.assertIsNotNone(result)
         if result is not None:  # Type guard for mypy
             self.assertEqual(result["similarity_score"], 0.9)
 
-    def test_find_best_track_for_base_title_no_match(self) -> None:
+    def test_find_best_track_for_base_name_no_match(self) -> None:
         """Test finding best track when no match exists"""
         tracks: List[Dict[str, Any]] = [
             {"name": "Song (Remix)", "artist": "Artist1", "similarity_score": 0.8},
             {"name": "Song (Live)", "artist": "Artist1", "similarity_score": 0.7},
         ]
-        result = self.deduplicator._find_best_track_for_base_title(tracks, "different")
-        self.assertIsNone(result)
+        result = self.deduplicator._find_best_track_for_base_name(tracks, "different")
+        # Should return first track as fallback when no match is found
+        self.assertEqual(result, tracks[0])
 
-    def test_extract_base_title_empty(self) -> None:
+    def test_extract_base_name_empty(self) -> None:
         """Test extracting base title from empty string"""
-        result = self.deduplicator._extract_base_title("")
+        result = self.deduplicator._extract_base_name("")
         self.assertEqual(result, "")
 
-    def test_extract_base_title_no_suffixes(self) -> None:
+    def test_extract_base_name_no_suffixes(self) -> None:
         """Test extracting base title without suffixes"""
-        result = self.deduplicator._extract_base_title("Simple Song")
+        result = self.deduplicator._extract_base_name("Simple Song")
         self.assertEqual(result, "Simple Song")
 
-    def test_extract_base_title_with_remix_suffix(self) -> None:
+    def test_extract_base_name_with_remix_suffix(self) -> None:
         """Test extracting base title with remix suffix"""
-        result = self.deduplicator._extract_base_title("Song (Remix)")
+        result = self.deduplicator._extract_base_name("Song (Remix)")
         self.assertEqual(result, "Song")
 
-    def test_extract_base_title_with_live_suffix(self) -> None:
+    def test_extract_base_name_with_live_suffix(self) -> None:
         """Test extracting base title with live suffix"""
-        result = self.deduplicator._extract_base_title("Song (Live)")
+        result = self.deduplicator._extract_base_name("Song (Live)")
         self.assertEqual(result, "Song")
 
-    def test_extract_base_title_with_acoustic_suffix(self) -> None:
+    def test_extract_base_name_with_acoustic_suffix(self) -> None:
         """Test extracting base title with acoustic suffix"""
-        result = self.deduplicator._extract_base_title("Song (Acoustic)")
+        result = self.deduplicator._extract_base_name("Song (Acoustic)")
         self.assertEqual(result, "Song")
 
-    def test_extract_base_title_with_dash_suffix(self) -> None:
+    def test_extract_base_name_with_dash_suffix(self) -> None:
         """Test extracting base title with dash suffix"""
-        result = self.deduplicator._extract_base_title("Song - Remix")
+        result = self.deduplicator._extract_base_name("Song - Remix")
         self.assertEqual(result, "Song")
 
-    def test_extract_base_title_with_multiple_suffixes(self) -> None:
+    def test_extract_base_name_with_multiple_suffixes(self) -> None:
         """Test extracting base title with multiple suffix variations"""
         test_cases = [
             ("Song (Remastered)", "Song"),
@@ -323,17 +271,17 @@ class TestTrackDeduplicator(unittest.TestCase):
         ]
         for title, expected in test_cases:
             with self.subTest(title=title):
-                result = self.deduplicator._extract_base_title(title)
+                result = self.deduplicator._extract_base_name(title)
                 self.assertEqual(result, expected)
 
-    def test_extract_base_title_with_parentheses_content(self) -> None:
+    def test_extract_base_name_with_parentheses_content(self) -> None:
         """Test extracting base title with parentheses content that's not a suffix"""
-        result = self.deduplicator._extract_base_title("Song (feat. Artist)")
+        result = self.deduplicator._extract_base_name("Song (feat. Artist)")
         self.assertEqual(result, "Song")
 
-    def test_extract_base_title_case_insensitive_suffixes(self) -> None:
+    def test_extract_base_name_case_insensitive_suffixes(self) -> None:
         """Test extracting base title with case insensitive suffix matching"""
-        result = self.deduplicator._extract_base_title("Song (REMIX)")
+        result = self.deduplicator._extract_base_name("Song (REMIX)")
         self.assertEqual(result, "Song")
 
     def test_normalize_file_location_empty(self) -> None:

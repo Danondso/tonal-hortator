@@ -6,7 +6,7 @@ A Python package that generates music playlists using semantic search
 with local AI embeddings, featuring seamless Apple Music integration.
 """
 
-__version__ = "2.0.0"
+__version__ = "2.0.1"
 __author__ = "Your Name"
 __email__ = "your.email@example.com"
 

@@ -3,6 +3,7 @@
 Tests for tonal_hortator.core.embeddings
 """
 
+from typing import List
 from unittest.mock import Mock, patch
 
 import numpy as np
@@ -285,7 +286,7 @@ class TestOllamaEmbeddingService:
         service = OllamaEmbeddingService()
 
         track_data = {
-            "title": "Test Song",
+            "name": "Test Song",
             "artist": "Test Artist",
             "album": "Test Album",
             "genre": "Rock",
@@ -294,7 +295,7 @@ class TestOllamaEmbeddingService:
 
         result = service.create_track_embedding_text(track_data)
 
-        expected = "Test Artist, Test Album, Rock, 2020"
+        expected = "Test Song, Test Artist, Test Album, Rock, 2020"
         assert result == expected
 
     @patch("tonal_hortator.core.embeddings.ollama.Client")
@@ -311,11 +312,11 @@ class TestOllamaEmbeddingService:
 
         service = OllamaEmbeddingService()
 
-        track_data = {"title": "Test Song", "artist": "Test Artist"}
+        track_data = {"name": "Test Song", "artist": "Test Artist"}
 
         result = service.create_track_embedding_text(track_data)
 
-        expected = "Test Artist"
+        expected = "Test Song, Test Artist"
         assert result == expected
 
     @patch("tonal_hortator.core.embeddings.ollama.Client")
@@ -331,15 +332,15 @@ class TestOllamaEmbeddingService:
         service = OllamaEmbeddingService()
 
         # Mock embeddings and track data
-        embeddings = [
+        embeddings: List[np.ndarray] = [
             np.array([0.1, 0.2, 0.3], dtype=np.float32),
             np.array([0.9, 0.8, 0.7], dtype=np.float32),
             np.array([0.2, 0.3, 0.4], dtype=np.float32),
         ]
         track_data = [
-            {"title": "Track 1", "artist": "Artist 1"},
-            {"title": "Track 2", "artist": "Artist 2"},
-            {"title": "Track 3", "artist": "Artist 3"},
+            {"name": "Track 1", "artist": "Artist 1"},
+            {"name": "Track 2", "artist": "Artist 2"},
+            {"name": "Track 3", "artist": "Artist 3"},
         ]
 
         # Mock the embedding generation for the query
@@ -352,8 +353,8 @@ class TestOllamaEmbeddingService:
         )
 
         assert len(results) == 2
-        assert results[0]["title"] == "Track 1"  # Highest similarity
-        assert results[1]["title"] == "Track 3"  # Second highest similarity
+        assert results[0]["name"] == "Track 1"  # Highest similarity
+        assert results[1]["name"] == "Track 3"  # Second highest similarity
 
     @patch("tonal_hortator.core.embeddings.ollama.Client")
     def test_similarity_search_empty_data(self, mock_client_class: Mock) -> None:
