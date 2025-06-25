@@ -53,7 +53,7 @@ jobs:
     
     - name: Type check with mypy
       run: |
-        mypy tonal_hortator/ --ignore-missing-imports
+        mypy tonal_hortator/ --config-file mypy.ini
     
     - name: Run tests with pytest
       run: |
