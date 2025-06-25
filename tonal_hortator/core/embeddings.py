@@ -134,7 +134,8 @@ class OllamaEmbeddingService:
         try:
             start_time = time.time()
             result = self.client.embeddings(model=self.model_name, prompt=text)
-            embedding: np.ndarray = np.array(result["embedding"], dtype=np.float32)
+            embedding_data: List[float] = result["embedding"]
+            embedding: np.ndarray = np.array(embedding_data, dtype=np.float32)
             embedding_time = time.time() - start_time
 
             logger.debug(
@@ -153,7 +154,8 @@ class OllamaEmbeddingService:
         batch_embeddings: List[np.ndarray] = []
         for text in batch_texts:
             result = self.client.embeddings(model=self.model_name, prompt=text)
-            batch_embeddings.append(np.array(result["embedding"], dtype=np.float32))
+            embedding_data: List[float] = result["embedding"]
+            batch_embeddings.append(np.array(embedding_data, dtype=np.float32))
         return batch_embeddings
 
     def _fallback_individual_embeddings(
