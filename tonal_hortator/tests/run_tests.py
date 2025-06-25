@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test runner for tonal-hortator
+Test runner for tonal_hortator
 """
 
 import os
@@ -25,31 +25,15 @@ from tonal_hortator.tests.test_utils import TestAppleMusicUtils, TestLibraryPars
 
 def run_tests() -> None:
     """Run all tests"""
-    # Create test suite
-    test_suite = unittest.TestSuite()
+    # Discover and run tests
+    loader = unittest.TestLoader()
+    start_dir = os.path.dirname(__file__)
+    suite = loader.discover(start_dir, pattern="test_*.py")
 
-    # Add test classes
-    test_classes = [
-        TestCLI,
-        TestCLIImports,
-        TestAppleMusicUtils,
-        TestLibraryParser,
-        TestPlaylistOutput,
-        TestArtistDistributor,
-        TestLocalTrackEmbedder,
-        TestLocalPlaylistGenerator,
-        TestLocalPlaylistGeneratorComprehensive,
-    ]
-
-    for test_class in test_classes:
-        tests = unittest.TestLoader().loadTestsFromTestCase(test_class)
-        test_suite.addTests(tests)
-
-    # Run tests
     runner = unittest.TextTestRunner(verbosity=2)
-    result = runner.run(test_suite)
+    result = runner.run(suite)
 
-    # Return exit code
+    # Exit with appropriate code
     sys.exit(not result.wasSuccessful())
 
 
