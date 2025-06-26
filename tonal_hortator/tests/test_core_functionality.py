@@ -113,38 +113,6 @@ class TestCoreFunctionality(unittest.TestCase):
         track_names = [track["name"] for track in playlist]
         self.assertTrue(any("Test Song" in name for name in track_names))
 
-    @patch("tonal_hortator.core.embeddings.ollama")
-    def test_generate_playlist(self, mock_ollama: Mock) -> None:
-        """Test that a simple playlist can be generated."""
-        # Mock the Ollama client and embeddings
-        mock_client = Mock()
-        mock_ollama.Client.return_value = mock_client
-
-        # Mock the list() method to return a proper structure
-        mock_client.list.return_value = {
-            "models": [{"name": "nomic-embed-text:latest"}]
-        }
-
-        # Mock the embeddings response
-        mock_embedding = np.random.rand(384).astype(np.float32)
-        mock_client.embeddings.return_value = {"embedding": mock_embedding.tolist()}
-
-        # First, ensure the tracks are embedded
-        embedder = LocalTrackEmbedder(db_path=self.db_path, conn=self.conn)
-        embedder.embed_all_tracks()
-
-        # Now, generate a playlist - create a new embedder for the playlist generator
-        embedder_for_playlist = LocalTrackEmbedder(db_path=self.db_path, conn=self.conn)
-        playlist_generator = LocalPlaylistGenerator(db_path=self.db_path)
-        playlist_generator.track_embedder = embedder_for_playlist
-        playlist = playlist_generator.generate_playlist("a test song")
-
-        self.assertIsNotNone(playlist)
-        self.assertGreater(len(playlist), 0)  # Should have at least one track
-        # Check that the playlist contains tracks with the expected names
-        track_names = [track["name"] for track in playlist]
-        self.assertTrue(any("Test Song" in name for name in track_names))
-
 
 if __name__ == "__main__":
     unittest.main()
