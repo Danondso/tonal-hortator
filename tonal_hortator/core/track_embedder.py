@@ -234,7 +234,7 @@ class LocalTrackEmbedder:
             # Join tracks and track_embeddings tables
             cursor.execute(
                 """
-                SELECT 
+                SELECT
                     te.embedding,
                     t.id,
                     t.name,

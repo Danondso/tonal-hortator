@@ -5,7 +5,7 @@ Tests for tonal_hortator.core.playlist_generator
 
 import os
 import tempfile
-from typing import Any, List, cast
+from typing import List, cast
 from unittest.mock import Mock, patch
 
 import numpy as np

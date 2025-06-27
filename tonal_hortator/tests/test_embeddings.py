@@ -263,7 +263,7 @@ class TestOllamaEmbeddingService:
 
         result = service.create_track_embedding_text(track_data)
 
-        expected = "Test Artist, Test Album, Rock, 2020"
+        expected = "Test Song, Test Artist, Test Album, Rock, 2020"
         assert result == expected
 
     @patch("tonal_hortator.core.embeddings.ollama.Client")
@@ -284,7 +284,7 @@ class TestOllamaEmbeddingService:
 
         result = service.create_track_embedding_text(track_data)
 
-        expected = "Test Artist"
+        expected = "Test Song, Test Artist"
         assert result == expected
 
     @patch("tonal_hortator.core.embeddings.ollama.Client")
