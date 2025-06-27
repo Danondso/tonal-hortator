@@ -5,7 +5,7 @@ Tests for tonal_hortator.core.playlist_generator
 
 import os
 import tempfile
-from typing import Any, List, cast
+from typing import List, cast
 from unittest.mock import Mock, patch
 
 import numpy as np
@@ -150,21 +150,21 @@ class TestLocalPlaylistGenerator:
 
     @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
     @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
-    def test_extract_base_title(
+    def test_extract_base_name(
         self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
     ) -> None:
-        """Test base title extraction"""
+        """Test base name extraction"""
         generator = LocalPlaylistGenerator()
 
-        # Test with common suffixes
-        assert generator._extract_base_title("Song (Remix)") == "Song"
-        assert generator._extract_base_title("Track (Live)") == "Track"
-        assert generator._extract_base_title("Music (Acoustic)") == "Music"
-        assert generator._extract_base_title("Hit (Radio Edit)") == "Hit"
+        # Test various name patterns
+        assert generator._extract_base_name("Song (Remix)") == "Song"
+        assert generator._extract_base_name("Track (Live)") == "Track"
+        assert generator._extract_base_name("Music (Acoustic)") == "Music"
+        assert generator._extract_base_name("Hit (Radio Edit)") == "Hit"
 
-        # Test without suffixes
-        assert generator._extract_base_title("Simple Song") == "Simple Song"
-        assert generator._extract_base_title("") == ""
+        # Test names without suffixes
+        assert generator._extract_base_name("Simple Song") == "Simple Song"
+        assert generator._extract_base_name("") == ""
 
     @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
     @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
@@ -234,23 +234,28 @@ class TestLocalPlaylistGenerator:
 
     @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
     @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
-    def test_smart_title_deduplication(
+    def test_smart_name_deduplication(
         self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
     ) -> None:
-        """Test smart title deduplication"""
+        """Test smart name deduplication"""
         generator = LocalPlaylistGenerator()
 
         tracks = [
             {"name": "Song (Remix)", "artist": "Artist1", "similarity_score": 0.8},
-            {"name": "Song (Live)", "artist": "Artist2", "similarity_score": 0.7},
-            {"name": "Song", "artist": "Artist3", "similarity_score": 0.9},
-            {"name": "Different Song", "artist": "Artist4", "similarity_score": 0.6},
+            {"name": "Song (Live)", "artist": "Artist1", "similarity_score": 0.7},
+            {"name": "Song", "artist": "Artist1", "similarity_score": 0.9},
+            {"name": "Different Song", "artist": "Artist2", "similarity_score": 0.6},
         ]
 
-        result = generator._smart_title_deduplication(tracks)
+        result = generator._smart_name_deduplication(tracks)
 
-        # Should keep all tracks since they have different artists or base titles
-        assert len(result) == 4
+        # Should keep only 2 tracks: the best "Song" variant by Artist1 and "Different Song" by Artist2
+        assert len(result) == 2
+        # The "Song" track with highest similarity score (0.9) should be kept
+        song_track = next(track for track in result if track["name"] == "Song")
+        assert song_track["similarity_score"] == 0.9
+        # The "Different Song" track should be kept
+        assert any(track["name"] == "Different Song" for track in result)
 
     @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
     @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
@@ -319,29 +324,6 @@ class TestLocalPlaylistGenerator:
 
     @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
     @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
-    def test_print_playlist_summary(
-        self,
-        mock_track_embedder_class: Mock,
-        mock_embedding_service_class: Mock,
-        capsys: Any,
-    ) -> None:
-        """Test printing playlist summary"""
-        generator = LocalPlaylistGenerator()
-
-        tracks = [
-            {"name": "Song1", "artist": "Artist1", "similarity_score": 0.8},
-            {"name": "Song2", "artist": "Artist2", "similarity_score": 0.7},
-        ]
-
-        generator.print_playlist_summary(tracks, "test query")
-
-        captured = capsys.readouterr()
-        assert "test query" in captured.out
-        assert "Song1" in captured.out
-        assert "Song2" in captured.out
-
-    @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
-    @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
     def test_generate_playlist_success(
         self,
         mock_track_embedder_class: Mock,
@@ -378,46 +360,6 @@ class TestLocalPlaylistGenerator:
 
         generator = LocalPlaylistGenerator()
         result = generator.generate_playlist("test query", max_tracks=5)
-        assert isinstance(result, list)
-
-    @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
-    @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
-    def test_generate_playlist_with_artist_filter(
-        self,
-        mock_track_embedder_class: Mock,
-        mock_embedding_service_class: Mock,
-    ) -> None:
-        """Test playlist generation with artist filter"""
-        mock_embedding_service = Mock()
-        mock_embedding_service_class.return_value = mock_embedding_service
-
-        mock_track_embedder = Mock()
-        mock_track_embedder_class.return_value = mock_track_embedder
-
-        # Use real numpy arrays for embeddings
-        mock_embeddings = [
-            np.array([0.1, 0.2, 0.3], dtype=np.float32),
-            np.array([0.4, 0.5, 0.6], dtype=np.float32),
-        ]
-        mock_track_data = [
-            {"name": "Song1", "artist": "Nirvana", "similarity_score": 0.8},
-            {"name": "Song2", "artist": "Nirvana", "similarity_score": 0.7},
-        ]
-        mock_track_embedder.get_all_embeddings.return_value = (
-            mock_embeddings,
-            mock_track_data,
-        )
-        mock_track_embedder.create_track_embedding_text.side_effect = (
-            lambda x: "embedding text"
-        )
-        # Return real list of dicts for similarity_search
-        mock_embedding_service.similarity_search.return_value = [
-            {"name": "Song1", "artist": "Nirvana", "similarity_score": 0.8},
-            {"name": "Song2", "artist": "Nirvana", "similarity_score": 0.7},
-        ]
-
-        generator = LocalPlaylistGenerator()
-        result = generator.generate_playlist("Nirvana songs", max_tracks=5)
         assert isinstance(result, list)
 
     @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")

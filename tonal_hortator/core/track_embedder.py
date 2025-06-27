@@ -96,7 +96,7 @@ class LocalTrackEmbedder:
             cursor.execute(
                 """
                 SELECT
-                    t.id, t.title as name, t.artist, t.album, t.genre, t.year,
+                    t.id, t.name, t.artist, t.album, t.genre, t.year,
                     t.play_count, t.album_artist, t.composer, t.bpm
                 FROM tracks t
                 LEFT JOIN track_embeddings te ON t.id = te.track_id
@@ -236,18 +236,42 @@ class LocalTrackEmbedder:
                 """
                 SELECT
                     te.embedding,
-                    t.id, t.title as name, t.artist, t.album, t.genre, t.year,
-                    t.play_count, t.album_artist, t.composer, t.bpm, t.location
-                FROM track_embeddings te
-                JOIN tracks t ON te.track_id = t.id
+                    t.id,
+                    t.name,
+                    t.artist,
+                    t.album_artist,
+                    t.composer,
+                    t.album,
+                    t.genre,
+                    t.year,
+                    t.total_time,
+                    t.track_number,
+                    t.disc_number,
+                    t.play_count,
+                    t.bpm,
+                    t.location
+                FROM tracks t
+                LEFT JOIN track_embeddings te ON t.id = te.track_id
+                ORDER BY t.id
             """
             )
 
             rows = cursor.fetchall()
-            embeddings = [
-                np.frombuffer(row["embedding"], dtype=np.float32) for row in rows
-            ]
-            track_data = [dict(row) for row in rows]
+            embeddings = []
+            track_data = []
+
+            for row in rows:
+                # Convert row to dict for easier access
+                row_dict = dict(row)
+
+                # Handle embedding data
+                if row_dict["embedding"] is not None:
+                    embedding = np.frombuffer(row_dict["embedding"], dtype=np.float32)
+                    embeddings.append(embedding)
+                    track_data.append(row_dict)
+                else:
+                    # Skip tracks without embeddings
+                    continue
 
             logger.info(f"📊 Retrieved {len(embeddings)} embeddings from database")
             return embeddings, track_data

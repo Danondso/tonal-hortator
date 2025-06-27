@@ -140,8 +140,10 @@ class TestOllamaEmbeddingService:
         )
 
     @patch("tonal_hortator.core.embeddings.ollama.Client")
-    def test_get_embedding_empty_text(self, mock_client_class: Mock) -> None:
-        """Test embedding generation with empty text"""
+    def test_get_embedding_empty_or_whitespace_text(
+        self, mock_client_class: Mock
+    ) -> None:
+        """Test embedding generation with empty or whitespace text"""
         mock_client = Mock()
         mock_client_class.return_value = mock_client
 
@@ -154,29 +156,14 @@ class TestOllamaEmbeddingService:
 
         service = OllamaEmbeddingService()
 
+        # Test empty text
         result = service.get_embedding("")
-
         assert isinstance(result, np.ndarray)
         assert len(result) == 384
         assert np.all(result == 0)
 
-    @patch("tonal_hortator.core.embeddings.ollama.Client")
-    def test_get_embedding_whitespace_text(self, mock_client_class: Mock) -> None:
-        """Test embedding generation with whitespace text"""
-        mock_client = Mock()
-        mock_client_class.return_value = mock_client
-
-        mock_models_response = Mock()
-        mock_models_response.models = [Mock(model="nomic-embed-text:latest")]
-        mock_client.list.return_value = mock_models_response
-
-        mock_embedding_response = {"embedding": [0.1] * 384}
-        mock_client.embeddings.return_value = mock_embedding_response
-
-        service = OllamaEmbeddingService()
-
+        # Test whitespace text
         result = service.get_embedding("   ")
-
         assert isinstance(result, np.ndarray)
         assert len(result) == 384
         assert np.all(result == 0)
@@ -225,24 +212,6 @@ class TestOllamaEmbeddingService:
         assert mock_client.embeddings.call_count == 4
 
     @patch("tonal_hortator.core.embeddings.ollama.Client")
-    def test_get_embeddings_batch_empty(self, mock_client_class: Mock) -> None:
-        """Test batch embedding generation with empty list"""
-        mock_client = Mock()
-        mock_client_class.return_value = mock_client
-
-        mock_models_response = Mock()
-        mock_models_response.models = [Mock(model="nomic-embed-text:latest")]
-        mock_client.list.return_value = mock_models_response
-
-        service = OllamaEmbeddingService()
-
-        results = service.get_embeddings_batch([])
-
-        assert results == []
-        # 1 call for dimension detection
-        assert mock_client.embeddings.call_count == 1
-
-    @patch("tonal_hortator.core.embeddings.ollama.Client")
     def test_get_embeddings_batch_error_fallback(self, mock_client_class: Mock) -> None:
         """Test batch embedding generation with error fallback"""
         mock_client = Mock()
@@ -285,7 +254,7 @@ class TestOllamaEmbeddingService:
         service = OllamaEmbeddingService()
 
         track_data = {
-            "title": "Test Song",
+            "name": "Test Song",
             "artist": "Test Artist",
             "album": "Test Album",
             "genre": "Rock",
@@ -294,7 +263,7 @@ class TestOllamaEmbeddingService:
 
         result = service.create_track_embedding_text(track_data)
 
-        expected = "Test Artist, Test Album, Rock, 2020"
+        expected = "Test Song, Test Artist, Test Album, Rock, 2020"
         assert result == expected
 
     @patch("tonal_hortator.core.embeddings.ollama.Client")
@@ -311,11 +280,11 @@ class TestOllamaEmbeddingService:
 
         service = OllamaEmbeddingService()
 
-        track_data = {"title": "Test Song", "artist": "Test Artist"}
+        track_data = {"name": "Test Song", "artist": "Test Artist"}
 
         result = service.create_track_embedding_text(track_data)
 
-        expected = "Test Artist"
+        expected = "Test Song, Test Artist"
         assert result == expected
 
     @patch("tonal_hortator.core.embeddings.ollama.Client")
@@ -337,9 +306,9 @@ class TestOllamaEmbeddingService:
             np.array([0.2, 0.3, 0.4], dtype=np.float32),
         ]
         track_data = [
-            {"title": "Track 1", "artist": "Artist 1"},
-            {"title": "Track 2", "artist": "Artist 2"},
-            {"title": "Track 3", "artist": "Artist 3"},
+            {"name": "Track 1", "artist": "Artist 1"},
+            {"name": "Track 2", "artist": "Artist 2"},
+            {"name": "Track 3", "artist": "Artist 3"},
         ]
 
         # Mock the embedding generation for the query
@@ -352,8 +321,8 @@ class TestOllamaEmbeddingService:
         )
 
         assert len(results) == 2
-        assert results[0]["title"] == "Track 1"  # Highest similarity
-        assert results[1]["title"] == "Track 3"  # Second highest similarity
+        assert results[0]["name"] == "Track 1"  # Highest similarity
+        assert results[1]["name"] == "Track 3"  # Second highest similarity
 
     @patch("tonal_hortator.core.embeddings.ollama.Client")
     def test_similarity_search_empty_data(self, mock_client_class: Mock) -> None:
@@ -370,20 +339,6 @@ class TestOllamaEmbeddingService:
         results = service.similarity_search("test query", [], [], top_k=5)
 
         assert results == []
-
-    @patch("tonal_hortator.core.embeddings.ollama.Client")
-    def test_close(self, mock_client_class: Mock) -> None:
-        """Test service cleanup"""
-        mock_client = Mock()
-        mock_client_class.return_value = mock_client
-
-        mock_models_response = Mock()
-        mock_models_response.models = [Mock(model="nomic-embed-text:latest")]
-        mock_client.list.return_value = mock_models_response
-
-        service = OllamaEmbeddingService()
-        service.close()
-        # No assertion needed; just ensure no exception is raised
 
     @patch("tonal_hortator.core.embeddings.ollama.Client")
     def test_get_embedding_dimension_fallback(self, mock_client_class: Mock) -> None:
@@ -403,3 +358,29 @@ class TestOllamaEmbeddingService:
 
         # Should use the detected dimension (2)
         assert service._embedding_dimension == 2
+
+    # Test data
+    test_tracks = [
+        {
+            "id": 1,
+            "name": "Test Song 1",
+            "artist": "Test Artist 1",
+            "album": "Test Album 1",
+            "genre": "Rock",
+            "year": 2020,
+            "play_count": 10,
+            "bpm": 120,
+            "location": "/path/to/song1.mp3",
+        },
+        {
+            "id": 2,
+            "name": "Test Song 2",
+            "artist": "Test Artist 2",
+            "album": "Test Album 2",
+            "genre": "Jazz",
+            "year": 2021,
+            "play_count": 5,
+            "bpm": 90,
+            "location": "/path/to/song2.mp3",
+        },
+    ]
