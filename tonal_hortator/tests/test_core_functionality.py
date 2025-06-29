@@ -17,7 +17,8 @@ class TestCoreFunctionality(unittest.TestCase):
         self.cursor = self.conn.cursor()
 
         # Create tracks table with correct schema
-        self.cursor.execute("""
+        self.cursor.execute(
+            """
             CREATE TABLE tracks (
                 id INTEGER PRIMARY KEY,
                 name TEXT,
@@ -34,15 +35,18 @@ class TestCoreFunctionality(unittest.TestCase):
                 date_added TEXT,
                 location TEXT UNIQUE
             )
-        """)
+        """
+        )
 
         # Insert a test track
-        self.cursor.execute("""
+        self.cursor.execute(
+            """
             INSERT INTO tracks (id, name, artist, album, genre, year, total_time, 
                                track_number, disc_number, play_count, location)
             VALUES (1, 'Test Song', 'Test Artist', 'Test Album', 'Rock', 2020, 
                     180000, 1, 1, 5, '/path/to/test/song.mp3')
-        """)
+        """
+        )
         self.conn.commit()
 
     def tearDown(self) -> None:
