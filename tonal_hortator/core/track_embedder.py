@@ -127,7 +127,7 @@ class LocalTrackEmbedder:
             with sqlite3.connect(self.db_path) as thread_conn:
                 # Enable WAL mode for better concurrent performance
                 thread_conn.execute("PRAGMA journal_mode=WAL;")
-                
+
                 # Create embedding texts for this batch
                 embedding_texts = []
                 for track in batch_tracks:
