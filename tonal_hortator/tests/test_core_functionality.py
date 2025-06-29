@@ -123,6 +123,10 @@ class TestCoreFunctionality(unittest.TestCase):
         track_names = [track["name"] for track in playlist]
         self.assertTrue(any("Test Song" in name for name in track_names))
 
+    @unittest.skipIf(
+        os.environ.get("CI") == "true",
+        "Skipping parallel embedding test in CI (Ollama not running)",
+    )
     def test_parallel_embedding(self) -> None:
         """Test that parallel embedding works correctly with multiple workers."""
         # Test with 2 workers and small batch size to ensure parallel processing
