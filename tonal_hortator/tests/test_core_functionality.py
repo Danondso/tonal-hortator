@@ -16,9 +16,8 @@ class TestCoreFunctionality(unittest.TestCase):
         self.conn = sqlite3.connect(self.db_path)
         self.cursor = self.conn.cursor()
 
-        # Create tracks table with the correct schema
-        self.cursor.execute(
-            """
+        # Create tracks table with correct schema
+        self.cursor.execute("""
             CREATE TABLE tracks (
                 id INTEGER PRIMARY KEY,
                 name TEXT,
@@ -32,22 +31,18 @@ class TestCoreFunctionality(unittest.TestCase):
                 track_number INTEGER,
                 disc_number INTEGER,
                 play_count INTEGER,
-                bpm INTEGER,
-                location TEXT
+                date_added TEXT,
+                location TEXT UNIQUE
             )
-        """
-        )
+        """)
 
-        # Insert test data
-        self.cursor.execute(
-            """
-            INSERT INTO tracks (id, name, artist, album_artist, composer, album, genre, year, total_time, track_number, disc_number, play_count, bpm, location)
-            VALUES
-                (1, 'Test Song 1', 'Test Artist 1', 'Test Album Artist 1', 'Composer 1', 'Test Album 1', 'Rock', 2020, 210000, 1, 1, 10, 120, '/path/to/song1.mp3'),
-                (2, 'Test Song 2', 'Test Artist 2', 'Test Album Artist 2', 'Composer 2', 'Test Album 2', 'Jazz', 2021, 180000, 2, 1, 5, 90, '/path/to/song2.mp3'),
-                (3, 'Test Song 3', 'Test Artist 1', 'Test Album Artist 1', 'Composer 1', 'Test Album 1', 'Rock', 2020, 200000, 3, 1, 15, 130, '/path/to/song3.mp3')
-        """
-        )
+        # Insert a test track
+        self.cursor.execute("""
+            INSERT INTO tracks (id, name, artist, album, genre, year, total_time, 
+                               track_number, disc_number, play_count, location)
+            VALUES (1, 'Test Song', 'Test Artist', 'Test Album', 'Rock', 2020, 
+                    180000, 1, 1, 5, '/path/to/test/song.mp3')
+        """)
         self.conn.commit()
 
     def tearDown(self) -> None:

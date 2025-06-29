@@ -97,7 +97,7 @@ class LocalTrackEmbedder:
                 """
                 SELECT
                     t.id, t.name, t.artist, t.album, t.genre, t.year,
-                    t.play_count, t.album_artist, t.composer, t.bpm
+                    t.play_count, t.album_artist, t.composer
                 FROM tracks t
                 LEFT JOIN track_embeddings te ON t.id = te.track_id
                 WHERE te.track_id IS NULL
@@ -248,7 +248,6 @@ class LocalTrackEmbedder:
                     t.track_number,
                     t.disc_number,
                     t.play_count,
-                    t.bpm,
                     t.location
                 FROM tracks t
                 LEFT JOIN track_embeddings te ON t.id = te.track_id
