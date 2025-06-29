@@ -171,7 +171,7 @@ class OllamaEmbeddingService:
         return embeddings
 
     def get_embeddings_batch(
-        self, texts: List[str], batch_size: int = 100
+        self, texts: List[str], batch_size: int = 10000
     ) -> List[np.ndarray]:
         """
         Get embeddings for multiple texts using Ollama's batch API

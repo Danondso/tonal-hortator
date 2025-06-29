@@ -1,4 +1,6 @@
+import os
 import sqlite3
+import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
@@ -11,8 +13,9 @@ from tonal_hortator.core.track_embedder import LocalTrackEmbedder
 class TestCoreFunctionality(unittest.TestCase):
 
     def setUp(self) -> None:
-        """Set up an in-memory database with a single track for testing."""
-        self.db_path = ":memory:"
+        """Set up a temp file-based database with test tracks for parallel embedding."""
+        self.temp_db = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
+        self.db_path = self.temp_db.name
         self.conn = sqlite3.connect(self.db_path)
         self.cursor = self.conn.cursor()
 
@@ -57,6 +60,8 @@ class TestCoreFunctionality(unittest.TestCase):
     def tearDown(self) -> None:
         """Close the database connection."""
         self.conn.close()
+        self.temp_db.close()
+        os.unlink(self.temp_db.name)
 
     @patch("tonal_hortator.core.embeddings.ollama")
     def test_track_embedding(self, mock_ollama: Mock) -> None:

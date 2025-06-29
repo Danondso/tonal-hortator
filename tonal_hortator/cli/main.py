@@ -115,7 +115,7 @@ def _generate_single_playlist(
         return False
 
 
-def embed_tracks(batch_size: int = 100) -> bool:
+def embed_tracks(batch_size: int = 100, max_workers: int = 4) -> bool:
     """Embed all tracks in the database"""
     try:
         logger.info("🚀 Starting track embedding process")
@@ -129,9 +129,11 @@ def embed_tracks(batch_size: int = 100) -> bool:
         # Embed all tracks
         if stats["tracks_without_embeddings"] > 0:
             logger.info(
-                f"🔄 Embedding {stats['tracks_without_embeddings']} tracks with batch size {batch_size}..."
+                f"🔄 Embedding {stats['tracks_without_embeddings']} tracks with batch size {batch_size} and {max_workers} parallel workers..."
             )
-            embedded_count = embedder.embed_all_tracks()
+            embedded_count = embedder.embed_all_tracks(
+                batch_size=batch_size, max_workers=max_workers
+            )
             logger.info(f"✅ Successfully embedded {embedded_count} tracks")
         else:
             logger.info("✅ All tracks already have embeddings")
@@ -204,6 +206,12 @@ Examples:
     embed_parser.add_argument(
         "--batch-size", type=int, default=100, help="Batch size for embedding"
     )
+    embed_parser.add_argument(
+        "--max-workers",
+        type=int,
+        default=4,
+        help="Maximum parallel workers for embedding",
+    )
 
     # Import library command
     import_parser = subparsers.add_parser(
@@ -245,7 +253,9 @@ Examples:
                 auto_open=args.auto_open,
             )
         elif args.command == "embed":
-            success = embed_tracks(batch_size=args.batch_size)
+            success = embed_tracks(
+                batch_size=args.batch_size, max_workers=args.max_workers
+            )
         elif args.command == "import-library":
             success = import_library(xml_path=args.xml_path, db_path=args.db_path)
         elif args.command == "interactive":
