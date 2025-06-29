@@ -94,6 +94,7 @@ class LocalPlaylistGenerator:
 
             # 3. Filter by artist if detected
             artist = self._extract_artist_from_query(query)
+            is_artist_specific = bool(artist)
             if artist:
                 logger.info(f"🎤 Found artist in query: '{artist}'. Filtering results.")
                 results = [
@@ -107,7 +108,7 @@ class LocalPlaylistGenerator:
 
             # 5. Filter by similarity threshold and deduplicate
             filtered_results = self._filter_and_deduplicate_results(
-                results, min_similarity, max_tracks
+                results, min_similarity, max_tracks, is_artist_specific
             )
 
             # 6. Apply artist randomization
@@ -268,7 +269,11 @@ class LocalPlaylistGenerator:
         return None
 
     def _filter_and_deduplicate_results(
-        self, results: List[Dict[str, Any]], min_similarity: float, max_tracks: int
+        self,
+        results: List[Dict[str, Any]],
+        min_similarity: float,
+        max_tracks: int,
+        is_artist_specific: bool,
     ) -> List[Dict[str, Any]]:
         """Filter results by similarity and remove duplicates using multiple strategies"""
         # Filter by similarity threshold
@@ -340,7 +345,24 @@ class LocalPlaylistGenerator:
 
         # Strategy 5: Enforce artist diversity (NEW)
         # Calculate max tracks per artist based on playlist size
-        max_tracks_per_artist = max(1, min(3, max_tracks // 5))  # 1-3 tracks per artist
+        # For artist-specific queries, be more lenient
+        if is_artist_specific:
+            # For artist-specific queries, allow all requested tracks
+            max_tracks_per_artist = (
+                max_tracks  # Allow all requested tracks for artist queries
+            )
+            logger.info(
+                f"🎤 Artist-specific query detected, allowing up to {max_tracks_per_artist} tracks per artist"
+            )
+        else:
+            # For general queries, maintain diversity
+            max_tracks_per_artist = max(
+                1, min(5, max_tracks // 3)
+            )  # 1-5 tracks per artist, more lenient
+            logger.info(
+                f"🎵 General query, allowing up to {max_tracks_per_artist} tracks per artist"
+            )
+
         diverse_tracks = self._enforce_artist_diversity(
             smart_deduplicated, max_tracks, max_tracks_per_artist
         )

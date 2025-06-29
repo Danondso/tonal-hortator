@@ -90,6 +90,7 @@ dmypy.json
 
 # Databases
 *.db
+*.db-*
 music_library.db
 
 # Playlists
