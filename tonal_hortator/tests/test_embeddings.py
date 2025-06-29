@@ -369,8 +369,8 @@ class TestOllamaEmbeddingService:
             "genre": "Rock",
             "year": 2020,
             "play_count": 10,
-            "bpm": 120,
-            "location": "/path/to/song1.mp3",
+            "album_artist": "Test Album Artist 1",
+            "composer": "Composer 1",
         },
         {
             "id": 2,
@@ -380,7 +380,7 @@ class TestOllamaEmbeddingService:
             "genre": "Jazz",
             "year": 2021,
             "play_count": 5,
-            "bpm": 90,
-            "location": "/path/to/song2.mp3",
+            "album_artist": "Test Album Artist 2",
+            "composer": "Composer 2",
         },
     ]
