@@ -178,7 +178,7 @@ class OllamaEmbeddingService:
 
         Args:
             texts: List of text strings to embed
-            batch_size: The size of batches to send to Ollama.
+            batch_size: The size of batches to send to Ollama. Default is 10000 for optimal performance.
 
         Returns:
             A list of numpy arrays representing the embeddings

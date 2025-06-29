@@ -122,6 +122,28 @@ class TestCoreFunctionality(unittest.TestCase):
         track_names = [track["name"] for track in playlist]
         self.assertTrue(any("Test Song" in name for name in track_names))
 
+    def test_parallel_embedding(self):
+        """Test that parallel embedding works correctly with multiple workers."""
+        # Test with 2 workers and small batch size to ensure parallel processing
+        embedder = LocalTrackEmbedder(db_path=self.db_path, conn=self.conn)
+        embedded_count = embedder.embed_tracks_batch(
+            self.get_test_tracks(), batch_size=1, max_workers=2
+        )
+
+        # Should embed all 3 tracks
+        self.assertEqual(embedded_count, 3)
+
+        # Verify embeddings were stored
+        self.cursor.execute("SELECT COUNT(*) FROM track_embeddings")
+        count = self.cursor.fetchone()[0]
+        self.assertEqual(count, 3)
+
+    def get_test_tracks(self):
+        """Get test tracks from the database for embedding tests."""
+        self.cursor.execute("SELECT * FROM tracks")
+        columns = [description[0] for description in self.cursor.description]
+        return [dict(zip(columns, row)) for row in self.cursor.fetchall()]
+
 
 if __name__ == "__main__":
     unittest.main()

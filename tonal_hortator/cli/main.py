@@ -116,7 +116,15 @@ def _generate_single_playlist(
 
 
 def embed_tracks(batch_size: int = 100, max_workers: int = 4) -> bool:
-    """Embed all tracks in the database"""
+    """Embed all tracks in the database using parallel processing
+
+    Args:
+        batch_size: Number of tracks to process in each batch
+        max_workers: Maximum number of parallel threads for embedding
+
+    Returns:
+        True if embedding completed successfully, False otherwise
+    """
     try:
         logger.info("🚀 Starting track embedding process")
 
