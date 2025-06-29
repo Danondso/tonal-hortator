@@ -124,27 +124,23 @@ class LocalTrackEmbedder:
         try:
             batch_start = time.time()
 
-            # Create a new database connection for this thread
-            thread_conn = sqlite3.connect(self.db_path)
+            # Create a new database connection for this thread using context manager
+            with sqlite3.connect(self.db_path) as thread_conn:
+                # Create embedding texts for this batch
+                embedding_texts = []
+                for track in batch_tracks:
+                    text = self.create_track_embedding_text(track)
+                    embedding_texts.append(text)
 
-            # Create embedding texts for this batch
-            embedding_texts = []
-            for track in batch_tracks:
-                text = self.create_track_embedding_text(track)
-                embedding_texts.append(text)
+                # Get embeddings from Ollama (using optimized batch API)
+                embeddings = self.embedding_service.get_embeddings_batch(
+                    embedding_texts, batch_size=50
+                )
 
-            # Get embeddings from Ollama (using optimized batch API)
-            embeddings = self.embedding_service.get_embeddings_batch(
-                embedding_texts, batch_size=500
-            )
-
-            # Store embeddings in database using thread-specific connection
-            batch_embedded = self._store_embeddings_batch(
-                batch_tracks, embeddings, embedding_texts, thread_conn
-            )
-
-            # Close the thread-specific connection
-            thread_conn.close()
+                # Store embeddings in database using thread-specific connection
+                batch_embedded = self._store_embeddings_batch(
+                    batch_tracks, embeddings, embedding_texts, thread_conn
+                )
 
             batch_time = time.time() - batch_start
             logger.info(
