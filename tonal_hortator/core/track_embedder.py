@@ -7,6 +7,7 @@ This script embeds track metadata and stores embeddings in SQLite database
 import logging
 import sqlite3
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -38,10 +39,9 @@ class LocalTrackEmbedder:
             conn: Optional existing database connection
         """
         self.db_path = db_path
-        if conn:
-            self.conn = conn
-        else:
-            self.conn = sqlite3.connect(db_path)
+        self.conn = conn or sqlite3.connect(db_path)
+        # Enable WAL mode for better concurrent performance
+        self.conn.execute("PRAGMA journal_mode=WAL;")
         self.conn.row_factory = sqlite3.Row
 
         if embedding_service:
@@ -116,15 +116,55 @@ class LocalTrackEmbedder:
         """Create text representation of track for embedding"""
         return self.embedding_service.create_track_embedding_text(track)
 
+    def _process_batch(
+        self, batch_tracks: List[Dict[str, Any]], batch_num: int, total_batches: int
+    ) -> int:
+        """Process a single batch of tracks (for parallel execution)"""
+        try:
+            batch_start = time.time()
+
+            # Create a new database connection for this thread using context manager
+            with sqlite3.connect(self.db_path) as thread_conn:
+                # Enable WAL mode for better concurrent performance
+                thread_conn.execute("PRAGMA journal_mode=WAL;")
+
+                # Create embedding texts for this batch
+                embedding_texts = []
+                for track in batch_tracks:
+                    text = self.create_track_embedding_text(track)
+                    embedding_texts.append(text)
+
+                # Get embeddings from Ollama (using optimized batch API)
+                embeddings = self.embedding_service.get_embeddings_batch(
+                    embedding_texts, batch_size=50
+                )
+
+                # Store embeddings in database using thread-specific connection
+                batch_embedded = self._store_embeddings_batch(
+                    batch_tracks, embeddings, embedding_texts, thread_conn
+                )
+
+            batch_time = time.time() - batch_start
+            logger.info(
+                f"⏱️  Batch {batch_num}/{total_batches} completed in {batch_time:.2f}s ({batch_embedded}/{len(batch_tracks)} embedded)"
+            )
+
+            return batch_embedded
+
+        except Exception as e:
+            logger.error(f"❌ Error processing batch {batch_num}: {e}")
+            return 0
+
     def embed_tracks_batch(
-        self, tracks: List[Dict[str, Any]], batch_size: int = 100
+        self, tracks: List[Dict[str, Any]], batch_size: int = 100, max_workers: int = 4
     ) -> int:
         """
-        Embed a batch of tracks
+        Embed a batch of tracks using parallel processing
 
         Args:
             tracks: List of track dictionaries
-            batch_size: Number of tracks to process in each batch (increased for speed)
+            batch_size: Number of tracks to process in each batch
+            max_workers: Maximum number of parallel threads
 
         Returns:
             Number of tracks successfully embedded
@@ -137,46 +177,35 @@ class LocalTrackEmbedder:
         embedded_count = 0
 
         logger.info(
-            f"🔄 Starting to embed {total_tracks} tracks in batches of {batch_size}"
+            f"🔄 Starting to embed {total_tracks} tracks in batches of {batch_size} with {max_workers} parallel workers"
         )
 
+        # Split tracks into batches
+        batches = []
         for i in range(0, total_tracks, batch_size):
             batch_tracks = tracks[i : i + batch_size]
             batch_num = (i // batch_size) + 1
             total_batches = (total_tracks + batch_size - 1) // batch_size
+            batches.append((batch_tracks, batch_num, total_batches))
 
-            logger.info(
-                f"📦 Processing batch {batch_num}/{total_batches} ({len(batch_tracks)} tracks)"
-            )
+        # Process batches in parallel
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all batch processing tasks
+            future_to_batch = {
+                executor.submit(
+                    self._process_batch, batch_tracks, batch_num, total_batches
+                ): batch_num
+                for batch_tracks, batch_num, total_batches in batches
+            }
 
-            batch_start = time.time()
-
-            # Create embedding texts for this batch
-            embedding_texts = []
-            for track in batch_tracks:
-                text = self.create_track_embedding_text(track)
-                embedding_texts.append(text)
-
-            # Get embeddings from Ollama (using optimized batch API)
-            try:
-                embeddings = self.embedding_service.get_embeddings_batch(
-                    embedding_texts, batch_size=50
-                )
-
-                # Store embeddings in database
-                batch_embedded = self._store_embeddings_batch(
-                    batch_tracks, embeddings, embedding_texts
-                )
-                embedded_count += batch_embedded
-
-                batch_time = time.time() - batch_start
-                logger.info(
-                    f"⏱️  Batch {batch_num} completed in {batch_time:.2f}s ({batch_embedded}/{len(batch_tracks)} embedded)"
-                )
-
-            except Exception as e:
-                logger.error(f"❌ Error processing batch {batch_num}: {e}")
-                continue
+            # Collect results as they complete
+            for future in as_completed(future_to_batch):
+                batch_num = future_to_batch[future]
+                try:
+                    batch_embedded = future.result()
+                    embedded_count += batch_embedded
+                except Exception as e:
+                    logger.error(f"❌ Batch {batch_num} failed: {e}")
 
         logger.info(
             f"✅ Completed embedding process. {embedded_count}/{total_tracks} tracks embedded"
@@ -188,10 +217,13 @@ class LocalTrackEmbedder:
         tracks: List[Dict[str, Any]],
         embeddings: List[np.ndarray],
         embedding_texts: List[str],
+        conn: Optional[sqlite3.Connection] = None,
     ) -> int:
         """Store a batch of embeddings in the database using bulk insert"""
         try:
-            cursor = self.conn.cursor()
+            # Use provided connection or fall back to instance connection
+            db_conn = conn or self.conn
+            cursor = db_conn.cursor()
 
             # Prepare bulk insert data
             insert_data = []
@@ -217,7 +249,7 @@ class LocalTrackEmbedder:
                     insert_data,
                 )
 
-                self.conn.commit()
+                db_conn.commit()
                 return len(insert_data)
             else:
                 return 0
@@ -279,10 +311,12 @@ class LocalTrackEmbedder:
             logger.error(f"❌ Error getting embeddings: {e}")
             raise
 
-    def embed_all_tracks(self) -> int:
+    def embed_all_tracks(self, batch_size: int = 100, max_workers: int = 4) -> int:
         """Embed all tracks that don't have embeddings yet"""
         tracks = self.get_tracks_without_embeddings()
-        return self.embed_tracks_batch(tracks)
+        return self.embed_tracks_batch(
+            tracks, batch_size=batch_size, max_workers=max_workers
+        )
 
     def get_embedding_stats(self) -> Dict[str, Any]:
         """Get statistics about embeddings in the database"""

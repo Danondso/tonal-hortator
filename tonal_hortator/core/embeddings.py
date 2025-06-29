@@ -171,14 +171,14 @@ class OllamaEmbeddingService:
         return embeddings
 
     def get_embeddings_batch(
-        self, texts: List[str], batch_size: int = 100
+        self, texts: List[str], batch_size: int = 10000
     ) -> List[np.ndarray]:
         """
         Get embeddings for multiple texts using Ollama's batch API
 
         Args:
             texts: List of text strings to embed
-            batch_size: The size of batches to send to Ollama.
+            batch_size: The size of batches to send to Ollama. Default is 10000 for optimal performance.
 
         Returns:
             A list of numpy arrays representing the embeddings

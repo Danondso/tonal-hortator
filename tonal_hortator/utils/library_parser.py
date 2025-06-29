@@ -31,6 +31,8 @@ class LibraryParser:
         """Creates the tracks table if it doesn't exist."""
         try:
             with sqlite3.connect(self.db_path) as conn:
+                # Enable WAL mode for better concurrent performance
+                conn.execute("PRAGMA journal_mode=WAL;")
                 cursor = conn.cursor()
                 cursor.execute(
                     """
@@ -212,6 +214,8 @@ class LibraryParser:
         count = 0
         try:
             with sqlite3.connect(self.db_path) as conn:
+                # Enable WAL mode for better concurrent performance
+                conn.execute("PRAGMA journal_mode=WAL;")
                 cursor = conn.cursor()
                 for track in tracks:
                     if (

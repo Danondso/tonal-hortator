@@ -1,5 +1,8 @@
+import os
 import sqlite3
+import tempfile
 import unittest
+from typing import Any, Dict, List
 from unittest.mock import Mock, patch
 
 import numpy as np
@@ -11,8 +14,9 @@ from tonal_hortator.core.track_embedder import LocalTrackEmbedder
 class TestCoreFunctionality(unittest.TestCase):
 
     def setUp(self) -> None:
-        """Set up an in-memory database with a single track for testing."""
-        self.db_path = ":memory:"
+        """Set up a temp file-based database with test tracks for parallel embedding."""
+        self.temp_db = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
+        self.db_path = self.temp_db.name
         self.conn = sqlite3.connect(self.db_path)
         self.cursor = self.conn.cursor()
 
@@ -57,6 +61,8 @@ class TestCoreFunctionality(unittest.TestCase):
     def tearDown(self) -> None:
         """Close the database connection."""
         self.conn.close()
+        self.temp_db.close()
+        os.unlink(self.temp_db.name)
 
     @patch("tonal_hortator.core.embeddings.ollama")
     def test_track_embedding(self, mock_ollama: Mock) -> None:
@@ -116,6 +122,32 @@ class TestCoreFunctionality(unittest.TestCase):
         # Check that the playlist contains tracks with the expected names
         track_names = [track["name"] for track in playlist]
         self.assertTrue(any("Test Song" in name for name in track_names))
+
+    @unittest.skipIf(
+        os.environ.get("CI") == "true",
+        "Skipping parallel embedding test in CI (Ollama not running)",
+    )
+    def test_parallel_embedding(self) -> None:
+        """Test that parallel embedding works correctly with multiple workers."""
+        # Test with 2 workers and small batch size to ensure parallel processing
+        embedder = LocalTrackEmbedder(db_path=self.db_path, conn=self.conn)
+        embedded_count = embedder.embed_tracks_batch(
+            self.get_test_tracks(), batch_size=1, max_workers=2
+        )
+
+        # Should embed all 3 tracks
+        self.assertEqual(embedded_count, 3)
+
+        # Verify embeddings were stored
+        self.cursor.execute("SELECT COUNT(*) FROM track_embeddings")
+        count = self.cursor.fetchone()[0]
+        self.assertEqual(count, 3)
+
+    def get_test_tracks(self) -> List[Dict[str, Any]]:
+        """Get test tracks from the database for embedding tests."""
+        self.cursor.execute("SELECT * FROM tracks")
+        columns = [description[0] for description in self.cursor.description]
+        return [dict(zip(columns, row)) for row in self.cursor.fetchall()]
 
 
 if __name__ == "__main__":
