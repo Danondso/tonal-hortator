@@ -2,6 +2,7 @@ import os
 import sqlite3
 import tempfile
 import unittest
+from typing import Any, Dict, List
 from unittest.mock import Mock, patch
 
 import numpy as np
@@ -122,7 +123,7 @@ class TestCoreFunctionality(unittest.TestCase):
         track_names = [track["name"] for track in playlist]
         self.assertTrue(any("Test Song" in name for name in track_names))
 
-    def test_parallel_embedding(self):
+    def test_parallel_embedding(self) -> None:
         """Test that parallel embedding works correctly with multiple workers."""
         # Test with 2 workers and small batch size to ensure parallel processing
         embedder = LocalTrackEmbedder(db_path=self.db_path, conn=self.conn)
@@ -138,7 +139,7 @@ class TestCoreFunctionality(unittest.TestCase):
         count = self.cursor.fetchone()[0]
         self.assertEqual(count, 3)
 
-    def get_test_tracks(self):
+    def get_test_tracks(self) -> List[Dict[str, Any]]:
         """Get test tracks from the database for embedding tests."""
         self.cursor.execute("SELECT * FROM tracks")
         columns = [description[0] for description in self.cursor.description]
