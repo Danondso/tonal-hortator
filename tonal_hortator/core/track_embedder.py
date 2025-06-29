@@ -39,10 +39,9 @@ class LocalTrackEmbedder:
             conn: Optional existing database connection
         """
         self.db_path = db_path
-        if conn:
-            self.conn = conn
-        else:
-            self.conn = sqlite3.connect(db_path)
+        self.conn = conn or sqlite3.connect(db_path)
+        # Enable WAL mode for better concurrent performance
+        self.conn.execute("PRAGMA journal_mode=WAL;")
         self.conn.row_factory = sqlite3.Row
 
         if embedding_service:
@@ -126,6 +125,9 @@ class LocalTrackEmbedder:
 
             # Create a new database connection for this thread using context manager
             with sqlite3.connect(self.db_path) as thread_conn:
+                # Enable WAL mode for better concurrent performance
+                thread_conn.execute("PRAGMA journal_mode=WAL;")
+                
                 # Create embedding texts for this batch
                 embedding_texts = []
                 for track in batch_tracks:
