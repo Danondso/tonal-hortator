@@ -38,14 +38,19 @@ class TestCoreFunctionality(unittest.TestCase):
         """
         )
 
-        # Insert a test track
+        # Insert test tracks
         self.cursor.execute(
             """
-            INSERT INTO tracks (id, name, artist, album, genre, year, total_time, 
-                               track_number, disc_number, play_count, location)
-            VALUES (1, 'Test Song', 'Test Artist', 'Test Album', 'Rock', 2020, 
-                    180000, 1, 1, 5, '/path/to/test/song.mp3')
-        """
+            INSERT INTO tracks (id, name, artist, album_artist, composer, album, genre, year, total_time, 
+                               track_number, disc_number, play_count, date_added, location)
+            VALUES 
+                (1, 'Test Song 1', 'Test Artist 1', 'Test Album Artist 1', 'Test Composer 1', 'Test Album 1', 'Rock', 2020, 
+                    180000, 1, 1, 5, '2024-01-01', '/path/to/test/song1.mp3'),
+                (2, 'Test Song 2', 'Test Artist 2', 'Test Album Artist 2', 'Test Composer 2', 'Test Album 2', 'Jazz', 2021, 
+                    200000, 1, 1, 3, '2024-01-02', '/path/to/test/song2.mp3'),
+                (3, 'Test Song 3', 'Test Artist 3', 'Test Album Artist 3', 'Test Composer 3', 'Test Album 3', 'Pop', 2022, 
+                    160000, 1, 1, 7, '2024-01-03', '/path/to/test/song3.mp3')
+            """
         )
         self.conn.commit()
 
