@@ -389,7 +389,9 @@ class LocalPlaylistGenerator:
         attempts = 0
         while len(final_tracks) < max_tracks and attempts < top_k * 2:
             pick = random.choices(candidates, weights=weights, k=1)[0]
-            pick_id = pick.get("id") or f"{pick.get('name', '')}-{pick.get('artist', '')}"
+            pick_id = (
+                pick.get("id") or f"{pick.get('name', '')}-{pick.get('artist', '')}"
+            )
             if pick_id not in selected:
                 final_tracks.append(pick)
                 selected.add(pick_id)
