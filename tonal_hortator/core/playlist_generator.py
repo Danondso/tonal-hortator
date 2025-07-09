@@ -389,16 +389,18 @@ class LocalPlaylistGenerator:
         attempts = 0
         while len(final_tracks) < max_tracks and attempts < top_k * 2:
             pick = random.choices(candidates, weights=weights, k=1)[0]
-            if pick["id"] not in selected:
+            pick_id = pick.get("id")
+            if pick_id is not None and pick_id not in selected:
                 final_tracks.append(pick)
-                selected.add(pick["id"])
+                selected.add(pick_id)
             attempts += 1
         # If not enough unique tracks, fill with remaining highest-similarity tracks
         if len(final_tracks) < max_tracks:
             for t in candidates:
-                if t["id"] not in selected:
+                t_id = t.get("id")
+                if t_id is not None and t_id not in selected:
                     final_tracks.append(t)
-                    selected.add(t["id"])
+                    selected.add(t_id)
                 if len(final_tracks) >= max_tracks:
                     break
         logger.info(
