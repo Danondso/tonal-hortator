@@ -266,18 +266,19 @@ class TestLocalPlaylistGenerator:
         generator = LocalPlaylistGenerator()
 
         tracks = [
-            {"name": "Song1", "artist": "Artist1", "similarity_score": 0.8},
-            {"name": "Song1", "artist": "Artist1", "similarity_score": 0.7},
-            {"name": "Song2", "artist": "Artist2", "similarity_score": 0.6},
-            {"name": "Song3", "artist": "Artist3", "similarity_score": 0.5},
+            {"id": 1, "name": "Song1", "artist": "Artist1", "similarity_score": 0.8},
+            {"id": 2, "name": "Song1", "artist": "Artist1", "similarity_score": 0.7},
+            {"id": 3, "name": "Song2", "artist": "Artist2", "similarity_score": 0.6},
+            {"id": 4, "name": "Song3", "artist": "Artist3", "similarity_score": 0.5},
         ]
 
         result = generator._filter_and_deduplicate_results(
-            tracks, min_similarity=0.5, max_tracks=3
+            tracks, min_similarity=0.5, max_tracks=3, is_artist_specific=False
         )
 
         # Should deduplicate and limit to max_tracks (only unique name/artist combos)
-        assert len(result) == 1
+        # After deduplication: Song1 by Artist1 (best score), Song2 by Artist2, Song3 by Artist3 = 3 tracks
+        assert len(result) == 3
 
     @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
     @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
@@ -342,8 +343,8 @@ class TestLocalPlaylistGenerator:
             np.array([0.4, 0.5, 0.6], dtype=np.float32),
         ]
         mock_track_data = [
-            {"name": "Song1", "artist": "Artist1", "similarity_score": 0.8},
-            {"name": "Song2", "artist": "Artist2", "similarity_score": 0.7},
+            {"id": 1, "name": "Song1", "artist": "Artist1", "similarity_score": 0.8},
+            {"id": 2, "name": "Song2", "artist": "Artist2", "similarity_score": 0.7},
         ]
         mock_track_embedder.get_all_embeddings.return_value = (
             mock_embeddings,
@@ -354,8 +355,8 @@ class TestLocalPlaylistGenerator:
         )
         # Return real list of dicts for similarity_search
         mock_embedding_service.similarity_search.return_value = [
-            {"name": "Song1", "artist": "Artist1", "similarity_score": 0.8},
-            {"name": "Song2", "artist": "Artist2", "similarity_score": 0.7},
+            {"id": 1, "name": "Song1", "artist": "Artist1", "similarity_score": 0.8},
+            {"id": 2, "name": "Song2", "artist": "Artist2", "similarity_score": 0.7},
         ]
 
         generator = LocalPlaylistGenerator()

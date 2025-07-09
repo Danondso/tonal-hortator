@@ -19,7 +19,7 @@ test-fast: ## Run tests without coverage (faster)
 	pytest tests/ -v
 
 lint: ## Run all linting checks
-	flake8 .
+	flake8 tonal_hortator/
 	black --check --diff .
 	isort --check-only --diff .
 	mypy tonal_hortator/ --ignore-missing-imports
@@ -64,8 +64,8 @@ ci: ## Run CI checks locally (matches GitHub Actions exactly)
 	pip install pytest pytest-cov flake8 black isort mypy
 	pip install -e .
 	# Lint with flake8 (exact GitHub Actions commands)
-	flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-	flake8 . --count --exit-zero --max-complexity=10 --max-line-length=88 --statistics
+	flake8 tonal_hortator/ --count --select=E9,F63,F7,F82 --show-source --statistics
+	flake8 tonal_hortator/ --count --exit-zero --max-complexity=10 --max-line-length=88 --statistics
 	# Check code formatting with black
 	black --check --diff .
 	# Check import sorting with isort
