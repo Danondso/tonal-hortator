@@ -268,7 +268,7 @@ class LocalPlaylistGenerator:
 
         return None
 
-    def _filter_and_deduplicate_results(
+    def _filter_and_deduplicate_results(  # noqa: C901
         self,
         results: List[Dict[str, Any]],
         min_similarity: float,
@@ -371,7 +371,42 @@ class LocalPlaylistGenerator:
             f"✅ Final deduplication summary: {len(results)} → {len(diverse_tracks)} tracks"
         )
 
-        return diverse_tracks
+        # After artist diversity, use weighted random sampling for variance
+        top_k = max_tracks * 10
+        diverse_tracks.sort(key=lambda t: t.get("similarity_score", 0), reverse=True)
+        candidates = diverse_tracks[:top_k]
+        # Assign weights proportional to similarity score (shifted to be >=0)
+        min_similarity_score = min(
+            (t.get("similarity_score", 0) for t in candidates), default=0
+        )
+        weights = [
+            max(0.0, t.get("similarity_score", 0) - min_similarity_score + 1e-6)
+            for t in candidates
+        ]
+        import random
+
+        # Sample unique tracks
+        selected = set()
+        final_tracks: list[dict[str, Any]] = []
+        attempts = 0
+        while len(final_tracks) < max_tracks and attempts < top_k * 2:
+            pick = random.choices(candidates, weights=weights, k=1)[0]
+            if pick["id"] not in selected:
+                final_tracks.append(pick)
+                selected.add(pick["id"])
+            attempts += 1
+        # If not enough unique tracks, fill with remaining highest-similarity tracks
+        if len(final_tracks) < max_tracks:
+            for t in candidates:
+                if t["id"] not in selected:
+                    final_tracks.append(t)
+                    selected.add(t["id"])
+                if len(final_tracks) >= max_tracks:
+                    break
+        logger.info(
+            f"🎲 Weighted random sampled {len(final_tracks)} tracks from top {top_k} candidates for playlist"
+        )
+        return final_tracks
 
     def _group_tracks_by_artist(self, tracks: List[Dict[str, Any]]) -> dict[str, list]:
         """Group tracks by artist for deduplication"""
