@@ -383,8 +383,6 @@ class LocalPlaylistGenerator:
             max(0.0, t.get("similarity_score", 0) - min_similarity_score + 1e-6)
             for t in candidates
         ]
-        import random
-
         # Sample unique tracks
         selected = set()
         final_tracks: list[dict[str, Any]] = []
