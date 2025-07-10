@@ -4,7 +4,7 @@ from pathlib import Path
 
 from tonal_hortator.utils.metadata_reader import MetadataReader
 
-KENDRICK_FILE = "/Volumes/iTuunes/Music-Subfolder/Kendrick Lamar/good kid, m.A.A.d city (Deluxe)/10 Sing About Me, I'm Dying of Thirst.mp3"
+KENDRICK_FILE = Path(__file__).parent / "test_data" / "10 Sing About Me, I'm Dying of Thirst.mp3"
 
 
 class TestMetadataReader(unittest.TestCase):
