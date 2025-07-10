@@ -22,6 +22,54 @@ class DatabaseMigrator:
     def __init__(self, db_path: str = "music_library.db"):
         self.db_path = db_path
 
+        # Whitelist of valid column names and types for security
+        self.valid_column_names = {
+            "bpm",
+            "musical_key",
+            "key_scale",
+            "mood",
+            "release_country",
+            "label",
+            "composer",
+            "arranger",
+            "lyricist",
+            "producer",
+            "original_year",
+            "original_date",
+            "chord_changes_rate",
+            "script",
+            "replay_gain",
+        }
+
+        self.valid_column_types = {"TEXT", "INTEGER", "REAL", "BLOB"}
+
+    def _validate_column_name(self, column_name: str) -> bool:
+        """Validate column name against whitelist"""
+        return column_name in self.valid_column_names
+
+    def _validate_column_type(self, column_type: str) -> bool:
+        """Validate column type against whitelist"""
+        return column_type.upper() in self.valid_column_types
+
+    def _safe_add_column(self, cursor, column_name: str, column_type: str) -> bool:
+        """Safely add a column using parameterized query with validation"""
+        if not self._validate_column_name(column_name):
+            logger.error(f"❌ Invalid column name: {column_name}")
+            return False
+
+        if not self._validate_column_type(column_type):
+            logger.error(f"❌ Invalid column type: {column_type}")
+            return False
+
+        try:
+            # Use parameterized query with proper escaping
+            query = "ALTER TABLE tracks ADD COLUMN ? ?"
+            cursor.execute(query, (column_name, column_type))
+            return True
+        except sqlite3.Error as e:
+            logger.error(f"❌ Error adding column {column_name}: {e}")
+            return False
+
     def get_current_schema(self) -> List[Tuple[str, str, str, bool, str, bool]]:
         """Get current table schema from SQLite"""
         try:
@@ -65,17 +113,14 @@ class DatabaseMigrator:
                 added_count = 0
                 for column_name, column_type, description in new_columns:
                     if column_name not in existing_columns:
-                        try:
-                            cursor.execute(
-                                f"ALTER TABLE tracks ADD COLUMN {column_name} {column_type}"
-                            )
+                        if self._safe_add_column(cursor, column_name, column_type):
                             logger.info(
                                 f"✅ Added column: {column_name} ({column_type}) - {description}"
                             )
                             added_count += 1
-                        except sqlite3.Error as e:
+                        else:
                             logger.warning(
-                                f"⚠️  Column {column_name} may already exist: {e}"
+                                f"⚠️  Column {column_name} may already exist or invalid."
                             )
                     else:
                         logger.info(f"ℹ️  Column {column_name} already exists, skipping")

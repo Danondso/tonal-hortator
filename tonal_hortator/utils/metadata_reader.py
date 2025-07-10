@@ -418,25 +418,43 @@ class MetadataReader:
                         )
 
                 if update_data:
-                    # Build dynamic UPDATE query
-                    set_clause = ", ".join([f"{key} = ?" for key in update_data.keys()])
-                    values = list(update_data.values())
-                    values.append(track_id)  # For WHERE clause
+                    # Validate column names against database schema for security
+                    valid_columns = set(columns)
+                    safe_update_data = {}
 
-                    cursor.execute(
-                        f"""
-                        UPDATE tracks
-                        SET {set_clause}
-                        WHERE id = ?
-                    """,
-                        values,
-                    )
+                    for key, value in update_data.items():
+                        if key in valid_columns:
+                            safe_update_data[key] = value
+                        else:
+                            logger.warning(f"⚠️  Skipping invalid column: {key}")
 
-                    conn.commit()
-                    logger.info(
-                        f"✅ Updated metadata for track {track_id} ({len(update_data)} fields) - {file_path}"
-                    )
-                    return True
+                    if safe_update_data:
+                        # Build dynamic UPDATE query with validated column names
+                        set_clause = ", ".join(
+                            [f"{key} = ?" for key in safe_update_data.keys()]
+                        )
+                        values = list(safe_update_data.values())
+                        values.append(track_id)  # For WHERE clause
+
+                        cursor.execute(
+                            f"""
+                            UPDATE tracks
+                            SET {set_clause}
+                            WHERE id = ?
+                        """,
+                            values,
+                        )
+
+                        conn.commit()
+                        logger.info(
+                            f"✅ Updated metadata for track {track_id} ({len(safe_update_data)} fields) - {file_path}"
+                        )
+                        return True
+                    else:
+                        logger.warning(
+                            f"No valid metadata fields found for track {track_id} ({file_path})"
+                        )
+                        return False
                 else:
                     logger.warning(
                         f"No valid metadata fields found for track {track_id} ({file_path})"
@@ -517,8 +535,8 @@ class MetadataReader:
                 cursor.execute("SELECT COUNT(*) FROM tracks")
                 total_tracks = cursor.fetchone()[0]
 
-                # Get tracks with various metadata fields
-                metadata_fields = [
+                # Whitelist of valid metadata fields for security
+                valid_metadata_fields = {
                     "bpm",
                     "musical_key",
                     "key_scale",
@@ -528,12 +546,18 @@ class MetadataReader:
                     "arranger",
                     "lyricist",
                     "original_year",
-                ]
+                }
 
                 stats = {"total_tracks": total_tracks}
-                for field in metadata_fields:
+                for field in valid_metadata_fields:
+                    # Validate field name against whitelist
+                    if field not in valid_metadata_fields:
+                        logger.warning(f"⚠️  Skipping invalid field: {field}")
+                        continue
+
+                    # Use parameterized query with proper escaping
                     cursor.execute(
-                        f"SELECT COUNT(*) FROM tracks WHERE {field} IS NOT NULL"
+                        "SELECT COUNT(*) FROM tracks WHERE ? IS NOT NULL", (field,)
                     )
                     count = cursor.fetchone()[0]
                     stats[f"{field}_coverage"] = count
