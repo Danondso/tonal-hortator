@@ -228,8 +228,9 @@ class OllamaEmbeddingService:
         return all_embeddings
 
     def create_track_embedding_text(self, track: Dict[str, Any]) -> str:
-        """Create text representation of track for embedding"""
-        parts = [
+        """Create text representation of track for embedding with musical analysis"""
+        # Basic metadata
+        basic_parts = [
             track.get("name"),
             track.get("artist"),
             track.get("album"),
@@ -238,7 +239,57 @@ class OllamaEmbeddingService:
             track.get("genre"),
             str(track.get("year")) if track.get("year") else None,
         ]
-        return ", ".join(filter(None, parts))
+
+        # Musical analysis data
+        musical_parts = []
+
+        # Tempo and rhythm
+        if track.get("bpm"):
+            musical_parts.append(f"tempo {track.get('bpm')} BPM")
+
+        # Musical key and scale
+        if track.get("musical_key") and track.get("key_scale"):
+            musical_parts.append(
+                f"key {track.get('musical_key')} {track.get('key_scale')}"
+            )
+        elif track.get("musical_key"):
+            musical_parts.append(f"key {track.get('musical_key')}")
+
+        # Mood and emotional characteristics
+        if track.get("mood"):
+            musical_parts.append(f"mood {track.get('mood')}")
+
+        # Chord complexity
+        chord_rate = track.get("chord_changes_rate")
+        if chord_rate is not None:
+            try:
+                rate = float(chord_rate)
+                if rate > 0.3:
+                    complexity = "complex chord progression"
+                elif rate > 0.1:
+                    complexity = "moderate chord progression"
+                else:
+                    complexity = "simple chord progression"
+                musical_parts.append(complexity)
+            except (ValueError, TypeError):
+                pass  # Skip if chord_rate can't be converted to float
+
+        # Production and recording info
+        production_parts = []
+        if track.get("label"):
+            production_parts.append(f"label {track.get('label')}")
+        if track.get("producer"):
+            production_parts.append(f"produced by {track.get('producer')}")
+        if track.get("arranger"):
+            production_parts.append(f"arranged by {track.get('arranger')}")
+        if track.get("lyricist"):
+            production_parts.append(f"lyrics by {track.get('lyricist')}")
+        if track.get("release_country"):
+            production_parts.append(f"released in {track.get('release_country')}")
+
+        # Combine all parts
+        all_parts = basic_parts + musical_parts + production_parts
+        return ", ".join(filter(None, all_parts))
 
     def similarity_search(
         self,

@@ -93,11 +93,15 @@ class LocalTrackEmbedder:
             cursor = self.conn.cursor()
 
             # Get tracks that are not in the track_embeddings table
+            # Include musical analysis fields for enhanced embeddings
             cursor.execute(
                 """
                 SELECT
                     t.id, t.name, t.artist, t.album, t.genre, t.year,
-                    t.play_count, t.album_artist, t.composer
+                    t.play_count, t.album_artist, t.composer, t.bpm, t.musical_key,
+                    t.key_scale, t.mood, t.label, t.producer, t.arranger, t.lyricist,
+                    t.original_year, t.original_date, t.chord_changes_rate, t.script,
+                    t.replay_gain, t.release_country
                 FROM tracks t
                 LEFT JOIN track_embeddings te ON t.id = te.track_id
                 WHERE te.track_id IS NULL
@@ -280,7 +284,21 @@ class LocalTrackEmbedder:
                     t.track_number,
                     t.disc_number,
                     t.play_count,
-                    t.location
+                    t.location,
+                    t.bpm,
+                    t.musical_key,
+                    t.key_scale,
+                    t.mood,
+                    t.label,
+                    t.producer,
+                    t.arranger,
+                    t.lyricist,
+                    t.original_year,
+                    t.original_date,
+                    t.chord_changes_rate,
+                    t.script,
+                    t.replay_gain,
+                    t.release_country
                 FROM tracks t
                 LEFT JOIN track_embeddings te ON t.id = te.track_id
                 ORDER BY t.id

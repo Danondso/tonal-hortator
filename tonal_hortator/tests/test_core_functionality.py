@@ -37,7 +37,21 @@ class TestCoreFunctionality(unittest.TestCase):
                 disc_number INTEGER,
                 play_count INTEGER,
                 date_added TEXT,
-                location TEXT UNIQUE
+                location TEXT UNIQUE,
+                bpm REAL,
+                musical_key TEXT,
+                key_scale TEXT,
+                mood TEXT,
+                release_country TEXT,
+                label TEXT,
+                arranger TEXT,
+                lyricist TEXT,
+                producer TEXT,
+                original_year INTEGER,
+                original_date TEXT,
+                chord_changes_rate REAL,
+                script TEXT,
+                replay_gain TEXT
             )
         """
         )
