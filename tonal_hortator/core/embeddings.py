@@ -129,7 +129,10 @@ class OllamaEmbeddingService:
 
         if not text or not text.strip():
             logger.warning("Empty text provided for embedding")
-            return np.zeros(self._get_embedding_dimension(), dtype=np.float32)
+            empty_embedding: np.ndarray = np.zeros(
+                self._get_embedding_dimension(), dtype=np.float32
+            )
+            return empty_embedding
 
         try:
             start_time = time.time()

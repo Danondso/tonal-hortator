@@ -2,6 +2,49 @@
 requires = ["setuptools>=45", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[project]
+name = "tonal-hortator"
+version = "2.0.1"
+description = "AI-powered local music playlist generator using Ollama embeddings"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy<3.0",
+    "coverage",
+    "requests",
+    "loguru",
+    "ollama",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "flake8",
+    "black",
+    "isort",
+    "mypy",
+    "bandit",
+]
+
+[project.scripts]
+tonal-hortator = "tonal_hortator.cli:main"
+generate-playlist = "tonal_hortator.cli:generate_playlist"
+embed-tracks = "tonal_hortator.cli:embed_tracks"
+
+[tool.setuptools.packages.find]
+include = ["tonal_hortator*"]
+exclude = [
+    "playlists*",
+    "test_playlists*",
+    "logs*",
+    "htmlcov*",
+    "venv*",
+    ".pytest_cache*",
+    ".mypy_cache*",
+    "__pycache__*",
+]
+
 [tool.black]
 line-length = 88
 target-version = ['py311']
