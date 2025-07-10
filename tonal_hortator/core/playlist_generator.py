@@ -250,23 +250,91 @@ class LocalPlaylistGenerator:
         """
         Extract artist from a query using patterns like "by [artist]" or "[artist] songs"
         """
-        # Patterns to detect artist in query
+        # Patterns to detect artist in query - more specific to avoid false positives
         patterns = [
-            r"by\s+(.+)",  # "songs by [artist]"
-            r"(.+?)\s+songs",  # "[artist] songs"
-            r"(.+?)\s+radio",  # "[artist] radio"
+            r"by\s+([a-zA-Z\s]+?)(?:\s+(?:for|with|and|songs|music|tracks)|$)",  # "songs by [artist]" - capture full name
+            r"^([a-zA-Z\s]+?)\s+songs(?:\s|$)",  # "[artist] songs" - start of query only
+            r"([a-zA-Z\s]+?)\s+radio(?:\s|$)",  # "[artist] radio"
         ]
 
         query_lower = query.lower()
+
+        # Common words that shouldn't be treated as artist names
+        common_words = {
+            "relaxed",
+            "calm",
+            "upbeat",
+            "happy",
+            "sad",
+            "energetic",
+            "mellow",
+            "acoustic",
+            "electronic",
+            "classical",
+            "jazz",
+            "rock",
+            "pop",
+            "folk",
+            "meditation",
+            "driving",
+            "workout",
+            "party",
+            "romantic",
+            "melancholy",
+            "atmospheric",
+            "ambient",
+            "chill",
+            "loud",
+            "quiet",
+            "fast",
+            "slow",
+            "complex",
+            "simple",
+            "modern",
+            "traditional",
+            "vintage",
+            "contemporary",
+        }
 
         for pattern in patterns:
             match = re.search(pattern, query_lower)
             if match:
                 artist = match.group(1).strip()
-                # Capitalize the artist name for better matching
-                return artist.title()
+
+                # Validate that this looks like an actual artist name
+                if self._is_valid_artist_name(artist, common_words):
+                    # Capitalize the artist name for better matching
+                    return artist.title()
 
         return None
+
+    def _is_valid_artist_name(self, artist: str, common_words: set) -> bool:
+        """
+        Validate if a potential artist name is actually an artist name
+        """
+        if not artist or len(artist) < 2:
+            return False
+
+        # Check if it's just common words
+        artist_words = artist.lower().split()
+        if len(artist_words) <= 2 and all(
+            word in common_words for word in artist_words
+        ):
+            return False
+
+        # Check if it contains common descriptive words that aren't artist names
+        if any(
+            word in artist.lower()
+            for word in ["relaxed", "calm", "upbeat", "acoustic", "electronic"]
+        ):
+            return False
+
+        # Must contain at least one word that looks like a name (not just adjectives)
+        name_words = [word for word in artist_words if word not in common_words]
+        if not name_words:
+            return False
+
+        return True
 
     def _filter_and_deduplicate_results(  # noqa: C901
         self,

@@ -9,6 +9,9 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, Optional
 
+# Import metadata reader
+from tonal_hortator.utils.metadata_reader import MetadataReader
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -22,6 +25,9 @@ class LibraryParser:
     def __init__(self, db_path: str = "music_library.db"):
         self.db_path = db_path
         self._create_table()
+
+        # Initialize metadata reader
+        self.metadata_reader = MetadataReader(db_path)
 
         # Cache field processors and mappings as class attributes
         self._field_processors = self._get_field_processors()
@@ -113,6 +119,24 @@ class LibraryParser:
     def _process_string_field(self, value_elem: ET.Element) -> Optional[str]:
         """Process a string field from XML"""
         return value_elem.text
+
+    def _process_location_field(self, value_elem: ET.Element) -> Optional[str]:
+        """Process location field with URL decoding"""
+        if not value_elem.text:
+            return None
+
+        location = value_elem.text
+
+        # Decode URL encoding if present
+        import urllib.parse
+
+        if location.startswith("file://"):
+            # Remove file:// protocol and decode URL encoding
+            decoded_location = urllib.parse.unquote(location[7:])
+            return decoded_location
+        else:
+            # Decode URL encoding if present
+            return urllib.parse.unquote(location)
 
     def _process_int_field(self, value_elem: ET.Element) -> int:
         """Process an integer field from XML"""
@@ -226,6 +250,7 @@ class LibraryParser:
                         ).fetchone()
                         is None
                     ):
+                        # Insert basic track data
                         cursor.execute(
                             """
                             INSERT INTO tracks (
@@ -241,6 +266,25 @@ class LibraryParser:
                         """,
                             track,
                         )
+
+                        # Get the inserted track ID
+                        track_id = cursor.lastrowid
+
+                        # Read and populate metadata if file exists
+                        if (
+                            track_id is not None
+                            and track.get("location")
+                            and Path(track["location"]).exists()
+                        ):
+                            try:
+                                self.metadata_reader.update_track_metadata(
+                                    track_id, track["location"]
+                                )
+                            except Exception as e:
+                                logger.warning(
+                                    f"Failed to read metadata for {track['location']}: {e}"
+                                )
+
                         count += 1
                 conn.commit()
         except sqlite3.Error as e:

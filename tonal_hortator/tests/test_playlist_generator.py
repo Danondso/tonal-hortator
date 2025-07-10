@@ -127,7 +127,7 @@ class TestLocalPlaylistGenerator:
         assert generator._extract_artist_from_query("Queen radio") == "Queen"
 
         # Test queries without artists
-        assert generator._extract_artist_from_query("upbeat songs") == "Upbeat"
+        assert generator._extract_artist_from_query("upbeat songs") is None
         assert generator._extract_artist_from_query("rock music") is None
 
     @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
