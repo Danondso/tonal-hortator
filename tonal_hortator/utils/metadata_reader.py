@@ -555,10 +555,9 @@ class MetadataReader:
                         logger.warning(f"⚠️  Skipping invalid field: {field}")
                         continue
 
-                    # Use parameterized query with proper escaping
-                    cursor.execute(
-                        "SELECT COUNT(*) FROM tracks WHERE ? IS NOT NULL", (field,)
-                    )
+                    # Directly interpolate the validated column name into the query
+                    query = f"SELECT COUNT(*) FROM tracks WHERE {field} IS NOT NULL"
+                    cursor.execute(query)
                     count = cursor.fetchone()[0]
                     stats[f"{field}_coverage"] = count
                     stats[f"{field}_percentage"] = (
