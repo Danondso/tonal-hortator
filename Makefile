@@ -5,11 +5,10 @@ help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 install: ## Install production dependencies
-	pip install -r requirements.txt
+	pip install -e .
 
 install-dev: ## Install development dependencies
-	pip install -r requirements.txt
-	pip install -r requirements-dev.txt
+	pip install -e ".[dev]"
 	pre-commit install
 
 test: ## Run tests with coverage
@@ -60,9 +59,7 @@ dev-setup: ## Set up development environment
 
 ci: ## Run CI checks locally (matches GitHub Actions exactly)
 	python -m pip install --upgrade pip
-	pip install -r requirements.txt
-	pip install pytest pytest-cov flake8 black isort mypy
-	pip install -e .
+	pip install -e ".[dev]"
 	# Lint with flake8 (exact GitHub Actions commands)
 	flake8 tonal_hortator/ --count --select=E9,F63,F7,F82 --show-source --statistics
 	flake8 tonal_hortator/ --count --exit-zero --max-complexity=10 --max-line-length=88 --statistics
@@ -75,5 +72,4 @@ ci: ## Run CI checks locally (matches GitHub Actions exactly)
 	# Run tests with pytest (exact GitHub Actions command)
 	pytest tonal_hortator/tests/ -v --cov=tonal_hortator --cov-report=xml --cov-report=term-missing
 	# Security checks (from security job)
-	pip install bandit
 	bandit -r tonal_hortator/ -f json -o bandit-report.json || true 

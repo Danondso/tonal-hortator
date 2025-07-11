@@ -1,5 +1,0 @@
-numpy<3.0
-requests
-loguru
-ollama
-mutagen
