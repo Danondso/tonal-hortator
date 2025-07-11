@@ -2,6 +2,42 @@
 requires = ["setuptools>=45", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[project]
+name = "tonal-hortator"
+version = "2.0.2"
+description = "AI-powered local music playlist generator"
+authors = [
+    {name = "Danondso", email = "7014871+Danondso@users.noreply.github.com "}
+]
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy<3.0",
+    "requests",
+    "loguru",
+    "ollama",
+    "mutagen",
+]
+
+[tool.setuptools.packages.find]
+include = ["tonal_hortator*"]
+exclude = ["playlists*", "tests*", "venv*", ".git*"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "black",
+    "isort",
+    "mypy",
+    "flake8",
+    "pre-commit",
+    "bandit",
+]
+
+[project.scripts]
+tonal-hortator = "tonal_hortator.cli.main:main"
+
 [tool.black]
 line-length = 88
 target-version = ['py311']
