@@ -72,4 +72,4 @@ ci: ## Run CI checks locally (matches GitHub Actions exactly)
 	# Run tests with pytest (exact GitHub Actions command)
 	pytest tonal_hortator/tests/ -v --cov=tonal_hortator --cov-report=xml --cov-report=term-missing
 	# Security checks (from security job)
-	bandit -r tonal_hortator/ -f json -o bandit-report.json || true 
+	bandit -r tonal_hortator/ -f json -o bandit-report.json --exit-zero 

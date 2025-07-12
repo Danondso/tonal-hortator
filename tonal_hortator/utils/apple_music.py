@@ -4,6 +4,7 @@ Apple Music integration utilities
 
 import logging
 import os
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Optional
@@ -29,13 +30,33 @@ def open_in_apple_music(playlist_path: str) -> bool:
         abs_path = os.path.abspath(playlist_path)
         logger.info(f"Opening in Apple Music: {os.path.basename(playlist_path)}")
 
-        # Open with Apple Music app
-        subprocess.run(["open", "-a", "Music", abs_path], check=True)
+        # Validate that 'open' command exists (macOS only)
+        open_path = shutil.which("open")
+        if open_path is None:
+            logger.error("'open' command not found (macOS required)")
+            return False
+        # Only allow .mp3, .m4a, .aac, .wav files
+        allowed_exts = {".mp3", ".m4a", ".aac", ".wav"}
+        if os.path.splitext(abs_path)[1].lower() not in allowed_exts:
+            logger.error("File type not allowed for Apple Music open.")
+            return False
+        subprocess.run(
+            [open_path, "-a", "Music", abs_path],
+            check=True,
+            shell=False,
+            timeout=10,
+        )
         logger.info("Successfully opened in Apple Music")
         return True
 
+    except subprocess.TimeoutExpired:
+        logger.error("Timeout opening Apple Music")
+        return False
     except subprocess.CalledProcessError as e:
         logger.error(f"Could not open in Apple Music: {e}")
+        return False
+    except FileNotFoundError:
+        logger.error("Apple Music not found")
         return False
     except Exception as e:
         logger.error(f"Error opening playlist: {e}")

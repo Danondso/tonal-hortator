@@ -5,6 +5,7 @@ Tests for tonal_hortator.core.playlist_generator
 
 import os
 import tempfile
+import unittest
 from typing import List, cast
 from unittest.mock import Mock, patch
 
@@ -14,7 +15,7 @@ import pytest
 from tonal_hortator.core.playlist_generator import LocalPlaylistGenerator
 
 
-class TestLocalPlaylistGenerator:
+class TestLocalPlaylistGenerator(unittest.TestCase):
     """Test LocalPlaylistGenerator"""
 
     @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
@@ -31,9 +32,9 @@ class TestLocalPlaylistGenerator:
 
         generator = LocalPlaylistGenerator()
 
-        assert generator.db_path == "music_library.db"
-        assert generator.embedding_service == mock_embedding_service
-        assert generator.track_embedder == mock_track_embedder
+        self.assertEqual(generator.db_path, "music_library.db")
+        self.assertEqual(generator.embedding_service, mock_embedding_service)
+        self.assertEqual(generator.track_embedder, mock_track_embedder)
 
     @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
     @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
@@ -49,7 +50,7 @@ class TestLocalPlaylistGenerator:
 
         generator = LocalPlaylistGenerator(db_path="custom.db")
 
-        assert generator.db_path == "custom.db"
+        self.assertEqual(generator.db_path, "custom.db")
         mock_track_embedder_class.assert_called_with(
             "custom.db", embedding_service=mock_embedding_service
         )
@@ -74,7 +75,7 @@ class TestLocalPlaylistGenerator:
         ]
 
         for query in vague_queries:
-            assert generator._is_vague_query(query) is True
+            self.assertTrue(generator._is_vague_query(query))
 
     @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
     @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
@@ -93,7 +94,7 @@ class TestLocalPlaylistGenerator:
         ]
 
         for query in specific_queries:
-            assert generator._is_vague_query(query) is False
+            self.assertFalse(generator._is_vague_query(query))
 
     @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
     @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
@@ -104,13 +105,13 @@ class TestLocalPlaylistGenerator:
         generator = LocalPlaylistGenerator()
 
         # Test queries with track counts
-        assert generator._extract_track_count("10 tracks") == 10
-        assert generator._extract_track_count("5 songs") == 5
-        assert generator._extract_track_count("20 rock tracks") == 20
+        self.assertEqual(generator._extract_track_count("10 tracks"), 10)
+        self.assertEqual(generator._extract_track_count("5 songs"), 5)
+        self.assertEqual(generator._extract_track_count("20 rock tracks"), 20)
 
         # Test queries without track counts
-        assert generator._extract_track_count("upbeat songs") is None
-        assert generator._extract_track_count("rock music") is None
+        self.assertIsNone(generator._extract_track_count("upbeat songs"))
+        self.assertIsNone(generator._extract_track_count("rock music"))
 
     @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
     @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
@@ -121,15 +122,17 @@ class TestLocalPlaylistGenerator:
         generator = LocalPlaylistGenerator()
 
         # Test queries with artists
-        assert generator._extract_artist_from_query("Nirvana songs") == "Nirvana"
-        assert (
-            generator._extract_artist_from_query("The Beatles songs") == "The Beatles"
+        self.assertEqual(
+            generator._extract_artist_from_query("Nirvana songs"), "Nirvana"
         )
-        assert generator._extract_artist_from_query("Queen radio") == "Queen"
+        self.assertEqual(
+            generator._extract_artist_from_query("The Beatles songs"), "The Beatles"
+        )
+        self.assertEqual(generator._extract_artist_from_query("Queen radio"), "Queen")
 
         # Test queries without artists
-        assert generator._extract_artist_from_query("upbeat songs") is None
-        assert generator._extract_artist_from_query("rock music") is None
+        self.assertIsNone(generator._extract_artist_from_query("upbeat songs"))
+        self.assertIsNone(generator._extract_artist_from_query("rock music"))
 
     @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
     @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
@@ -140,14 +143,14 @@ class TestLocalPlaylistGenerator:
         generator = LocalPlaylistGenerator()
 
         # Test queries with genre keywords
-        assert "rock" in generator._extract_genre_keywords("rock music")
-        assert "jazz" in generator._extract_genre_keywords("jazz songs")
-        assert "pop" in generator._extract_genre_keywords("pop music")
-        assert "hip hop" in generator._extract_genre_keywords("hip hop tracks")
+        self.assertIn("rock", generator._extract_genre_keywords("rock music"))
+        self.assertIn("jazz", generator._extract_genre_keywords("jazz songs"))
+        self.assertIn("pop", generator._extract_genre_keywords("pop music"))
+        self.assertIn("hip hop", generator._extract_genre_keywords("hip hop tracks"))
 
         # Test queries without genre keywords
-        assert generator._extract_genre_keywords("upbeat songs") == []
-        assert generator._extract_genre_keywords("happy music") == []
+        self.assertEqual(generator._extract_genre_keywords("upbeat songs"), [])
+        self.assertEqual(generator._extract_genre_keywords("happy music"), [])
 
     @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
     @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
@@ -158,14 +161,14 @@ class TestLocalPlaylistGenerator:
         generator = LocalPlaylistGenerator()
 
         # Test various name patterns
-        assert generator._extract_base_name("Song (Remix)") == "Song"
-        assert generator._extract_base_name("Track (Live)") == "Track"
-        assert generator._extract_base_name("Music (Acoustic)") == "Music"
-        assert generator._extract_base_name("Hit (Radio Edit)") == "Hit"
+        self.assertEqual(generator._extract_base_name("Song (Remix)"), "Song")
+        self.assertEqual(generator._extract_base_name("Track (Live)"), "Track")
+        self.assertEqual(generator._extract_base_name("Music (Acoustic)"), "Music")
+        self.assertEqual(generator._extract_base_name("Hit (Radio Edit)"), "Hit")
 
         # Test names without suffixes
-        assert generator._extract_base_name("Simple Song") == "Simple Song"
-        assert generator._extract_base_name("") == ""
+        self.assertEqual(generator._extract_base_name("Simple Song"), "Simple Song")
+        self.assertEqual(generator._extract_base_name(""), "")
 
     @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
     @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
@@ -179,16 +182,16 @@ class TestLocalPlaylistGenerator:
         result = generator._normalize_file_location(
             "C:\\Users\\username\\Music\\song.mp3"
         )
-        assert "username" not in result
-        assert result.endswith("song.mp3")
+        self.assertNotIn("username", result)
+        self.assertTrue(result.endswith("song.mp3"))
 
         # Test Unix path normalization
         result = generator._normalize_file_location("/home/username/Music/song.mp3")
-        assert "username" not in result
-        assert result.endswith("song.mp3")
+        self.assertNotIn("username", result)
+        self.assertTrue(result.endswith("song.mp3"))
 
         # Test empty location
-        assert generator._normalize_file_location("") == ""
+        self.assertEqual(generator._normalize_file_location(""), "")
 
     @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
     @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
@@ -209,7 +212,7 @@ class TestLocalPlaylistGenerator:
         )
 
         # Should not randomize when not vague
-        assert result == tracks[:3]
+        self.assertEqual(result, tracks[:3])
 
     @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
     @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
@@ -230,8 +233,8 @@ class TestLocalPlaylistGenerator:
         )
 
         # Should randomize when vague
-        assert len(result) == 3
-        assert all("similarity_score" in track for track in result)
+        self.assertEqual(len(result), 3)
+        self.assertTrue(all("similarity_score" in track for track in result))
 
     @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
     @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
@@ -251,12 +254,12 @@ class TestLocalPlaylistGenerator:
         result = generator._smart_name_deduplication(tracks)
 
         # Should keep only 2 tracks: the best "Song" variant by Artist1 and "Different Song" by Artist2
-        assert len(result) == 2
+        self.assertEqual(len(result), 2)
         # The "Song" track with highest similarity score (0.9) should be kept
         song_track = next(track for track in result if track["name"] == "Song")
-        assert song_track["similarity_score"] == 0.9
+        self.assertEqual(song_track["similarity_score"], 0.9)
         # The "Different Song" track should be kept
-        assert any(track["name"] == "Different Song" for track in result)
+        self.assertTrue(any(track["name"] == "Different Song" for track in result))
 
     @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
     @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
@@ -279,7 +282,7 @@ class TestLocalPlaylistGenerator:
 
         # Should deduplicate and limit to max_tracks (only unique name/artist combos)
         # After deduplication: Song1 by Artist1 (best score), Song2 by Artist2, Song3 by Artist3 = 3 tracks
-        assert len(result) == 3
+        self.assertEqual(len(result), 3)
 
     @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
     @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
@@ -298,7 +301,7 @@ class TestLocalPlaylistGenerator:
         result = generator._apply_genre_filtering(["rock"], tracks)
 
         # Should filter to only rock tracks (with boosting)
-        assert any(track["genre"].lower() == "rock" for track in result)
+        self.assertTrue(any(track["genre"].lower() == "rock" for track in result))
 
     @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
     @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
@@ -320,7 +323,7 @@ class TestLocalPlaylistGenerator:
             generator.save_playlist_m3u(
                 tracks, "test query", output_dir=os.path.dirname(temp_path)
             )
-            assert os.path.exists(temp_path)
+            self.assertTrue(os.path.exists(temp_path))
         finally:
             os.unlink(temp_path)
 
@@ -366,7 +369,7 @@ class TestLocalPlaylistGenerator:
 
         generator = LocalPlaylistGenerator()
         result = generator.generate_playlist("test query", max_tracks=5)
-        assert isinstance(result, list)
+        self.assertIsInstance(result, list)
 
     @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
     @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
@@ -399,11 +402,11 @@ class TestLocalPlaylistGenerator:
             artist_counts[artist] = artist_counts.get(artist, 0) + 1
 
         # Check that no artist has more than 2 tracks
-        assert all(count <= 2 for count in artist_counts.values())
+        self.assertTrue(all(count <= 2 for count in artist_counts.values()))
 
         # Check that we got the best tracks (highest similarity scores)
         artist1_tracks = [t for t in result if t["artist"] == "Artist1"]
-        assert len(artist1_tracks) <= 2
+        self.assertLessEqual(len(artist1_tracks), 2)
         if len(artist1_tracks) >= 2:
             scores: List[float] = [
                 float(cast(float, t["similarity_score"]))
@@ -415,7 +418,7 @@ class TestLocalPlaylistGenerator:
             ]
             scores = sorted(scores, reverse=True)
             result_scores = sorted(result_scores, reverse=True)
-            assert result_scores == scores[:2]
+            self.assertEqual(result_scores, scores[:2])
 
     @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
     @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
@@ -439,7 +442,7 @@ class TestLocalPlaylistGenerator:
         result = generator._distribute_artists(tracks)
 
         # Should have the same number of tracks
-        assert len(result) == len(tracks)
+        self.assertEqual(len(result), len(tracks))
 
         # Check that artists are distributed (not grouped together)
         # Count consecutive tracks from the same artist
@@ -458,16 +461,18 @@ class TestLocalPlaylistGenerator:
 
         # With 3 artists and 6 tracks, we should have at most 2 consecutive tracks from same artist
         # (in the worst case, but ideally 1)
-        assert (
-            max_consecutive <= 2
-        ), f"Too many consecutive tracks from same artist: {max_consecutive}"
+        self.assertLessEqual(
+            max_consecutive,
+            2,
+            f"Too many consecutive tracks from same artist: {max_consecutive}",
+        )
 
         # Verify all original tracks are present (just reordered)
         original_artists: List[str] = [cast(str, t["artist"]) for t in tracks]
         result_artists: List[str] = [cast(str, t["artist"]) for t in result]
-        assert sorted(original_artists) == sorted(result_artists)
+        self.assertEqual(sorted(original_artists), sorted(result_artists))
 
         # Verify all track names are present
         original_names: List[str] = [cast(str, t["name"]) for t in tracks]
         result_names: List[str] = [cast(str, t["name"]) for t in result]
-        assert sorted(original_names) == sorted(result_names)
+        self.assertEqual(sorted(original_names), sorted(result_names))

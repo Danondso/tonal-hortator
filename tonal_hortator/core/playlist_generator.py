@@ -8,6 +8,9 @@ import logging
 import os
 import random
 import re
+import secrets
+import shutil
+import subprocess
 import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -568,9 +571,17 @@ class LocalPlaylistGenerator:
         final_tracks: list[dict[str, Any]] = []
         attempts = 0
         max_attempts = top_k * 3  # Increase attempts to ensure we get enough tracks
+        rng = secrets.SystemRandom()
 
         while len(final_tracks) < max_tracks and attempts < max_attempts:
-            pick = random.choices(candidates, weights=weights, k=1)[0]
+            # Use secrets.SystemRandom().choices for efficient weighted random selection
+            if weights and any(w > 0 for w in weights):
+                # Use choices for weighted random selection (more efficient than manual loop)
+                pick = rng.choices(candidates, weights=weights, k=1)[0]
+            else:
+                # If no weights or all weights are zero, use uniform random selection
+                pick = rng.choice(candidates)
+
             pick_id = (
                 pick.get("id") or f"{pick.get('name', '')}-{pick.get('artist', '')}"
             )
@@ -1163,10 +1174,28 @@ def _process_playlist_request(generator: LocalPlaylistGenerator, query: str) -> 
             open_music = input("Open in Apple Music? (y/n): ").strip().lower()
             if open_music in ["y", "yes"]:
                 try:
-                    import subprocess
-
-                    subprocess.run(["open", "-a", "Music", filepath], check=True)
-                    print("🎵 Opened in Apple Music!")
+                    open_path = shutil.which("open")
+                    if open_path is None:
+                        print("❌ 'open' command not found (macOS required)")
+                    else:
+                        # Only allow .mp3, .m4a, .aac, .wav files
+                        allowed_exts = {".mp3", ".m4a", ".aac", ".wav"}
+                        if os.path.splitext(filepath)[1].lower() not in allowed_exts:
+                            print("❌ File type not allowed for Apple Music open.")
+                        else:
+                            subprocess.run(
+                                [open_path, "-a", "Music", filepath],
+                                check=True,
+                                shell=False,
+                                timeout=10,
+                            )
+                        print("🎵 Opened in Apple Music!")
+                except subprocess.TimeoutExpired:
+                    print("❌ Timeout opening Apple Music")
+                except subprocess.CalledProcessError as e:
+                    print(f"❌ Could not open in Apple Music: {e}")
+                except FileNotFoundError:
+                    print("❌ Apple Music not found")
                 except Exception as e:
                     print(f"❌ Could not open in Apple Music: {e}")
                     print(
