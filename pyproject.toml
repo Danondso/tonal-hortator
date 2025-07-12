@@ -33,6 +33,7 @@ dev = [
     "flake8",
     "pre-commit",
     "bandit",
+    "unittest"
 ]
 
 [project.scripts]
