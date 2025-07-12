@@ -10,9 +10,8 @@ from typing import Any, Callable, Dict, Iterator, Optional
 
 # Use defusedxml for safe XML parsing
 try:
-    from xml.etree.ElementTree import Element
-
     from defusedxml import ElementTree as ET
+    from defusedxml.ElementTree import Element
 except ImportError:
     # Fallback to regular ElementTree with warning
     import warnings
@@ -114,6 +113,8 @@ class LibraryParser:
         )
         in_tracks_section = False
         try:
+            # Use defusedxml's iterparse for safe XML parsing
+            # This prevents XML attacks like billion laughs, quadratic blowup, etc.
             for event, elem in ET.iterparse(file_path, events=("start", "end")):
                 if event == "end" and elem.tag == "key" and elem.text == "Tracks":
                     in_tracks_section = True
@@ -129,6 +130,9 @@ class LibraryParser:
                         break
         except ET.ParseError as e:
             logger.error(f"❌ Failed to parse XML file: {e}")
+            return
+        except Exception as e:
+            logger.error(f"❌ Unexpected error parsing XML file: {e}")
             return
 
     def _process_string_field(self, value_elem: Element) -> Optional[str]:

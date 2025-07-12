@@ -1172,10 +1172,27 @@ def _process_playlist_request(generator: LocalPlaylistGenerator, query: str) -> 
             open_music = input("Open in Apple Music? (y/n): ").strip().lower()
             if open_music in ["y", "yes"]:
                 try:
+                    import shutil
                     import subprocess
 
-                    subprocess.run(["open", "-a", "Music", filepath], check=True)
-                    print("🎵 Opened in Apple Music!")
+                    # Validate that 'open' command exists (macOS only)
+                    if shutil.which("open"):
+                        # Use subprocess with shell=False and explicit executable path for security
+                        subprocess.run(
+                            ["open", "-a", "Music", filepath],
+                            check=True,
+                            shell=False,
+                            timeout=10,  # Add timeout for security
+                        )
+                        print("🎵 Opened in Apple Music!")
+                    else:
+                        print("❌ 'open' command not found (macOS required)")
+                except subprocess.TimeoutExpired:
+                    print("❌ Timeout opening Apple Music")
+                except subprocess.CalledProcessError as e:
+                    print(f"❌ Could not open in Apple Music: {e}")
+                except FileNotFoundError:
+                    print("❌ Apple Music not found")
                 except Exception as e:
                     print(f"❌ Could not open in Apple Music: {e}")
                     print(

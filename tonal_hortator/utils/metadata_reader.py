@@ -415,27 +415,30 @@ class MetadataReader:
                             logger.warning(f"⚠️  Skipping invalid column: {key}")
 
                     if safe_update_data:
-                        # Build dynamic UPDATE query with validated column names
-                        set_clause = ", ".join(
+                        # Build parameterized query to prevent SQL injection
+                        placeholders = ", ".join(
                             [f"{key} = ?" for key in safe_update_data.keys()]
                         )
                         values = list(safe_update_data.values())
                         values.append(track_id)  # For WHERE clause
 
-                        cursor.execute(
-                            f"""
-                            UPDATE tracks
-                            SET {set_clause}
-                            WHERE id = ?
-                        """,
-                            values,
-                        )
+                        # Use parameterized query instead of f-string interpolation
+                        query = f"UPDATE tracks SET {placeholders} WHERE id = ?"
 
-                        conn.commit()
-                        logger.info(
-                            f"✅ Updated metadata for track {track_id} ({len(safe_update_data)} fields) - {file_path}"
-                        )
-                        return True
+                        # Validate that we're only using safe column names
+                        safe_columns = set(safe_update_data.keys())
+                        if safe_columns.issubset(set(columns)):
+                            cursor.execute(query, values)
+                            conn.commit()
+                            logger.info(
+                                f"✅ Updated metadata for track {track_id} ({len(safe_update_data)} fields) - {file_path}"
+                            )
+                            return True
+                        else:
+                            logger.warning(
+                                f"❌ Invalid column names detected: {safe_columns - set(columns)}"
+                            )
+                            return False
                     else:
                         logger.warning(
                             f"No valid metadata fields found for track {track_id} ({file_path})"
@@ -521,29 +524,32 @@ class MetadataReader:
                 cursor.execute("SELECT COUNT(*) FROM tracks")
                 total_tracks = cursor.fetchone()[0]
 
-                # Whitelist of valid metadata fields for security
-                valid_metadata_fields = {
-                    "bpm",
-                    "musical_key",
-                    "key_scale",
-                    "mood",
-                    "label",
-                    "producer",
-                    "arranger",
-                    "lyricist",
-                    "original_year",
+                # Pre-defined queries for each valid field to prevent SQL injection
+                field_queries = {
+                    "bpm": "SELECT COUNT(*) FROM tracks WHERE bpm IS NOT NULL",
+                    "musical_key": "SELECT COUNT(*) FROM tracks WHERE musical_key IS NOT NULL",
+                    "key_scale": "SELECT COUNT(*) FROM tracks WHERE key_scale IS NOT NULL",
+                    "mood": "SELECT COUNT(*) FROM tracks WHERE mood IS NOT NULL",
+                    "label": "SELECT COUNT(*) FROM tracks WHERE label IS NOT NULL",
+                    "producer": "SELECT COUNT(*) FROM tracks WHERE producer IS NOT NULL",
+                    "arranger": "SELECT COUNT(*) FROM tracks WHERE arranger IS NOT NULL",
+                    "lyricist": "SELECT COUNT(*) FROM tracks WHERE lyricist IS NOT NULL",
+                    "original_year": "SELECT COUNT(*) FROM tracks WHERE original_year IS NOT NULL",
                 }
 
                 stats = {"total_tracks": total_tracks}
-                for field in valid_metadata_fields:
-                    # Validate field name against whitelist
-                    if field not in valid_metadata_fields:
-                        logger.warning(f"⚠️  Skipping invalid field: {field}")
+
+                # Check which fields actually exist in the database schema
+                cursor.execute("PRAGMA table_info(tracks)")
+                all_columns = {col[1] for col in cursor.fetchall()}
+
+                for field, query in field_queries.items():
+                    # Only query fields that actually exist in the database
+                    if field not in all_columns:
+                        logger.debug(f"Field {field} not in database schema, skipping")
                         continue
 
-                    # Use explicit column name validation to prevent SQL injection
-                    # Since field is from a whitelist, it's safe to use in f-string
-                    query = f"SELECT COUNT(*) FROM tracks WHERE {field} IS NOT NULL"
+                    # Execute the pre-defined query (no string interpolation)
                     cursor.execute(query)
                     count = cursor.fetchone()[0]
                     stats[f"{field}_coverage"] = count
