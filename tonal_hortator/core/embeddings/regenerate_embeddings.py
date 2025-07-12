@@ -5,7 +5,6 @@ Script to regenerate embeddings with enhanced musical analysis data
 
 import logging
 import sqlite3
-from pathlib import Path
 
 from tonal_hortator.core.embeddings.track_embedder import LocalTrackEmbedder
 
@@ -64,7 +63,7 @@ def test_enhanced_embeddings(db_path: str = "music_library.db") -> None:
             cursor.execute(
                 """
                 SELECT id, name, artist, album, genre, bpm, musical_key, key_scale, mood
-                FROM tracks 
+                FROM tracks
                 WHERE bpm IS NOT NULL OR musical_key IS NOT NULL OR mood IS NOT NULL
                 LIMIT 1
             """
@@ -104,7 +103,7 @@ def test_enhanced_embeddings(db_path: str = "music_library.db") -> None:
         logger.error(f"❌ Error testing enhanced embeddings: {e}")
 
 
-def main():
+def main() -> int:
     """Main function"""
     import argparse
 
