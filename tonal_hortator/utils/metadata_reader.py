@@ -415,6 +415,30 @@ class MetadataReader:
                             logger.warning(f"⚠️  Skipping invalid column: {key}")
 
                     if safe_update_data:
+                        # Whitelist allowed columns to prevent SQL injection
+                        allowed_columns = {
+                            "name",
+                            "artist",
+                            "album",
+                            "genre",
+                            "year",
+                            "play_count",
+                            "album_artist",
+                            "composer",
+                            "file_location",
+                            "track_number",
+                            "disc_number",
+                            "duration",
+                            "bitrate",
+                            "sample_rate",
+                            "date_added",
+                            "last_played",
+                            "rating",
+                            "comments",
+                        }
+                        for col in update_data:
+                            if col not in allowed_columns:
+                                raise ValueError(f"Disallowed column in update: {col}")
                         # Build parameterized query to prevent SQL injection
                         placeholders = ", ".join(
                             [f"{key} = ?" for key in safe_update_data.keys()]

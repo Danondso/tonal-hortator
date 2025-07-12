@@ -31,16 +31,20 @@ def open_in_apple_music(playlist_path: str) -> bool:
         logger.info(f"Opening in Apple Music: {os.path.basename(playlist_path)}")
 
         # Validate that 'open' command exists (macOS only)
-        if not shutil.which("open"):
+        open_path = shutil.which("open")
+        if open_path is None:
             logger.error("'open' command not found (macOS required)")
             return False
-
-        # Use subprocess with shell=False and explicit executable path for security
+        # Only allow .mp3, .m4a, .aac, .wav files
+        allowed_exts = {".mp3", ".m4a", ".aac", ".wav"}
+        if os.path.splitext(abs_path)[1].lower() not in allowed_exts:
+            logger.error("File type not allowed for Apple Music open.")
+            return False
         subprocess.run(
-            ["open", "-a", "Music", abs_path],
+            [open_path, "-a", "Music", abs_path],
             check=True,
             shell=False,
-            timeout=10,  # Add timeout for security
+            timeout=10,
         )
         logger.info("Successfully opened in Apple Music")
         return True

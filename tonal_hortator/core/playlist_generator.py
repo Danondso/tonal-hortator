@@ -9,6 +9,8 @@ import os
 import random
 import re
 import secrets
+import shutil
+import subprocess
 import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -1172,21 +1174,22 @@ def _process_playlist_request(generator: LocalPlaylistGenerator, query: str) -> 
             open_music = input("Open in Apple Music? (y/n): ").strip().lower()
             if open_music in ["y", "yes"]:
                 try:
-                    import shutil
-                    import subprocess
-
-                    # Validate that 'open' command exists (macOS only)
-                    if shutil.which("open"):
-                        # Use subprocess with shell=False and explicit executable path for security
-                        subprocess.run(
-                            ["open", "-a", "Music", filepath],
-                            check=True,
-                            shell=False,
-                            timeout=10,  # Add timeout for security
-                        )
-                        print("🎵 Opened in Apple Music!")
-                    else:
+                    open_path = shutil.which("open")
+                    if open_path is None:
                         print("❌ 'open' command not found (macOS required)")
+                    else:
+                        # Only allow .mp3, .m4a, .aac, .wav files
+                        allowed_exts = {".mp3", ".m4a", ".aac", ".wav"}
+                        if os.path.splitext(filepath)[1].lower() not in allowed_exts:
+                            print("❌ File type not allowed for Apple Music open.")
+                        else:
+                            subprocess.run(
+                                [open_path, "-a", "Music", filepath],
+                                check=True,
+                                shell=False,
+                                timeout=10,
+                            )
+                        print("🎵 Opened in Apple Music!")
                 except subprocess.TimeoutExpired:
                     print("❌ Timeout opening Apple Music")
                 except subprocess.CalledProcessError as e:
