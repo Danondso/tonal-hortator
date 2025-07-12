@@ -3,6 +3,7 @@
 Tests for tonal_hortator.core.embeddings
 """
 
+import unittest
 from unittest.mock import Mock, patch
 
 import numpy as np
@@ -11,7 +12,7 @@ import pytest
 from tonal_hortator.core.embeddings import OllamaEmbeddingService
 
 
-class TestOllamaEmbeddingService:
+class TestOllamaEmbeddingService(unittest.TestCase):
     """Test OllamaEmbeddingService"""
 
     @patch("tonal_hortator.core.embeddings.ollama.Client")
@@ -32,9 +33,9 @@ class TestOllamaEmbeddingService:
 
         service = OllamaEmbeddingService()
 
-        assert service.model_name == "nomic-embed-text:latest"
-        assert service.client is not None
-        assert service._embedding_dimension == 384
+        self.assertEqual(service.model_name, "nomic-embed-text:latest")
+        self.assertIsNotNone(service.client)
+        self.assertEqual(service._embedding_dimension, 384)
 
     @patch("tonal_hortator.core.embeddings.ollama.Client")
     def test_init_with_custom_host(self, mock_client_class: Mock) -> None:
@@ -51,7 +52,7 @@ class TestOllamaEmbeddingService:
 
         service = OllamaEmbeddingService(host="http://localhost:11434")
 
-        assert service.host == "http://localhost:11434"
+        self.assertEqual(service.host, "http://localhost:11434")
         mock_client_class.assert_called_with(host="http://localhost:11434")
 
     @patch("tonal_hortator.core.embeddings.ollama.Client")
@@ -84,7 +85,7 @@ class TestOllamaEmbeddingService:
 
         service = OllamaEmbeddingService()
 
-        assert service.model_name == "nomic-embed-text:latest"
+        self.assertEqual(service.model_name, "nomic-embed-text:latest")
 
     @patch("tonal_hortator.core.embeddings.ollama.Client")
     def test_init_list_response_format(self, mock_client_class: Mock) -> None:
@@ -101,7 +102,7 @@ class TestOllamaEmbeddingService:
 
         service = OllamaEmbeddingService()
 
-        assert service.model_name == "nomic-embed-text:latest"
+        self.assertEqual(service.model_name, "nomic-embed-text:latest")
 
     @patch("tonal_hortator.core.embeddings.ollama.Client")
     def test_init_unexpected_response_format(self, mock_client_class: Mock) -> None:
@@ -132,9 +133,9 @@ class TestOllamaEmbeddingService:
 
         result = service.get_embedding("test text")
 
-        assert isinstance(result, np.ndarray)
-        assert len(result) == 3
-        assert result.dtype == np.float32
+        self.assertIsInstance(result, np.ndarray)
+        self.assertEqual(len(result), 3)
+        self.assertEqual(result.dtype, np.float32)
         mock_client.embeddings.assert_called_with(
             model="nomic-embed-text:latest", prompt="test text"
         )
@@ -158,15 +159,15 @@ class TestOllamaEmbeddingService:
 
         # Test empty text
         result = service.get_embedding("")
-        assert isinstance(result, np.ndarray)
-        assert len(result) == 384
-        assert np.all(result == 0)
+        self.assertIsInstance(result, np.ndarray)
+        self.assertEqual(len(result), 384)
+        self.assertTrue(np.all(result == 0))
 
         # Test whitespace text
         result = service.get_embedding("   ")
-        assert isinstance(result, np.ndarray)
-        assert len(result) == 384
-        assert np.all(result == 0)
+        self.assertIsInstance(result, np.ndarray)
+        self.assertEqual(len(result), 384)
+        self.assertTrue(np.all(result == 0))
 
     @patch("tonal_hortator.core.embeddings.ollama.Client")
     def test_get_embedding_error(self, mock_client_class: Mock) -> None:
@@ -203,13 +204,13 @@ class TestOllamaEmbeddingService:
         texts = ["text1", "text2", "text3"]
         results = service.get_embeddings_batch(texts)
 
-        assert len(results) == 3
+        self.assertEqual(len(results), 3)
         for result in results:
-            assert isinstance(result, np.ndarray)
-            assert len(result) == 3
-            assert result.dtype == np.float32
+            self.assertIsInstance(result, np.ndarray)
+            self.assertEqual(len(result), 3)
+            self.assertEqual(result.dtype, np.float32)
         # 1 call for dimension detection, 3 for batch
-        assert mock_client.embeddings.call_count == 4
+        self.assertEqual(mock_client.embeddings.call_count, 4)
 
     @patch("tonal_hortator.core.embeddings.ollama.Client")
     def test_get_embeddings_batch_error_fallback(self, mock_client_class: Mock) -> None:
@@ -233,13 +234,13 @@ class TestOllamaEmbeddingService:
         texts = ["text1", "text2", "text3"]
         results = service.get_embeddings_batch(texts)
 
-        assert len(results) == 3
-        assert isinstance(results[0], np.ndarray)
-        assert isinstance(results[1], np.ndarray)  # Fallback to zero vector
-        assert isinstance(results[2], np.ndarray)
+        self.assertEqual(len(results), 3)
+        self.assertIsInstance(results[0], np.ndarray)
+        self.assertIsInstance(results[1], np.ndarray)  # Fallback to zero vector
+        self.assertIsInstance(results[2], np.ndarray)
 
         # Check that the failed embedding is a zero vector
-        assert np.all(results[1] == 0)
+        self.assertTrue(np.all(results[1] == 0))
 
     @patch("tonal_hortator.core.embeddings.ollama.Client")
     def test_create_track_embedding_text(self, mock_client_class: Mock) -> None:
@@ -264,7 +265,7 @@ class TestOllamaEmbeddingService:
         result = service.create_track_embedding_text(track_data)
 
         expected = "Test Song, Test Artist, Test Album, Rock, 2020"
-        assert result == expected
+        self.assertEqual(result, expected)
 
     @patch("tonal_hortator.core.embeddings.ollama.Client")
     def test_create_track_embedding_text_missing_fields(
@@ -285,7 +286,7 @@ class TestOllamaEmbeddingService:
         result = service.create_track_embedding_text(track_data)
 
         expected = "Test Song, Test Artist"
-        assert result == expected
+        self.assertEqual(result, expected)
 
     @patch("tonal_hortator.core.embeddings.ollama.Client")
     def test_similarity_search(self, mock_client_class: Mock) -> None:
@@ -320,9 +321,9 @@ class TestOllamaEmbeddingService:
             "test query", embeddings, track_data, top_k=2
         )
 
-        assert len(results) == 2
-        assert results[0]["name"] == "Track 1"  # Highest similarity
-        assert results[1]["name"] == "Track 3"  # Second highest similarity
+        self.assertEqual(len(results), 2)
+        self.assertEqual(results[0]["name"], "Track 1")  # Highest similarity
+        self.assertEqual(results[1]["name"], "Track 3")  # Second highest similarity
 
     @patch("tonal_hortator.core.embeddings.ollama.Client")
     def test_similarity_search_empty_data(self, mock_client_class: Mock) -> None:
@@ -338,7 +339,7 @@ class TestOllamaEmbeddingService:
 
         results = service.similarity_search("test query", [], [], top_k=5)
 
-        assert results == []
+        self.assertEqual(results, [])
 
     @patch("tonal_hortator.core.embeddings.ollama.Client")
     def test_get_embedding_dimension_fallback(self, mock_client_class: Mock) -> None:
@@ -357,7 +358,7 @@ class TestOllamaEmbeddingService:
         service = OllamaEmbeddingService()
 
         # Should use the detected dimension (2)
-        assert service._embedding_dimension == 2
+        self.assertEqual(service._embedding_dimension, 2)
 
     # Test data
     test_tracks = [
