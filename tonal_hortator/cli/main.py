@@ -260,11 +260,7 @@ Examples:
         if args.command == "generate":
             success = generate_playlist(
                 query=args.query,
-                max_tracks=(
-                    args.max_tracks
-                    if hasattr(args, "max_tracks") and args.max_tracks is not None
-                    else None
-                ),
+                max_tracks=(args.max_tracks if args.max_tracks is not None else None),
                 min_similarity=args.min_similarity,
                 auto_open=args.auto_open,
             )
