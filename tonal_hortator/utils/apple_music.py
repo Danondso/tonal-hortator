@@ -35,8 +35,8 @@ def open_in_apple_music(playlist_path: str) -> bool:
         if open_path is None:
             logger.error("'open' command not found (macOS required)")
             return False
-        # Only allow .mp3, .m4a, .aac, .wav files
-        allowed_exts = {".mp3", ".m4a", ".aac", ".wav"}
+        # Allow audio files and playlist files
+        allowed_exts = {".mp3", ".m4a", ".aac", ".wav", ".m3u", ".m3u8"}
         if os.path.splitext(abs_path)[1].lower() not in allowed_exts:
             logger.error("File type not allowed for Apple Music open.")
             return False

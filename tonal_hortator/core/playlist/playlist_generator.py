@@ -15,8 +15,8 @@ import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from tonal_hortator.core.embeddings import OllamaEmbeddingService
-from tonal_hortator.core.track_embedder import LocalTrackEmbedder
+from tonal_hortator.core.embeddings.embeddings import OllamaEmbeddingService
+from tonal_hortator.core.embeddings.track_embedder import LocalTrackEmbedder
 
 # Configure logging
 logging.basicConfig(
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 # --- LLMQueryParser for extracting structured intent from queries ---
 class LLMQueryParser:
     def __init__(self, model_name: str = "llama3:8b"):
-        from tonal_hortator.core.llm_client import (  # You'll need to implement this or wrap Ollama
+        from tonal_hortator.core.llm.llm_client import (  # You'll need to implement this or wrap Ollama
             LocalLLMClient,
         )
 
