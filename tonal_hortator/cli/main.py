@@ -8,6 +8,7 @@ import logging
 import sys
 from typing import Optional
 
+from migrate_schema import DatabaseMigrator
 from tonal_hortator.core.playlist_generator import LocalPlaylistGenerator
 from tonal_hortator.core.track_embedder import LocalTrackEmbedder
 from tonal_hortator.utils.apple_music import open_in_apple_music
@@ -161,9 +162,27 @@ def import_library(xml_path: str, db_path: str = "music_library.db") -> bool:
     """Parse the Apple Music XML library and populate the database."""
     try:
         logger.info(f"🚀 Starting library import from: {xml_path}")
+
+        # Create metadata mappings table if DatabaseMigrator is available
+        if DatabaseMigrator is not None:
+            logger.info("📋 Creating metadata mappings table...")
+            migrator = DatabaseMigrator(db_path=db_path)
+            if migrator.create_metadata_mappings_table():
+                logger.info("✅ Metadata mappings table created successfully")
+            else:
+                logger.warning("⚠️  Could not create metadata mappings table")
+
         parser = LibraryParser(db_path=db_path)
         inserted_count = parser.parse_library(xml_path=xml_path)
         logger.info(f"✅ Library import complete. Added {inserted_count} new tracks.")
+
+        # Run full database migration to ensure all metadata columns exist
+        if DatabaseMigrator is not None and inserted_count > 0:
+            logger.info("🔄 Running database migration to add metadata columns...")
+            if migrator.run_migration():
+                logger.info("✅ Database migration completed successfully")
+            else:
+                logger.warning("⚠️  Database migration failed, but continuing...")
 
         # After importing, it's good practice to embed the new tracks
         if inserted_count > 0:

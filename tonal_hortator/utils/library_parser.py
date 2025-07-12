@@ -10,11 +10,14 @@ from typing import Any, Callable, Dict, Iterator, Optional
 
 # Use defusedxml for safe XML parsing
 try:
+    from xml.etree.ElementTree import Element
+
     from defusedxml import ElementTree as ET
 except ImportError:
     # Fallback to regular ElementTree with warning
     import warnings
     import xml.etree.ElementTree as ET
+    from xml.etree.ElementTree import Element
 
     warnings.warn(
         "defusedxml not available. Using regular ElementTree. "
@@ -128,11 +131,11 @@ class LibraryParser:
             logger.error(f"❌ Failed to parse XML file: {e}")
             return
 
-    def _process_string_field(self, value_elem: ET.Element) -> Optional[str]:
+    def _process_string_field(self, value_elem: Element) -> Optional[str]:
         """Process a string field from XML"""
         return str(value_elem.text) if value_elem.text is not None else None
 
-    def _process_location_field(self, value_elem: ET.Element) -> Optional[str]:
+    def _process_location_field(self, value_elem: Element) -> Optional[str]:
         """Process location field with URL decoding"""
         if not value_elem.text:
             return None
@@ -150,15 +153,15 @@ class LibraryParser:
             # Decode URL encoding if present
             return urllib.parse.unquote(location)
 
-    def _process_int_field(self, value_elem: ET.Element) -> int:
+    def _process_int_field(self, value_elem: Element) -> int:
         """Process an integer field from XML"""
         return int(value_elem.text) if value_elem.text else 0
 
-    def _process_optional_int_field(self, value_elem: ET.Element) -> Optional[int]:
+    def _process_optional_int_field(self, value_elem: Element) -> Optional[int]:
         """Process an optional integer field from XML"""
         return int(value_elem.text) if value_elem.text else None
 
-    def _get_field_processors(self) -> Dict[str, Callable[[ET.Element], Any]]:
+    def _get_field_processors(self) -> Dict[str, Callable[[Element], Any]]:
         """Get mapping of field names to their processing functions"""
         return {
             "Name": lambda elem: self._process_string_field(elem),
@@ -195,7 +198,7 @@ class LibraryParser:
         }
 
     def _process_track_field(
-        self, key_name: Optional[str], value_elem: ET.Element, data: Dict[str, Any]
+        self, key_name: Optional[str], value_elem: Element, data: Dict[str, Any]
     ) -> None:
         """Process a single track field based on its key name"""
         if key_name in self._field_processors and key_name in self._field_mapping:
@@ -203,7 +206,7 @@ class LibraryParser:
                 value_elem
             )
 
-    def _extract_track_data(self, track_dict: ET.Element) -> Optional[Dict[str, Any]]:
+    def _extract_track_data(self, track_dict: Element) -> Optional[Dict[str, Any]]:
         """
         Extracts relevant data for a single track from its XML element.
 

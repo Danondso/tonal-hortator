@@ -51,8 +51,10 @@ class DatabaseMigrator:
         """Validate column type against whitelist"""
         return column_type.upper() in self.valid_column_types
 
-    def _safe_add_column(self, cursor, column_name: str, column_type: str) -> bool:
-        """Safely add a column using parameterized query with validation"""
+    def _safe_add_column(
+        self, cursor: sqlite3.Cursor, column_name: str, column_type: str
+    ) -> bool:
+        """Safely add a column using string formatting with validation"""
         if not self._validate_column_name(column_name):
             logger.error(f"❌ Invalid column name: {column_name}")
             return False
@@ -62,9 +64,10 @@ class DatabaseMigrator:
             return False
 
         try:
-            # Use parameterized query with proper escaping
-            query = "ALTER TABLE tracks ADD COLUMN ? ?"
-            cursor.execute(query, (column_name, column_type))
+            # Use string formatting since SQLite doesn't support parameters for column names/types
+            # Column names and types are validated against whitelists for security
+            query = f"ALTER TABLE tracks ADD COLUMN {column_name} {column_type}"
+            cursor.execute(query)
             return True
         except sqlite3.Error as e:
             logger.error(f"❌ Error adding column {column_name}: {e}")
@@ -649,7 +652,7 @@ class DatabaseMigrator:
             logger.error(f"❌ Error showing schema: {e}")
 
 
-def main():
+def main() -> int:
     """Main function for running the migration"""
     import argparse
 
