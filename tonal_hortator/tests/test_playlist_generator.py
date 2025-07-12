@@ -366,7 +366,11 @@ class TestLocalPlaylistGenerator:
 
         generator = LocalPlaylistGenerator()
         result = generator.generate_playlist("test query", max_tracks=5)
-        assert isinstance(result, list)
+        assert isinstance(result, dict)
+        assert "name" in result
+        assert "tracks" in result
+        assert isinstance(result["name"], str)
+        assert isinstance(result["tracks"], list)
 
     @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
     @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")

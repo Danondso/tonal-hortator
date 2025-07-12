@@ -133,12 +133,16 @@ class TestCoreFunctionality(unittest.TestCase):
         embedder_for_playlist = LocalTrackEmbedder(db_path=self.db_path, conn=self.conn)
         playlist_generator = LocalPlaylistGenerator(db_path=self.db_path)
         playlist_generator.track_embedder = embedder_for_playlist
-        playlist = playlist_generator.generate_playlist("a test song", max_tracks=3)
+        result = playlist_generator.generate_playlist("a test song", max_tracks=3)
 
-        self.assertIsNotNone(playlist)
-        self.assertGreater(len(playlist), 0)  # Should have at least one track
+        playlist_name = result["name"]
+        tracks = result["tracks"]
+
+        self.assertIsNotNone(tracks)
+        self.assertGreater(len(tracks), 0)  # Should have at least one track
+        self.assertIsInstance(playlist_name, str)  # Should have a generated name
         # Check that the playlist contains tracks with the expected names
-        track_names = [track["name"] for track in playlist]
+        track_names = [track["name"] for track in tracks]
         self.assertTrue(any("Test Song" in name for name in track_names))
 
     @unittest.skipIf(

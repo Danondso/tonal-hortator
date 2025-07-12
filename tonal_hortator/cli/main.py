@@ -85,17 +85,21 @@ def _generate_single_playlist(
     """Generate a single playlist"""
     try:
         # Pass max_tracks (can be None) so generate_playlist uses the query's count if needed
-        tracks = generator.generate_playlist(query, max_tracks, min_similarity)
+        result = generator.generate_playlist(query, max_tracks, min_similarity)
+
+        playlist_name = result["name"]
+        tracks = result["tracks"]
 
         if not tracks:
             print("❌ No tracks found for your query. Try a different search term.")
             return False
 
-        # Print summary
+        # Print summary with playlist name
+        print(f"\n🎼 Playlist: {playlist_name}")
         generator.print_playlist_summary(tracks, query)
 
-        # Save playlist
-        filepath = generator.save_playlist_m3u(tracks, query)
+        # Save playlist with the generated name
+        filepath = generator.save_playlist_m3u(tracks, playlist_name)
         print(f"✅ Playlist saved to: {filepath}")
 
         # Open in Apple Music if requested

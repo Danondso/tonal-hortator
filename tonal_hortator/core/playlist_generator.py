@@ -109,6 +109,60 @@ class LocalPlaylistGenerator:
         )
         self.query_parser = LLMQueryParser()
 
+    def _generate_playlist_name(self, query: str, tracks: List[Dict[str, Any]]) -> str:
+        """
+        Generate a creative playlist name using the LLM
+
+        Args:
+            query: Original user query
+            tracks: List of selected tracks
+
+        Returns:
+            Generated playlist name
+        """
+        try:
+            # Get top tracks for context (up to 5)
+            top_tracks = tracks[:5]
+            track_info = []
+            for track in top_tracks:
+                artist = track.get("artist", "Unknown Artist")
+                name = track.get("name", "Unknown Track")
+                track_info.append(f"{name} by {artist}")
+
+            # Build prompt for playlist name generation
+            prompt = f"""You are a creative music curator. Given the following playlist query and selected tracks, suggest a catchy, memorable playlist name.
+
+Query: "{query}"
+
+Selected tracks:
+{chr(10).join(f"- {track}" for track in track_info)}
+
+Generate a playlist name that captures the mood, genre, or theme. Keep it concise (1-5 words) and engaging. Return only the name, nothing else.
+
+Playlist name:"""
+
+            # Use the same LLM client as the query parser
+            response = self.query_parser.client.generate(prompt, max_tokens=50)
+
+            # Clean up the response - remove quotes, extra whitespace, etc.
+            name = response.strip().strip('"').strip("'")
+
+            # Fallback if LLM fails or returns empty
+            if not name or len(name) > 50:
+                # Generate a simple fallback name
+                if tracks:
+                    first_artist = tracks[0].get("artist", "Various Artists")
+                    return f"{query.title()} - {first_artist}"
+                else:
+                    return f"{query.title()} Playlist"
+
+            return name
+
+        except Exception as e:
+            logger.warning(f"Failed to generate playlist name: {e}")
+            # Fallback name
+            return f"{query.title()} Playlist"
+
     def _determine_max_tracks(
         self, parsed_count: Optional[int], max_tracks: Optional[int]
     ) -> int:
@@ -130,7 +184,7 @@ class LocalPlaylistGenerator:
 
     def generate_playlist(
         self, query: str, max_tracks: Optional[int] = 20, min_similarity: float = 0.3
-    ) -> List[Dict[str, Any]]:
+    ) -> Dict[str, Any]:
         """
         Generate a playlist based on a semantic query
 
@@ -140,7 +194,9 @@ class LocalPlaylistGenerator:
             min_similarity: Minimum similarity score threshold
 
         Returns:
-            List of track dictionaries with similarity scores
+            Dictionary containing:
+            - "name": LLM-generated playlist name
+            - "tracks": List of track dictionaries with similarity scores
         """
         try:
             logger.info(f"🎵 Generating playlist for query: '{query}'")
@@ -175,7 +231,7 @@ class LocalPlaylistGenerator:
                     logger.error(
                         "❌ Still no embeddings available after embedding process"
                     )
-                    return []
+                    return {"name": f"{query.title()} Playlist", "tracks": []}
 
             logger.info(f"📊 Using {len(embeddings)} track embeddings for search")
 
@@ -207,12 +263,16 @@ class LocalPlaylistGenerator:
                 filtered_results, max_tracks, is_vague
             )
 
+            # 7. Generate playlist name using LLM
+            playlist_name = self._generate_playlist_name(query, filtered_results)
+            logger.info(f"🎼 Generated playlist name: '{playlist_name}'")
+
             generation_time = time.time() - start_time
             logger.info(
-                f"✅ Generated playlist with {len(filtered_results)} tracks in {generation_time:.2f}s"
+                f"✅ Generated playlist '{playlist_name}' with {len(filtered_results)} tracks in {generation_time:.2f}s"
             )
 
-            return filtered_results
+            return {"name": playlist_name, "tracks": filtered_results}
 
         except Exception as e:
             logger.error(f"❌ Error generating playlist: {e}")
@@ -712,14 +772,17 @@ class LocalPlaylistGenerator:
         return normalized
 
     def save_playlist_m3u(
-        self, tracks: List[Dict[str, Any]], query: str, output_dir: str = "playlists"
+        self,
+        tracks: List[Dict[str, Any]],
+        playlist_name: str,
+        output_dir: str = "playlists",
     ) -> str:
         """
         Save playlist as M3U file optimized for Apple Music
 
         Args:
             tracks: List of track dictionaries
-            query: Original search query
+            playlist_name: Name of the playlist
             output_dir: Output directory for playlist files
 
         Returns:
@@ -729,13 +792,13 @@ class LocalPlaylistGenerator:
             # Create output directory if it doesn't exist
             os.makedirs(output_dir, exist_ok=True)
 
-            # Create filename with timestamp and sanitized query
+            # Create filename with timestamp and sanitized playlist name
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            sanitized_query = re.sub(r"[^\w\s-]", "", query).strip()
-            sanitized_query = re.sub(r"[-\s]+", "-", sanitized_query)
-            sanitized_query = sanitized_query[:50]  # Limit length
+            sanitized_name = re.sub(r"[^\w\s-]", "", playlist_name).strip()
+            sanitized_name = re.sub(r"[-\s]+", "-", sanitized_name)
+            sanitized_name = sanitized_name[:50]  # Limit length
 
-            filename = f"playlist_{timestamp}_{sanitized_query}.m3u"
+            filename = f"playlist_{timestamp}_{sanitized_name}.m3u"
             filepath = os.path.join(output_dir, filename)
 
             # Write M3U file optimized for Apple Music
@@ -745,7 +808,7 @@ class LocalPlaylistGenerator:
 
                 # Write playlist metadata
                 f.write("# Generated by Tonal Hortator (Local)\n")
-                f.write(f"# Query: {query}\n")
+                f.write(f"# Playlist: {playlist_name}\n")
                 f.write(
                     f"# Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
                 )
@@ -1144,19 +1207,23 @@ def _process_playlist_request(generator: LocalPlaylistGenerator, query: str) -> 
     """Process a single playlist request"""
     try:
         # Pass max_tracks=None so generate_playlist uses the count from the query
-        tracks = generator.generate_playlist(query, max_tracks=None)
+        result = generator.generate_playlist(query, max_tracks=None)
+
+        playlist_name = result["name"]
+        tracks = result["tracks"]
 
         if not tracks:
             print("❌ No tracks found for your query. Try a different search term.")
             return False
 
-        # Print summary
+        # Print summary with playlist name
+        print(f"\n🎼 Playlist: {playlist_name}")
         generator.print_playlist_summary(tracks, query)
 
         # Ask if user wants to save
         save = input("\nSave playlist to file? (y/n): ").strip().lower()
         if save in ["y", "yes"]:
-            filepath = generator.save_playlist_m3u(tracks, query)
+            filepath = generator.save_playlist_m3u(tracks, playlist_name)
             print(f"✅ Playlist saved to: {filepath}")
 
             # Ask if user wants to open in Apple Music
