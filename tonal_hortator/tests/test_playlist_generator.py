@@ -9,6 +9,7 @@ from typing import List, cast
 from unittest.mock import Mock, patch
 
 import numpy as np
+import pytest
 
 from tonal_hortator.core.playlist_generator import LocalPlaylistGenerator
 
@@ -105,9 +106,9 @@ class TestLocalPlaylistGenerator:
         # Test queries with track counts
         assert generator._extract_track_count("10 tracks") == 10
         assert generator._extract_track_count("5 songs") == 5
+        assert generator._extract_track_count("20 rock tracks") == 20
 
         # Test queries without track counts
-        assert generator._extract_track_count("20 rock tracks") is None
         assert generator._extract_track_count("upbeat songs") is None
         assert generator._extract_track_count("rock music") is None
 
@@ -294,7 +295,7 @@ class TestLocalPlaylistGenerator:
             {"name": "Song3", "genre": "Rock", "similarity_score": 0.6},
         ]
 
-        result = generator._apply_genre_filtering("rock music", tracks)
+        result = generator._apply_genre_filtering(["rock"], tracks)
 
         # Should filter to only rock tracks (with boosting)
         assert any(track["genre"].lower() == "rock" for track in result)
@@ -323,6 +324,10 @@ class TestLocalPlaylistGenerator:
         finally:
             os.unlink(temp_path)
 
+    @pytest.mark.skipif(
+        os.environ.get("CI") == "true",
+        reason="Skipping playlist generation test in CI (LLM query parser requires Ollama)",
+    )
     @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
     @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
     def test_generate_playlist_success(

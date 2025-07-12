@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 def generate_playlist(
     query: Optional[str] = None,
-    max_tracks: int = 20,
+    max_tracks: Optional[int] = None,  # Allow None to respect query count
     min_similarity: float = 0.3,
     auto_open: bool = False,
 ) -> bool:
@@ -78,13 +78,13 @@ def generate_playlist(
 def _generate_single_playlist(
     generator: LocalPlaylistGenerator,
     query: str,
-    max_tracks: int,
+    max_tracks: Optional[int],  # Allow None to respect query count
     min_similarity: float,
     auto_open: bool,
 ) -> bool:
     """Generate a single playlist"""
     try:
-        # Generate playlist
+        # Pass max_tracks (can be None) so generate_playlist uses the query's count if needed
         tracks = generator.generate_playlist(query, max_tracks, min_similarity)
 
         if not tracks:
@@ -200,7 +200,9 @@ Examples:
     gen_parser = subparsers.add_parser("generate", help="Generate a playlist")
     gen_parser.add_argument("query", nargs="?", help="Search query for playlist")
     gen_parser.add_argument(
-        "--max-tracks", type=int, default=20, help="Maximum tracks in playlist"
+        "--max-tracks",
+        type=int,
+        help="Maximum tracks in playlist (default: use count from query)",
     )
     gen_parser.add_argument(
         "--min-similarity", type=float, default=0.3, help="Minimum similarity threshold"
@@ -237,7 +239,9 @@ Examples:
         "interactive", help="Start interactive playlist generator"
     )
     interactive_parser.add_argument(
-        "--max-tracks", type=int, default=20, help="Maximum tracks in playlist"
+        "--max-tracks",
+        type=int,
+        help="Maximum tracks in playlist (default: use count from query)",
     )
     interactive_parser.add_argument(
         "--min-similarity", type=float, default=0.3, help="Minimum similarity threshold"
@@ -256,7 +260,7 @@ Examples:
         if args.command == "generate":
             success = generate_playlist(
                 query=args.query,
-                max_tracks=args.max_tracks,
+                max_tracks=(args.max_tracks if args.max_tracks is not None else None),
                 min_similarity=args.min_similarity,
                 auto_open=args.auto_open,
             )
@@ -268,7 +272,11 @@ Examples:
             success = import_library(xml_path=args.xml_path, db_path=args.db_path)
         elif args.command == "interactive":
             success = generate_playlist(
-                max_tracks=args.max_tracks,
+                max_tracks=(
+                    args.max_tracks
+                    if hasattr(args, "max_tracks") and args.max_tracks is not None
+                    else None
+                ),
                 min_similarity=args.min_similarity,
                 auto_open=args.auto_open,
             )  # Interactive mode
