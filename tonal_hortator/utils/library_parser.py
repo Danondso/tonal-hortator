@@ -16,8 +16,8 @@ except ImportError:
     # Fallback to regular ElementTree with warning
     import warnings
 
-    import defusedxml.ElementTree as ET
-    from defusedxml.ElementTree import Element
+    import xml.etree.ElementTree as ET
+    from xml.etree.ElementTree import Element
 
     warnings.warn(
         "defusedxml not available. Using regular ElementTree. "
