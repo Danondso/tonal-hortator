@@ -569,28 +569,15 @@ class LocalPlaylistGenerator:
         final_tracks: list[dict[str, Any]] = []
         attempts = 0
         max_attempts = top_k * 3  # Increase attempts to ensure we get enough tracks
-        total_weight = sum(weights)
         rng = secrets.SystemRandom()
 
         while len(final_tracks) < max_tracks and attempts < max_attempts:
-
-            if total_weight > 0:
-                # Generate a random value between 0 and total weight
-                rand_val = rng.uniform(0, total_weight)
-                cumulative_weight = 0
-                pick = None
-
-                # Find the selected item based on cumulative weights
-                for i, weight in enumerate(weights):
-                    cumulative_weight += weight
-                    if rand_val <= cumulative_weight:
-                        pick = candidates[i]
-                        break
-
-                if pick is None:
-                    pick = candidates[-1]  # Fallback to last item
+            # Use secrets.SystemRandom().choices for efficient weighted random selection
+            if weights and any(w > 0 for w in weights):
+                # Use choices for weighted random selection (more efficient than manual loop)
+                pick = rng.choices(candidates, weights=weights, k=1)[0]
             else:
-                # If no weights, use uniform random selection
+                # If no weights or all weights are zero, use uniform random selection
                 pick = rng.choice(candidates)
 
             pick_id = (
