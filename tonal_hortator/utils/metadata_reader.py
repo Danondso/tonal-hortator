@@ -20,9 +20,7 @@ try:
     import mutagen.id3
     import mutagen.mp3
 
-    # import mutagen.mp4  # Unused import
-    # import mutagen.oggvorbis  # Unused import
-    # import mutagen.wave  # Unused import
+# (Lines 23-25 removed)
 except ImportError:
     print("Error: mutagen is required. Install it with: pip install mutagen")
     sys.exit(1)
