@@ -29,6 +29,6 @@ class LocalLLMClient:
                 ],
                 options={"num_predict": max_tokens},
             )
-            return response["message"]["content"]
+            return response["message"]["content"]  # type: ignore
         except Exception as e:
             raise RuntimeError(f"Failed to generate response from LLM: {e}")

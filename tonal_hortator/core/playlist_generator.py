@@ -37,10 +37,10 @@ class LLMQueryParser:
         prompt = self._build_prompt(query)
         response = self.client.generate(prompt)
         return self._extract_json(response)
-    
+
     def _build_prompt(self, query: str) -> str:
         return f"""You are a playlist assistant. Extract the user's intent from the following query and output it as a JSON object.
-    
+
 Preserve full genre names, including compound genres like "bedroom pop", "progressive metal", "lo-fi hip hop", etc. Do not shorten them to a single word. If the user mentions a specific number of tracks, include it in `count`. If they refer to artists or moods, extract those as well. Return only valid JSON.
 
 Query: "{query}"
@@ -54,7 +54,7 @@ Output fields:
 - vague: (true/false)
 
 Examples:
-Query: "5 bedroom pop songs"  
+Query: "5 bedroom pop songs"
 Output: {{
   "count": 5,
   "artist": null,
@@ -64,7 +64,7 @@ Output: {{
   "vague": false
 }}
 
-Query: "jazz and rain on a stormy evening"  
+Query: "jazz and rain on a stormy evening"
 Output: {{
   "count": null,
   "artist": null,
@@ -77,13 +77,13 @@ Output: {{
 Now respond for the current query.
 """
 
-    def _extract_json(self, response: str) -> dict:
+    def _extract_json(self, response: str) -> dict[Any, Any]:
         import json
         import re
 
         match = re.search(r"\{.*\}", response, re.DOTALL)
         if match:
-            return json.loads(match.group(0))
+            return json.loads(match.group(0))  # type: ignore
         raise ValueError("No JSON found in LLM response")
 
 
@@ -110,7 +110,7 @@ class LocalPlaylistGenerator:
         self.query_parser = LLMQueryParser()
 
     def generate_playlist(
-        self, query: str, max_tracks: int = 20, min_similarity: float = 0.3
+        self, query: str, max_tracks: Optional[int] = 20, min_similarity: float = 0.3
     ) -> List[Dict[str, Any]]:
         """
         Generate a playlist based on a semantic query
@@ -130,14 +130,20 @@ class LocalPlaylistGenerator:
             # Extract intent from query using LLM
             parsed = self.query_parser.parse(query)
 
-            max_tracks = parsed.get("count") or max_tracks
+            # If max_tracks is None, use parsed count or fallback to default (20)
+            parsed_count = parsed.get("count")
+            if max_tracks is None:
+                max_tracks = parsed_count if parsed_count is not None else 20
+            else:
+                max_tracks = parsed_count if parsed_count is not None else max_tracks
+
             artist = parsed.get("artist")
             genres = parsed.get("genres", [])
-            mood = parsed.get("mood")
-            unplayed = parsed.get("unplayed", False)
+            # Note: mood and unplayed are parsed but not currently used in filtering
             is_vague = parsed.get("vague", False)
 
             logger.info(f"🧠 Parsed intent: {parsed}")
+            logger.info(f"🎯 Using max_tracks={max_tracks}")
 
             # 2. Get embeddings from database
             embeddings, track_data = self.track_embedder.get_all_embeddings()
@@ -496,11 +502,12 @@ class LocalPlaylistGenerator:
         # Calculate max tracks per artist based on playlist size
         # For artist-specific queries, be more lenient but still respect user's track count
         if is_artist_specific:
-            # For artist-specific queries, allow more tracks per artist but cap at reasonable limit
-            max_tracks_per_artist = min(max_tracks, 10)  # Cap at 10 tracks per artist
+            # For artist-specific queries, skip artist diversity enforcement entirely
+            # since we want all tracks from the specified artist
             logger.info(
-                f"🎤 Artist-specific query detected, allowing up to {max_tracks_per_artist} tracks per artist"
+                "🎤 Artist-specific query detected, skipping artist diversity enforcement"
             )
+            diverse_tracks = smart_deduplicated
         else:
             # For general queries, maintain diversity
             max_tracks_per_artist = max(
@@ -510,18 +517,27 @@ class LocalPlaylistGenerator:
                 f"🎵 General query, allowing up to {max_tracks_per_artist} tracks per artist"
             )
 
-        diverse_tracks = self._enforce_artist_diversity(
-            smart_deduplicated, max_tracks, max_tracks_per_artist
-        )
+            diverse_tracks = self._enforce_artist_diversity(
+                smart_deduplicated, max_tracks, max_tracks_per_artist
+            )
 
         logger.info(
             f"✅ Final deduplication summary: {len(results)} → {len(diverse_tracks)} tracks"
         )
 
         # After artist diversity, use weighted random sampling for variance
+        # Ensure we return exactly max_tracks
         top_k = max_tracks * 10
         diverse_tracks.sort(key=lambda t: t.get("similarity_score", 0), reverse=True)
         candidates = diverse_tracks[:top_k]
+
+        if len(candidates) < max_tracks:
+            # If we don't have enough candidates, return what we have
+            logger.warning(
+                f"⚠️ Only {len(candidates)} tracks available, requested {max_tracks}"
+            )
+            return candidates[:max_tracks]
+
         # Assign weights proportional to similarity score (shifted to be >=0)
         min_similarity_score = min(
             (t.get("similarity_score", 0) for t in candidates), default=0
@@ -530,11 +546,14 @@ class LocalPlaylistGenerator:
             max(0.0, t.get("similarity_score", 0) - min_similarity_score + 1e-6)
             for t in candidates
         ]
-        # Sample unique tracks
+
+        # Sample exactly max_tracks unique tracks
         selected = set()
         final_tracks: list[dict[str, Any]] = []
         attempts = 0
-        while len(final_tracks) < max_tracks and attempts < top_k * 2:
+        max_attempts = top_k * 3  # Increase attempts to ensure we get enough tracks
+
+        while len(final_tracks) < max_tracks and attempts < max_attempts:
             pick = random.choices(candidates, weights=weights, k=1)[0]
             pick_id = (
                 pick.get("id") or f"{pick.get('name', '')}-{pick.get('artist', '')}"
@@ -543,8 +562,12 @@ class LocalPlaylistGenerator:
                 final_tracks.append(pick)
                 selected.add(pick_id)
             attempts += 1
-        # If not enough unique tracks, fill with remaining highest-similarity tracks
+
+        # If weighted sampling didn't give us enough tracks, fill with highest-similarity tracks
         if len(final_tracks) < max_tracks:
+            logger.info(
+                f"🎲 Weighted sampling gave {len(final_tracks)} tracks, filling with top similarity tracks"
+            )
             for t in candidates:
                 t_id = t.get("id") or f"{t.get('name', '')}-{t.get('artist', '')}"
                 if t_id not in selected:
@@ -552,8 +575,12 @@ class LocalPlaylistGenerator:
                     selected.add(t_id)
                 if len(final_tracks) >= max_tracks:
                     break
+
+        # Ensure we return exactly max_tracks (or fewer if not enough available)
+        final_tracks = final_tracks[:max_tracks]
+
         logger.info(
-            f"🎲 Weighted random sampled {len(final_tracks)} tracks from top {top_k} candidates for playlist"
+            f"🎲 Final playlist: {len(final_tracks)} tracks (requested: {max_tracks})"
         )
         return final_tracks
 
@@ -1100,8 +1127,8 @@ def _check_embeddings_available(generator: LocalPlaylistGenerator) -> bool:
 def _process_playlist_request(generator: LocalPlaylistGenerator, query: str) -> bool:
     """Process a single playlist request"""
     try:
-        # Generate playlist
-        tracks = generator.generate_playlist(query, max_tracks=20)
+        # Pass max_tracks=None so generate_playlist uses the count from the query
+        tracks = generator.generate_playlist(query, max_tracks=None)
 
         if not tracks:
             print("❌ No tracks found for your query. Try a different search term.")
