@@ -7,8 +7,8 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 
-from tonal_hortator.core.playlist_generator import LocalPlaylistGenerator
-from tonal_hortator.core.track_embedder import LocalTrackEmbedder
+from tonal_hortator.core.embeddings.track_embedder import LocalTrackEmbedder
+from tonal_hortator.core.playlist.playlist_generator import LocalPlaylistGenerator
 
 
 class TestCoreFunctionality(unittest.TestCase):
@@ -78,7 +78,7 @@ class TestCoreFunctionality(unittest.TestCase):
         self.temp_db.close()
         os.unlink(self.temp_db.name)
 
-    @patch("tonal_hortator.core.embeddings.ollama")
+    @patch("tonal_hortator.core.embeddings.embeddings.ollama")
     def test_track_embedding(self, mock_ollama: Mock) -> None:
         """Test that tracks can be successfully embedded."""
         # Mock the Ollama client and embeddings
@@ -109,7 +109,7 @@ class TestCoreFunctionality(unittest.TestCase):
         os.environ.get("CI") == "true",
         "Skipping playlist generation test in CI (Ollama not running)",
     )
-    @patch("tonal_hortator.core.embeddings.ollama")
+    @patch("tonal_hortator.core.embeddings.embeddings.ollama")
     def test_playlist_generation(self, mock_ollama: Mock) -> None:
         """Test that a simple playlist can be generated."""
         # Mock the Ollama client and embeddings

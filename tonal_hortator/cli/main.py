@@ -9,8 +9,8 @@ import sys
 from typing import Optional
 
 from migrate_schema import DatabaseMigrator
-from tonal_hortator.core.playlist_generator import LocalPlaylistGenerator
-from tonal_hortator.core.track_embedder import LocalTrackEmbedder
+from tonal_hortator.core.embeddings.track_embedder import LocalTrackEmbedder
+from tonal_hortator.core.playlist.playlist_generator import LocalPlaylistGenerator
 from tonal_hortator.utils.apple_music import open_in_apple_music
 from tonal_hortator.utils.library_parser import LibraryParser
 

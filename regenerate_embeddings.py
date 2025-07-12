@@ -7,7 +7,7 @@ import logging
 import sqlite3
 from pathlib import Path
 
-from tonal_hortator.core.track_embedder import LocalTrackEmbedder
+from tonal_hortator.core.embeddings.track_embedder import LocalTrackEmbedder
 
 # Configure logging
 logging.basicConfig(
@@ -85,7 +85,9 @@ def test_enhanced_embeddings(db_path: str = "music_library.db") -> None:
                 }
 
                 # Test embedding text creation
-                from tonal_hortator.core.embeddings import OllamaEmbeddingService
+                from tonal_hortator.core.embeddings.embeddings import (
+                    OllamaEmbeddingService,
+                )
 
                 service = OllamaEmbeddingService()
                 embedding_text = service.create_track_embedding_text(track_dict)

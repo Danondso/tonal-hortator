@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from tonal_hortator.core.embeddings import OllamaEmbeddingService
+from tonal_hortator.core.embeddings.embeddings import OllamaEmbeddingService
 
 # Configure logging
 logging.basicConfig(

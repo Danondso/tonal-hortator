@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Tests for tonal_hortator.core.playlist_generator
+Tests for tonal_hortator.core.playlist.playlist_generator
 """
 
 import os
@@ -12,14 +12,14 @@ from unittest.mock import Mock, patch
 import numpy as np
 import pytest
 
-from tonal_hortator.core.playlist_generator import LocalPlaylistGenerator
+from tonal_hortator.core.playlist.playlist_generator import LocalPlaylistGenerator
 
 
 class TestLocalPlaylistGenerator(unittest.TestCase):
     """Test LocalPlaylistGenerator"""
 
-    @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
-    @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
+    @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
+    @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
     def test_init(
         self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
     ) -> None:
@@ -36,8 +36,8 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         self.assertEqual(generator.embedding_service, mock_embedding_service)
         self.assertEqual(generator.track_embedder, mock_track_embedder)
 
-    @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
-    @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
+    @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
+    @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
     def test_init_custom_db_path(
         self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
     ) -> None:
@@ -55,8 +55,8 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
             "custom.db", embedding_service=mock_embedding_service
         )
 
-    @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
-    @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
+    @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
+    @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
     def test_is_vague_query_true(
         self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
     ) -> None:
@@ -77,8 +77,8 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         for query in vague_queries:
             self.assertTrue(generator._is_vague_query(query))
 
-    @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
-    @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
+    @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
+    @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
     def test_is_vague_query_false(
         self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
     ) -> None:
@@ -96,8 +96,8 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         for query in specific_queries:
             self.assertFalse(generator._is_vague_query(query))
 
-    @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
-    @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
+    @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
+    @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
     def test_extract_track_count(
         self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
     ) -> None:
@@ -113,8 +113,8 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         self.assertIsNone(generator._extract_track_count("upbeat songs"))
         self.assertIsNone(generator._extract_track_count("rock music"))
 
-    @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
-    @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
+    @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
+    @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
     def test_extract_artist_from_query(
         self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
     ) -> None:
@@ -134,8 +134,8 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         self.assertIsNone(generator._extract_artist_from_query("upbeat songs"))
         self.assertIsNone(generator._extract_artist_from_query("rock music"))
 
-    @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
-    @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
+    @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
+    @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
     def test_extract_genre_keywords(
         self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
     ) -> None:
@@ -152,8 +152,8 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         self.assertEqual(generator._extract_genre_keywords("upbeat songs"), [])
         self.assertEqual(generator._extract_genre_keywords("happy music"), [])
 
-    @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
-    @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
+    @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
+    @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
     def test_extract_base_name(
         self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
     ) -> None:
@@ -170,8 +170,8 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         self.assertEqual(generator._extract_base_name("Simple Song"), "Simple Song")
         self.assertEqual(generator._extract_base_name(""), "")
 
-    @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
-    @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
+    @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
+    @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
     def test_normalize_file_location(
         self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
     ) -> None:
@@ -193,8 +193,8 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         # Test empty location
         self.assertEqual(generator._normalize_file_location(""), "")
 
-    @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
-    @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
+    @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
+    @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
     def test_apply_artist_randomization_not_vague(
         self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
     ) -> None:
@@ -214,8 +214,8 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         # Should not randomize when not vague
         self.assertEqual(result, tracks[:3])
 
-    @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
-    @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
+    @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
+    @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
     def test_apply_artist_randomization_vague(
         self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
     ) -> None:
@@ -236,8 +236,8 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         self.assertEqual(len(result), 3)
         self.assertTrue(all("similarity_score" in track for track in result))
 
-    @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
-    @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
+    @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
+    @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
     def test_smart_name_deduplication(
         self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
     ) -> None:
@@ -261,8 +261,8 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         # The "Different Song" track should be kept
         self.assertTrue(any(track["name"] == "Different Song" for track in result))
 
-    @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
-    @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
+    @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
+    @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
     def test_filter_and_deduplicate_results(
         self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
     ) -> None:
@@ -284,8 +284,8 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         # After deduplication: Song1 by Artist1 (best score), Song2 by Artist2, Song3 by Artist3 = 3 tracks
         self.assertEqual(len(result), 3)
 
-    @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
-    @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
+    @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
+    @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
     def test_apply_genre_filtering(
         self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
     ) -> None:
@@ -303,8 +303,8 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         # Should filter to only rock tracks (with boosting)
         self.assertTrue(any(track["genre"].lower() == "rock" for track in result))
 
-    @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
-    @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
+    @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
+    @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
     def test_save_playlist_m3u(
         self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
     ) -> None:
@@ -331,8 +331,8 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         os.environ.get("CI") == "true",
         reason="Skipping playlist generation test in CI (LLM query parser requires Ollama)",
     )
-    @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
-    @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
+    @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
+    @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
     def test_generate_playlist_success(
         self,
         mock_track_embedder_class: Mock,
@@ -371,8 +371,8 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         result = generator.generate_playlist("test query", max_tracks=5)
         self.assertIsInstance(result, list)
 
-    @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
-    @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
+    @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
+    @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
     def test_enforce_artist_diversity(
         self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
     ) -> None:
@@ -420,8 +420,8 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
             result_scores = sorted(result_scores, reverse=True)
             self.assertEqual(result_scores, scores[:2])
 
-    @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
-    @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
+    @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
+    @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
     def test_distribute_artists(
         self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
     ) -> None:

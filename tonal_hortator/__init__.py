@@ -10,9 +10,9 @@ __version__ = "2.0.2"
 __author__ = "Danondso"
 __email__ = "7014871+Danondso@users.noreply.github.com"
 
-from .core.embeddings import OllamaEmbeddingService
-from .core.playlist_generator import LocalPlaylistGenerator
-from .core.track_embedder import LocalTrackEmbedder
+from .core.embeddings.embeddings import OllamaEmbeddingService
+from .core.embeddings.track_embedder import LocalTrackEmbedder
+from .core.playlist.playlist_generator import LocalPlaylistGenerator
 
 __all__ = [
     "OllamaEmbeddingService",
