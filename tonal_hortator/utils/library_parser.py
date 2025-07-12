@@ -15,7 +15,6 @@ try:
 except ImportError:
     # Fallback to regular ElementTree with warning
     import warnings
-
     import xml.etree.ElementTree as ET
     from xml.etree.ElementTree import Element
 
