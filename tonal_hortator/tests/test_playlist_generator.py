@@ -9,6 +9,7 @@ from typing import List, cast
 from unittest.mock import Mock, patch
 
 import numpy as np
+import pytest
 
 from tonal_hortator.core.playlist_generator import LocalPlaylistGenerator
 
@@ -323,9 +324,9 @@ class TestLocalPlaylistGenerator:
         finally:
             os.unlink(temp_path)
 
-    @unittest.skipIf(
+    @pytest.mark.skipif(
         os.environ.get("CI") == "true",
-        "Skipping playlist generation test in CI (LLM query parser requires Ollama)",
+        reason="Skipping playlist generation test in CI (LLM query parser requires Ollama)",
     )
     @patch("tonal_hortator.core.playlist_generator.OllamaEmbeddingService")
     @patch("tonal_hortator.core.playlist_generator.LocalTrackEmbedder")
