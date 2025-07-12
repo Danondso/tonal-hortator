@@ -133,7 +133,7 @@ class LibraryParser:
 
     def _process_string_field(self, value_elem: Element) -> Optional[str]:
         """Process a string field from XML"""
-        return str(value_elem.text) if value_elem.text is not None else None
+        return value_elem.text if value_elem.text is not None else None
 
     def _process_location_field(self, value_elem: Element) -> Optional[str]:
         """Process location field with URL decoding"""
