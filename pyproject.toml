@@ -17,6 +17,7 @@ dependencies = [
     "loguru",
     "ollama",
     "mutagen",
+    "defusedxml",
 ]
 
 [tool.setuptools.packages.find]

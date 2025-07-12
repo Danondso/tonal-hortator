@@ -5,9 +5,21 @@ Parses an Apple Music XML library file and populates a SQLite database.
 
 import logging
 import sqlite3
-import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, Optional
+
+# Use defusedxml for safe XML parsing
+try:
+    from defusedxml import ElementTree as ET
+except ImportError:
+    # Fallback to regular ElementTree with warning
+    import warnings
+    import xml.etree.ElementTree as ET
+
+    warnings.warn(
+        "defusedxml not available. Using regular ElementTree. "
+        "Install defusedxml for better security: pip install defusedxml"
+    )
 
 # Import metadata reader
 from tonal_hortator.utils.metadata_reader import MetadataReader
@@ -118,7 +130,7 @@ class LibraryParser:
 
     def _process_string_field(self, value_elem: ET.Element) -> Optional[str]:
         """Process a string field from XML"""
-        return value_elem.text
+        return str(value_elem.text) if value_elem.text is not None else None
 
     def _process_location_field(self, value_elem: ET.Element) -> Optional[str]:
         """Process location field with URL decoding"""

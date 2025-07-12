@@ -8,22 +8,9 @@ Supports MP3, FLAC, OGG, M4A, WAV, and AIFF formats.
 import logging
 import os
 import sqlite3
-import sys
 import urllib.parse
 from pathlib import Path
 from typing import Any, Dict, Set
-
-try:
-    import mutagen.aiff
-    import mutagen.easyid3
-    import mutagen.flac
-    import mutagen.id3
-    import mutagen.mp3
-
-# (Lines 23-25 removed)
-except ImportError:
-    print("Error: mutagen is required. Install it with: pip install mutagen")
-    sys.exit(1)
 
 from mutagen.aiff import AIFF
 from mutagen.easyid3 import EasyID3
@@ -554,7 +541,8 @@ class MetadataReader:
                         logger.warning(f"⚠️  Skipping invalid field: {field}")
                         continue
 
-                    # Directly interpolate the validated column name into the query
+                    # Use explicit column name validation to prevent SQL injection
+                    # Since field is from a whitelist, it's safe to use in f-string
                     query = f"SELECT COUNT(*) FROM tracks WHERE {field} IS NOT NULL"
                     cursor.execute(query)
                     count = cursor.fetchone()[0]

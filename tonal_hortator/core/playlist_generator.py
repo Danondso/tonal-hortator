@@ -8,6 +8,7 @@ import logging
 import os
 import random
 import re
+import secrets
 import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -570,7 +571,27 @@ class LocalPlaylistGenerator:
         max_attempts = top_k * 3  # Increase attempts to ensure we get enough tracks
 
         while len(final_tracks) < max_tracks and attempts < max_attempts:
-            pick = random.choices(candidates, weights=weights, k=1)[0]
+
+            total_weight = sum(weights)
+            if total_weight > 0:
+                # Generate a random value between 0 and total weight
+                rand_val = secrets.SystemRandom().uniform(0, total_weight)
+                cumulative_weight = 0
+                pick = None
+
+                # Find the selected item based on cumulative weights
+                for i, weight in enumerate(weights):
+                    cumulative_weight += weight
+                    if rand_val <= cumulative_weight:
+                        pick = candidates[i]
+                        break
+
+                if pick is None:
+                    pick = candidates[-1]  # Fallback to last item
+            else:
+                # If no weights, use uniform random selection
+                pick = secrets.SystemRandom().choice(candidates)
+
             pick_id = (
                 pick.get("id") or f"{pick.get('name', '')}-{pick.get('artist', '')}"
             )
