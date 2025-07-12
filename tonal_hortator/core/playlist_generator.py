@@ -109,6 +109,25 @@ class LocalPlaylistGenerator:
         )
         self.query_parser = LLMQueryParser()
 
+    def _determine_max_tracks(
+        self, parsed_count: Optional[int], max_tracks: Optional[int]
+    ) -> int:
+        """
+        Determine the final max_tracks value based on parsed count and provided max_tracks
+
+        Args:
+            parsed_count: Count extracted from the query (can be None)
+            max_tracks: User-provided max_tracks (can be None)
+
+        Returns:
+            Final max_tracks value to use
+        """
+        # If max_tracks is None, use parsed count or fallback to default (20)
+        if max_tracks is None:
+            return parsed_count if parsed_count is not None else 20
+        else:
+            return parsed_count if parsed_count is not None else max_tracks
+
     def generate_playlist(
         self, query: str, max_tracks: Optional[int] = 20, min_similarity: float = 0.3
     ) -> List[Dict[str, Any]]:
@@ -130,12 +149,9 @@ class LocalPlaylistGenerator:
             # Extract intent from query using LLM
             parsed = self.query_parser.parse(query)
 
-            # If max_tracks is None, use parsed count or fallback to default (20)
+            # Determine final max_tracks value
             parsed_count = parsed.get("count")
-            if max_tracks is None:
-                max_tracks = parsed_count if parsed_count is not None else 20
-            else:
-                max_tracks = parsed_count if parsed_count is not None else max_tracks
+            max_tracks = self._determine_max_tracks(parsed_count, max_tracks)
 
             artist = parsed.get("artist")
             genres = parsed.get("genres", [])
