@@ -962,7 +962,10 @@ class LocalPlaylistGenerator:
 
         # If the name is too generic or single word, add some context
         if len(playlist_name.split()) <= 1:
-            playlist_name = f"{playlist_name} Mix"
+            if playlist_name.strip() == "":
+                playlist_name = "Mix"
+            else:
+                playlist_name = f"{playlist_name} Mix"
 
         return playlist_name.strip()
 

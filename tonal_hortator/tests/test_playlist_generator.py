@@ -591,7 +591,7 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         generator = LocalPlaylistGenerator()
 
         # Test edge cases
-        self.assertEqual(generator._create_playlist_name(""), " Mix")  # Empty string
+        self.assertEqual(generator._create_playlist_name(""), "Mix")  # Empty string
         self.assertEqual(generator._create_playlist_name("a"), "A Mix")  # Single letter
         self.assertEqual(
             generator._create_playlist_name("the"), "The Mix"
