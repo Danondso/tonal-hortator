@@ -1,24 +1,31 @@
 #!/usr/bin/env python3
 """
-Embed music tracks using local Ollama service
-This script embeds track metadata and stores embeddings in SQLite database
+Local track embedding service using Ollama.
+Embeds music tracks for semantic search without requiring internet.
 """
 
-import logging
 import sqlite3
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
+from loguru import logger
 
+from tonal_hortator.core.database import (
+    CHECK_TABLE_EXISTS,
+    CREATE_TRACK_EMBEDDINGS_TABLE,
+    GET_TRACKS_WITHOUT_EMBEDDINGS,
+    INSERT_TRACK_EMBEDDING,
+)
 from tonal_hortator.core.embeddings.embeddings import OllamaEmbeddingService
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+# logging.basicConfig(
+#     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+# )
+# logger = logging.getLogger(__name__)
 
 
 class LocalTrackEmbedder:
@@ -53,35 +60,21 @@ class LocalTrackEmbedder:
         self._ensure_embeddings_table()
 
     def _ensure_embeddings_table(self) -> None:
-        """Ensure the embeddings table exists in the database"""
+        """Ensure the track_embeddings table exists"""
         try:
-            cursor = self.conn.cursor()
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
 
-            # Check if embeddings table exists
-            cursor.execute(
-                """
-                SELECT name FROM sqlite_master
-                WHERE type='table' AND name='track_embeddings'
-            """
-            )
+                # Check if embeddings table exists using centralized query
+                cursor.execute(CHECK_TABLE_EXISTS, ("track_embeddings",))
 
-            if not cursor.fetchone():
-                logger.info("Creating track_embeddings table...")
-                cursor.execute(
-                    """
-                    CREATE TABLE track_embeddings (
-                        track_id INTEGER PRIMARY KEY,
-                        embedding BLOB,
-                        embedding_text TEXT,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        FOREIGN KEY (track_id) REFERENCES tracks (id)
-                    )
-                """
-                )
-                self.conn.commit()
-                logger.info("✅ Created track_embeddings table")
-            else:
-                logger.info("✅ track_embeddings table already exists")
+                if not cursor.fetchone():
+                    logger.info("Creating track_embeddings table...")
+                    cursor.execute(CREATE_TRACK_EMBEDDINGS_TABLE)
+                    self.conn.commit()
+                    logger.info("✅ Created track_embeddings table")
+                else:
+                    logger.info("✅ track_embeddings table already exists")
 
         except Exception as e:
             logger.error(f"❌ Error ensuring embeddings table: {e}")
@@ -92,23 +85,8 @@ class LocalTrackEmbedder:
         try:
             cursor = self.conn.cursor()
 
-            # Get tracks that are not in the track_embeddings table
-            # Include all available metadata fields for rich embeddings
-            cursor.execute(
-                """
-                SELECT
-                    t.id, t.name, t.artist, t.album, t.genre, t.year,
-                    t.play_count, t.album_artist, t.composer, t.total_time,
-                    t.track_number, t.disc_number, t.date_added, t.location,
-                    t.bpm, t.musical_key, t.key_scale, t.mood, t.label,
-                    t.producer, t.arranger, t.lyricist, t.original_year,
-                    t.original_date, t.chord_changes_rate, t.script,
-                    t.replay_gain, t.release_country
-                FROM tracks t
-                LEFT JOIN track_embeddings te ON t.id = te.track_id
-                WHERE te.track_id IS NULL
-            """
-            )
+            # Get tracks that are not in the track_embeddings table using centralized query
+            cursor.execute(GET_TRACKS_WITHOUT_EMBEDDINGS)
 
             tracks = [dict(row) for row in cursor.fetchall()]
             logger.info(f"🔍 Found {len(tracks)} tracks without embeddings")
@@ -245,15 +223,8 @@ class LocalTrackEmbedder:
                     continue
 
             if insert_data:
-                # Use bulk insert for better performance
-                cursor.executemany(
-                    """
-                    INSERT OR REPLACE INTO track_embeddings
-                    (track_id, embedding, embedding_text)
-                    VALUES (?, ?, ?)
-                """,
-                    insert_data,
-                )
+                # Use bulk insert for better performance with centralized query
+                cursor.executemany(INSERT_TRACK_EMBEDDING, insert_data)
 
                 db_conn.commit()
                 return len(insert_data)

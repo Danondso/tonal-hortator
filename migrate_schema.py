@@ -9,6 +9,15 @@ import sqlite3
 from pathlib import Path
 from typing import List, Tuple
 
+from tonal_hortator.core.database import (
+    CREATE_METADATA_MAPPINGS_TABLE,
+    INSERT_METADATA_MAPPING,
+    METADATA_COLUMNS,
+    METADATA_MAPPINGS,
+    validate_column_name,
+    validate_column_type,
+)
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -22,34 +31,13 @@ class DatabaseMigrator:
     def __init__(self, db_path: str = "music_library.db"):
         self.db_path = db_path
 
-        # Whitelist of valid column names and types for security
-        self.valid_column_names = {
-            "bpm",
-            "musical_key",
-            "key_scale",
-            "mood",
-            "release_country",
-            "label",
-            "composer",
-            "arranger",
-            "lyricist",
-            "producer",
-            "original_year",
-            "original_date",
-            "chord_changes_rate",
-            "script",
-            "replay_gain",
-        }
-
-        self.valid_column_types = {"TEXT", "INTEGER", "REAL", "BLOB"}
-
     def _validate_column_name(self, column_name: str) -> bool:
-        """Validate column name against whitelist"""
-        return column_name in self.valid_column_names
+        """Validate column name using centralized validation"""
+        return validate_column_name(column_name)
 
     def _validate_column_type(self, column_type: str) -> bool:
-        """Validate column type against whitelist"""
-        return column_type.upper() in self.valid_column_types
+        """Validate column type using centralized validation"""
+        return validate_column_type(column_type)
 
     def _safe_add_column(
         self, cursor: sqlite3.Cursor, column_name: str, column_type: str
@@ -86,22 +74,33 @@ class DatabaseMigrator:
 
     def add_metadata_columns(self) -> bool:
         """Add new metadata columns to the tracks table"""
+        # Use centralized metadata columns with descriptions
         new_columns = [
             ("bpm", "REAL", "Tempo in beats per minute"),
             ("musical_key", "TEXT", "Musical key (e.g., C, G#, F)"),
             ("key_scale", "TEXT", "Scale (major, minor, etc.)"),
             ("mood", "TEXT", "Mood classification (acoustic, electronic, etc.)"),
-            ("release_country", "TEXT", "Release country code"),
             ("label", "TEXT", "Record label"),
-            ("composer", "TEXT", "Composer information"),
+            ("producer", "TEXT", "Producer information"),
             ("arranger", "TEXT", "Arranger information"),
             ("lyricist", "TEXT", "Lyricist information"),
-            ("producer", "TEXT", "Producer information"),
             ("original_year", "INTEGER", "Original release year"),
             ("original_date", "TEXT", "Original release date"),
             ("chord_changes_rate", "REAL", "Rate of chord changes"),
             ("script", "TEXT", "Script/language code"),
-            ("replay_gain", "TEXT", "ReplayGain information"),
+            ("replay_gain", "REAL", "ReplayGain information"),
+            ("release_country", "TEXT", "Release country code"),
+            ("catalog_number", "TEXT", "Catalog number"),
+            ("isrc", "TEXT", "ISRC code"),
+            ("barcode", "TEXT", "Album barcode"),
+            ("acoustid_id", "TEXT", "AcoustID"),
+            ("musicbrainz_track_id", "TEXT", "MusicBrainz track ID"),
+            ("musicbrainz_artist_id", "TEXT", "MusicBrainz artist ID"),
+            ("musicbrainz_album_id", "TEXT", "MusicBrainz album ID"),
+            ("media_type", "TEXT", "Media type"),
+            ("analyzed_genre", "TEXT", "Analyzed genre"),
+            ("chord_key", "TEXT", "Chord key"),
+            ("chord_scale", "TEXT", "Chord scale"),
         ]
 
         try:
@@ -154,436 +153,15 @@ class DatabaseMigrator:
                     logger.info("ℹ️  metadata_mappings table already exists")
                     return True
 
-                # Create the table
-                cursor.execute(
-                    """
-                    CREATE TABLE metadata_mappings (
-                        id INTEGER PRIMARY KEY,
-                        source_format TEXT NOT NULL,
-                        source_tag TEXT NOT NULL,
-                        normalized_tag TEXT NOT NULL,
-                        data_type TEXT NOT NULL,
-                        description TEXT,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        UNIQUE(source_format, source_tag)
-                    )
-                """
-                )
+                # Create the table using centralized query
+                cursor.execute(CREATE_METADATA_MAPPINGS_TABLE)
 
-                # Insert common mappings
-                mappings = [
-                    # MP3 EasyID3 mappings
-                    ("mp3", "easyid3_artist", "artist", "string", "Artist name"),
-                    ("mp3", "easyid3_album", "album", "string", "Album name"),
-                    ("mp3", "easyid3_genre", "genre", "string", "Genre"),
-                    ("mp3", "easyid3_title", "title", "string", "Track title"),
-                    ("mp3", "easyid3_date", "year", "integer", "Release year"),
-                    (
-                        "mp3",
-                        "easyid3_tracknumber",
-                        "track_number",
-                        "integer",
-                        "Track number",
-                    ),
-                    (
-                        "mp3",
-                        "easyid3_discnumber",
-                        "disc_number",
-                        "integer",
-                        "Disc number",
-                    ),
-                    (
-                        "mp3",
-                        "easyid3_albumartist",
-                        "album_artist",
-                        "string",
-                        "Album artist",
-                    ),
-                    ("mp3", "easyid3_composer", "composer", "string", "Composer"),
-                    ("mp3", "easyid3_organization", "label", "string", "Record label"),
-                    ("mp3", "easyid3_media", "media_type", "string", "Media type"),
-                    ("mp3", "easyid3_isrc", "isrc", "string", "ISRC code"),
-                    ("mp3", "easyid3_barcode", "barcode", "string", "Album barcode"),
-                    (
-                        "mp3",
-                        "easyid3_catalognumber",
-                        "catalog_number",
-                        "string",
-                        "Catalog number",
-                    ),
-                    (
-                        "mp3",
-                        "easyid3_releasecountry",
-                        "release_country",
-                        "string",
-                        "Release country",
-                    ),
-                    (
-                        "mp3",
-                        "easyid3_originaldate",
-                        "original_date",
-                        "string",
-                        "Original release date",
-                    ),
-                    ("mp3", "easyid3_acoustid_id", "acoustid_id", "string", "AcoustID"),
-                    (
-                        "mp3",
-                        "easyid3_musicbrainz_trackid",
-                        "musicbrainz_track_id",
-                        "string",
-                        "MusicBrainz track ID",
-                    ),
-                    (
-                        "mp3",
-                        "easyid3_musicbrainz_artistid",
-                        "musicbrainz_artist_id",
-                        "string",
-                        "MusicBrainz artist ID",
-                    ),
-                    (
-                        "mp3",
-                        "easyid3_musicbrainz_albumid",
-                        "musicbrainz_album_id",
-                        "string",
-                        "MusicBrainz album ID",
-                    ),
-                    # MP3 ID3 mappings
-                    ("mp3", "id3_TPE1", "artist", "string", "Artist name"),
-                    ("mp3", "id3_TALB", "album", "string", "Album name"),
-                    ("mp3", "id3_TCON", "genre", "string", "Genre"),
-                    ("mp3", "id3_TIT2", "title", "string", "Track title"),
-                    ("mp3", "id3_TDRC", "year", "integer", "Release year"),
-                    ("mp3", "id3_TRCK", "track_number", "integer", "Track number"),
-                    ("mp3", "id3_TPOS", "disc_number", "integer", "Disc number"),
-                    ("mp3", "id3_TPE2", "album_artist", "string", "Album artist"),
-                    ("mp3", "id3_TCOM", "composer", "string", "Composer"),
-                    ("mp3", "id3_TPUB", "label", "string", "Record label"),
-                    ("mp3", "id3_TMED", "media_type", "string", "Media type"),
-                    ("mp3", "id3_TSRC", "isrc", "string", "ISRC code"),
-                    (
-                        "mp3",
-                        "id3_TDOR",
-                        "original_date",
-                        "string",
-                        "Original release date",
-                    ),
-                    # MP3 TXXX mappings for musical analysis
-                    (
-                        "mp3",
-                        "id3_TXXX:ab:lo:rhythm:bpm",
-                        "bpm",
-                        "float",
-                        "Tempo in BPM",
-                    ),
-                    (
-                        "mp3",
-                        "id3_TXXX:ab:lo:tonal:key_key",
-                        "musical_key",
-                        "string",
-                        "Musical key",
-                    ),
-                    (
-                        "mp3",
-                        "id3_TXXX:ab:lo:tonal:key_scale",
-                        "key_scale",
-                        "string",
-                        "Key scale",
-                    ),
-                    (
-                        "mp3",
-                        "id3_TXXX:ab:lo:tonal:chords_key",
-                        "chord_key",
-                        "string",
-                        "Chord key",
-                    ),
-                    (
-                        "mp3",
-                        "id3_TXXX:ab:lo:tonal:chords_scale",
-                        "chord_scale",
-                        "string",
-                        "Chord scale",
-                    ),
-                    (
-                        "mp3",
-                        "id3_TXXX:ab:lo:tonal:chords_changes_rate",
-                        "chord_changes_rate",
-                        "float",
-                        "Chord changes rate",
-                    ),
-                    (
-                        "mp3",
-                        "id3_TXXX:ab:mood",
-                        "mood",
-                        "string",
-                        "Mood classification",
-                    ),
-                    (
-                        "mp3",
-                        "id3_TXXX:ab:genre",
-                        "analyzed_genre",
-                        "string",
-                        "Analyzed genre",
-                    ),
-                    (
-                        "mp3",
-                        "id3_TXXX:Acoustid Id",
-                        "acoustid_id",
-                        "string",
-                        "AcoustID",
-                    ),
-                    (
-                        "mp3",
-                        "id3_TXXX:MusicBrainz Track Id",
-                        "musicbrainz_track_id",
-                        "string",
-                        "MusicBrainz track ID",
-                    ),
-                    (
-                        "mp3",
-                        "id3_TXXX:MusicBrainz Artist Id",
-                        "musicbrainz_artist_id",
-                        "string",
-                        "MusicBrainz artist ID",
-                    ),
-                    (
-                        "mp3",
-                        "id3_TXXX:MusicBrainz Album Id",
-                        "musicbrainz_album_id",
-                        "string",
-                        "MusicBrainz album ID",
-                    ),
-                    ("mp3", "id3_TXXX:BARCODE", "barcode", "string", "Album barcode"),
-                    (
-                        "mp3",
-                        "id3_TXXX:CATALOGNUMBER",
-                        "catalog_number",
-                        "string",
-                        "Catalog number",
-                    ),
-                    (
-                        "mp3",
-                        "id3_TXXX:MusicBrainz Album Release Country",
-                        "release_country",
-                        "string",
-                        "Release country",
-                    ),
-                    (
-                        "mp3",
-                        "id3_TXXX:originalyear",
-                        "original_year",
-                        "integer",
-                        "Original year",
-                    ),
-                    # M4A mappings
-                    ("m4a", "m4a_©ART", "artist", "string", "Artist name"),
-                    ("m4a", "m4a_©alb", "album", "string", "Album name"),
-                    ("m4a", "m4a_©gen", "genre", "string", "Genre"),
-                    ("m4a", "m4a_©nam", "title", "string", "Track title"),
-                    ("m4a", "m4a_©day", "year", "integer", "Release year"),
-                    ("m4a", "m4a_trkn", "track_number", "integer", "Track number"),
-                    ("m4a", "m4a_disk", "disc_number", "integer", "Disc number"),
-                    ("m4a", "m4a_aART", "album_artist", "string", "Album artist"),
-                    ("m4a", "m4a_©wrt", "composer", "string", "Composer"),
-                    ("m4a", "m4a_©too", "producer", "string", "Producer"),
-                    ("m4a", "m4a_©lyr", "lyricist", "string", "Lyricist"),
-                    # M4A iTunes mappings
-                    (
-                        "m4a",
-                        "m4a_----:com.apple.iTunes:ARTISTS",
-                        "artist",
-                        "string",
-                        "Artist name",
-                    ),
-                    (
-                        "m4a",
-                        "m4a_----:com.apple.iTunes:ALBUM_ARTISTS",
-                        "album_artist",
-                        "string",
-                        "Album artist",
-                    ),
-                    (
-                        "m4a",
-                        "m4a_----:com.apple.iTunes:LABEL",
-                        "label",
-                        "string",
-                        "Record label",
-                    ),
-                    (
-                        "m4a",
-                        "m4a_----:com.apple.iTunes:MEDIA",
-                        "media_type",
-                        "string",
-                        "Media type",
-                    ),
-                    (
-                        "m4a",
-                        "m4a_----:com.apple.iTunes:ISRC",
-                        "isrc",
-                        "string",
-                        "ISRC code",
-                    ),
-                    (
-                        "m4a",
-                        "m4a_----:com.apple.iTunes:BARCODE",
-                        "barcode",
-                        "string",
-                        "Album barcode",
-                    ),
-                    (
-                        "m4a",
-                        "m4a_----:com.apple.iTunes:CATALOGNUMBER",
-                        "catalog_number",
-                        "string",
-                        "Catalog number",
-                    ),
-                    (
-                        "m4a",
-                        "m4a_----:com.apple.iTunes:MusicBrainz Album Release Country",
-                        "release_country",
-                        "string",
-                        "Release country",
-                    ),
-                    (
-                        "m4a",
-                        "m4a_----:com.apple.iTunes:ORIGINALDATE",
-                        "original_date",
-                        "string",
-                        "Original release date",
-                    ),
-                    (
-                        "m4a",
-                        "m4a_----:com.apple.iTunes:ORIGINAL YEAR",
-                        "original_year",
-                        "integer",
-                        "Original year",
-                    ),
-                    (
-                        "m4a",
-                        "m4a_----:com.apple.iTunes:Acoustid Id",
-                        "acoustid_id",
-                        "string",
-                        "AcoustID",
-                    ),
-                    (
-                        "m4a",
-                        "m4a_----:com.apple.iTunes:MusicBrainz Track Id",
-                        "musicbrainz_track_id",
-                        "string",
-                        "MusicBrainz track ID",
-                    ),
-                    (
-                        "m4a",
-                        "m4a_----:com.apple.iTunes:MusicBrainz Artist Id",
-                        "musicbrainz_artist_id",
-                        "string",
-                        "MusicBrainz artist ID",
-                    ),
-                    (
-                        "m4a",
-                        "m4a_----:com.apple.iTunes:MusicBrainz Album Id",
-                        "musicbrainz_album_id",
-                        "string",
-                        "MusicBrainz album ID",
-                    ),
-                    (
-                        "m4a",
-                        "m4a_----:com.apple.iTunes:PRODUCER",
-                        "producer",
-                        "string",
-                        "Producer",
-                    ),
-                    (
-                        "m4a",
-                        "m4a_----:com.apple.iTunes:LYRICIST",
-                        "lyricist",
-                        "string",
-                        "Lyricist",
-                    ),
-                    (
-                        "m4a",
-                        "m4a_----:com.apple.iTunes:ARRANGER",
-                        "arranger",
-                        "string",
-                        "Arranger",
-                    ),
-                    (
-                        "m4a",
-                        "m4a_----:com.apple.iTunes:publisher",
-                        "label",
-                        "string",
-                        "Record label",
-                    ),
-                    # M4A musical analysis mappings
-                    (
-                        "m4a",
-                        "m4a_----:com.apple.iTunes:ab:lo:rhythm:bpm",
-                        "bpm",
-                        "float",
-                        "Tempo in BPM",
-                    ),
-                    (
-                        "m4a",
-                        "m4a_----:com.apple.iTunes:ab:lo:tonal:key_key",
-                        "musical_key",
-                        "string",
-                        "Musical key",
-                    ),
-                    (
-                        "m4a",
-                        "m4a_----:com.apple.iTunes:ab:lo:tonal:key_scale",
-                        "key_scale",
-                        "string",
-                        "Key scale",
-                    ),
-                    (
-                        "m4a",
-                        "m4a_----:com.apple.iTunes:ab:lo:tonal:chords_key",
-                        "chord_key",
-                        "string",
-                        "Chord key",
-                    ),
-                    (
-                        "m4a",
-                        "m4a_----:com.apple.iTunes:ab:lo:tonal:chords_scale",
-                        "chord_scale",
-                        "string",
-                        "Chord scale",
-                    ),
-                    (
-                        "m4a",
-                        "m4a_----:com.apple.iTunes:ab:lo:tonal:chords_changes_rate",
-                        "chord_changes_rate",
-                        "float",
-                        "Chord changes rate",
-                    ),
-                    (
-                        "m4a",
-                        "m4a_----:com.apple.iTunes:ab:mood",
-                        "mood",
-                        "string",
-                        "Mood classification",
-                    ),
-                    (
-                        "m4a",
-                        "m4a_----:com.apple.iTunes:ab:genre",
-                        "analyzed_genre",
-                        "string",
-                        "Analyzed genre",
-                    ),
-                ]
-
-                cursor.executemany(
-                    """
-                    INSERT INTO metadata_mappings 
-                    (source_format, source_tag, normalized_tag, data_type, description)
-                    VALUES (?, ?, ?, ?, ?)
-                """,
-                    mappings,
-                )
+                # Insert mappings using centralized data
+                cursor.executemany(INSERT_METADATA_MAPPING, METADATA_MAPPINGS)
 
                 conn.commit()
                 logger.info(
-                    f"✅ Created metadata_mappings table with {len(mappings)} mappings"
+                    f"✅ Created metadata_mappings table with {len(METADATA_MAPPINGS)} mappings"
                 )
                 return True
 

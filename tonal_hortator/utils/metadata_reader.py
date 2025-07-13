@@ -10,8 +10,10 @@ import os
 import sqlite3
 import urllib.parse
 from pathlib import Path
-from typing import Any, Dict, Set
+from typing import Any, Dict, List, Optional, Set
 
+from loguru import logger
+from mutagen import File
 from mutagen.aiff import AIFF
 from mutagen.easyid3 import EasyID3
 from mutagen.flac import FLAC
@@ -21,11 +23,12 @@ from mutagen.mp4 import MP4
 from mutagen.oggvorbis import OggVorbis
 from mutagen.wave import WAVE
 
+from tonal_hortator.core.database import GET_EMBEDDING_STATS
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
-logger = logging.getLogger(__name__)
 
 
 class MetadataReader:
@@ -156,8 +159,8 @@ class MetadataReader:
         """Read metadata from MP3 files"""
         metadata: Dict[str, Any] = {}
 
+        # Try EasyID3 first (standard tags)
         try:
-            # Try EasyID3 first (standard tags)
             easy_audio = EasyID3(file_path)
             if easy_audio:
                 for key, value in easy_audio.items():
@@ -166,8 +169,11 @@ class MetadataReader:
                         metadata[f"easyid3_{key}"] = ", ".join(str(v) for v in value)
                     else:
                         metadata[f"easyid3_{key}"] = value[0] if value else ""
+        except Exception:
+            pass  # Continue with other methods
 
-            # Try ID3 for extended tags
+        # Try ID3 for extended tags
+        try:
             id3_audio = ID3(file_path)
             if id3_audio:
                 for key, frame in id3_audio.items():
@@ -183,8 +189,11 @@ class MetadataReader:
                         metadata[f"id3_{key}"] = frame.url
                     else:
                         metadata[f"id3_{key}"] = str(frame)
+        except Exception:
+            pass  # Continue with other methods
 
-            # Get basic info
+        # Get basic info
+        try:
             mp3_audio = MP3(file_path)
             if mp3_audio:
                 info = mp3_audio.info
@@ -192,7 +201,6 @@ class MetadataReader:
                     metadata["length"] = int(info.length)
                     metadata["bitrate"] = info.bitrate
                     metadata["sample_rate"] = info.sample_rate
-
         except Exception as e:
             metadata["error"] = str(e)
 
@@ -213,7 +221,6 @@ class MetadataReader:
                             metadata[f"flac_{key}"] = ", ".join(str(v) for v in value)
                         else:
                             metadata[f"flac_{key}"] = value[0] if value else ""
-
                 # Get basic info
                 info = audio.info
                 if info:
@@ -221,7 +228,6 @@ class MetadataReader:
                     metadata["sample_rate"] = info.sample_rate
                     metadata["channels"] = info.channels
                     metadata["bits_per_sample"] = info.bits_per_sample
-
         except Exception as e:
             metadata["error"] = str(e)
 
@@ -242,14 +248,12 @@ class MetadataReader:
                             metadata[f"ogg_{key}"] = ", ".join(str(v) for v in value)
                         else:
                             metadata[f"ogg_{key}"] = value[0] if value else ""
-
                 # Get basic info
                 info = audio.info
                 if info:
                     metadata["length"] = int(info.length)
                     metadata["bitrate"] = info.bitrate
                     metadata["sample_rate"] = info.sample_rate
-
         except Exception as e:
             metadata["error"] = str(e)
 
@@ -275,14 +279,12 @@ class MetadataReader:
                                 metadata[f"m4a_{key}"] = value[0]
                         else:
                             metadata[f"m4a_{key}"] = str(value)
-
                 # Get basic info
                 info = audio.info
                 if info:
                     metadata["length"] = int(info.length)
                     metadata["sample_rate"] = info.sample_rate
                     metadata["channels"] = info.channels
-
         except Exception as e:
             metadata["error"] = str(e)
 
@@ -302,7 +304,6 @@ class MetadataReader:
                     metadata["sample_rate"] = info.sample_rate
                     metadata["channels"] = info.channels
                     metadata["bits_per_sample"] = info.bits_per_sample
-
         except Exception as e:
             metadata["error"] = str(e)
 
@@ -322,7 +323,6 @@ class MetadataReader:
                     metadata["sample_rate"] = info.sample_rate
                     metadata["channels"] = info.channels
                     metadata["bits_per_sample"] = info.bits_per_sample
-
         except Exception as e:
             metadata["error"] = str(e)
 
@@ -544,21 +544,21 @@ class MetadataReader:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
 
-                # Get total tracks
-                cursor.execute("SELECT COUNT(*) FROM tracks")
+                # Get total tracks using centralized query
+                cursor.execute(GET_EMBEDDING_STATS["total_tracks"])
                 total_tracks = cursor.fetchone()[0]
 
-                # Pre-defined queries for each valid field to prevent SQL injection
+                # Use centralized field queries
                 field_queries = {
-                    "bpm": "SELECT COUNT(*) FROM tracks WHERE bpm IS NOT NULL",
-                    "musical_key": "SELECT COUNT(*) FROM tracks WHERE musical_key IS NOT NULL",
-                    "key_scale": "SELECT COUNT(*) FROM tracks WHERE key_scale IS NOT NULL",
-                    "mood": "SELECT COUNT(*) FROM tracks WHERE mood IS NOT NULL",
-                    "label": "SELECT COUNT(*) FROM tracks WHERE label IS NOT NULL",
-                    "producer": "SELECT COUNT(*) FROM tracks WHERE producer IS NOT NULL",
-                    "arranger": "SELECT COUNT(*) FROM tracks WHERE arranger IS NOT NULL",
-                    "lyricist": "SELECT COUNT(*) FROM tracks WHERE lyricist IS NOT NULL",
-                    "original_year": "SELECT COUNT(*) FROM tracks WHERE original_year IS NOT NULL",
+                    "bpm": GET_EMBEDDING_STATS["bpm"],
+                    "musical_key": GET_EMBEDDING_STATS["musical_key"],
+                    "key_scale": GET_EMBEDDING_STATS["key_scale"],
+                    "mood": GET_EMBEDDING_STATS["mood"],
+                    "label": GET_EMBEDDING_STATS["label"],
+                    "producer": GET_EMBEDDING_STATS["producer"],
+                    "arranger": GET_EMBEDDING_STATS["arranger"],
+                    "lyricist": GET_EMBEDDING_STATS["lyricist"],
+                    "original_year": GET_EMBEDDING_STATS["original_year"],
                 }
 
                 stats = {"total_tracks": total_tracks}
@@ -573,7 +573,7 @@ class MetadataReader:
                         logger.debug(f"Field {field} not in database schema, skipping")
                         continue
 
-                    # Execute the pre-defined query (no string interpolation)
+                    # Execute the centralized query
                     cursor.execute(query)
                     count = cursor.fetchone()[0]
                     stats[f"{field}_coverage"] = count

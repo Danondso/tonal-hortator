@@ -5,6 +5,7 @@ Main CLI interface for Tonal Hortator
 
 import argparse
 import logging
+import os
 import sys
 from typing import Optional
 
@@ -20,6 +21,63 @@ logging.basicConfig(
 )
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
+
+
+def yeet_everything(xml_path: str, db_path: str = "music_library.db") -> bool:
+    """YEET! Delete everything and start fresh with a grunge playlist"""
+    try:
+        logger.info("🗑️  YEET! Starting complete reset and rebuild...")
+
+        # Step 1: Delete the database
+        if os.path.exists(db_path):
+            logger.info(f"🗑️  Deleting existing database: {db_path}")
+            os.remove(db_path)
+            logger.info("✅ Database deleted")
+        else:
+            logger.info("ℹ️  No existing database found, starting fresh")
+
+        # Step 2: Import the XML library
+        logger.info(f"📥 Importing library from: {xml_path}")
+        if not import_library(xml_path, db_path):
+            logger.error("❌ Failed to import library")
+            return False
+
+        # Step 3: Embed all tracks
+        logger.info("🧠 Starting embeddings...")
+        if not embed_tracks():
+            logger.error("❌ Failed to embed tracks")
+            return False
+
+        # Step 4: Generate the grunge playlist
+        logger.info("🎸 Generating '5 grunge songs' playlist...")
+        generator = LocalPlaylistGenerator(db_path=db_path)
+
+        # Generate the playlist
+        tracks = generator.generate_playlist(
+            "5 grunge songs", max_tracks=5, min_similarity=0.3
+        )
+
+        if not tracks:
+            logger.error("❌ No tracks found for grunge playlist")
+            return False
+
+        # Print summary
+        generator.print_playlist_summary(tracks, "5 grunge songs")
+
+        # Save playlist
+        filepath = generator.save_playlist_m3u(tracks, "5 grunge songs")
+        logger.info(f"✅ Playlist saved to: {filepath}")
+
+        # Open in Apple Music
+        logger.info("🎵 Opening in Apple Music...")
+        open_in_apple_music(filepath)
+
+        logger.info("🎉 YEET complete! Your grunge playlist is ready!")
+        return True
+
+    except Exception as e:
+        logger.error(f"❌ YEET failed: {e}")
+        return False
 
 
 def generate_playlist(
@@ -210,6 +268,7 @@ Examples:
   tonal-hortator embed
   tonal-hortator interactive
   tonal-hortator import-library "/path/to/your/library.xml"
+  tonal-hortator yeet "/path/to/your/library.xml"
         """,
     )
 
@@ -269,6 +328,17 @@ Examples:
         "--auto-open", action="store_true", help="Automatically open in Apple Music"
     )
 
+    # Yeet command
+    yeet_parser = subparsers.add_parser(
+        "yeet", help="YEET! Delete everything and start fresh with a grunge playlist"
+    )
+    yeet_parser.add_argument(
+        "xml_path", help="Path to the Apple Music XML library file for import"
+    )
+    yeet_parser.add_argument(
+        "--db-path", default="music_library.db", help="Path to the SQLite database file"
+    )
+
     args = parser.parse_args()
 
     if not args.command:
@@ -299,6 +369,8 @@ Examples:
                 min_similarity=args.min_similarity,
                 auto_open=args.auto_open,
             )  # Interactive mode
+        elif args.command == "yeet":
+            success = yeet_everything(xml_path=args.xml_path, db_path=args.db_path)
         else:
             parser.print_help()
             return 1
