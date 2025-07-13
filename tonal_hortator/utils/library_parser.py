@@ -1,12 +1,25 @@
 #!/usr/bin/env python3
 """
-Parses an Apple Music XML library file and populates a SQLite database.
+Library parser for iTunes XML library files.
+Parses iTunes XML library and stores track data in SQLite database.
 """
 
-import logging
 import sqlite3
+import urllib.parse
+import warnings
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, Optional
+
+from loguru import logger
+
+from tonal_hortator.core.database import (
+    CHECK_TRACK_EXISTS,
+    CREATE_TRACKS_TABLE,
+    INSERT_TRACK,
+)
+
+# Import metadata reader
+from tonal_hortator.utils.metadata_reader import MetadataReader
 
 # Use defusedxml for safe XML parsing
 try:
@@ -23,57 +36,26 @@ except ImportError:
         "Install defusedxml for better security: pip install defusedxml"
     )
 
-# Import metadata reader
-from tonal_hortator.utils.metadata_reader import MetadataReader
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
-
 
 class LibraryParser:
-    """Parser for Apple Music XML library files."""
+    """Parser for iTunes XML library files"""
 
     def __init__(self, db_path: str = "music_library.db"):
         self.db_path = db_path
+        self._field_processors = self._get_field_processors()
+        self._field_mapping = self._get_field_mapping()
         self._create_table()
 
         # Initialize metadata reader
         self.metadata_reader = MetadataReader(db_path)
 
-        # Cache field processors and mappings as class attributes
-        self._field_processors = self._get_field_processors()
-        self._field_mapping = self._get_field_mapping()
-
     def _create_table(self) -> None:
-        """Creates the tracks table if it doesn't exist."""
+        """Create the tracks table if it doesn't exist"""
         try:
             with sqlite3.connect(self.db_path) as conn:
-                # Enable WAL mode for better concurrent performance
                 conn.execute("PRAGMA journal_mode=WAL;")
                 cursor = conn.cursor()
-                cursor.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS tracks (
-                        id INTEGER PRIMARY KEY,
-                        name TEXT,
-                        artist TEXT,
-                        album_artist TEXT,
-                        composer TEXT,
-                        album TEXT,
-                        genre TEXT,
-                        year INTEGER,
-                        total_time INTEGER,
-                        track_number INTEGER,
-                        disc_number INTEGER,
-                        play_count INTEGER,
-                        date_added TEXT,
-                        location TEXT UNIQUE
-                    )
-                """
-                )
+                cursor.execute(CREATE_TRACKS_TABLE)
                 conn.commit()
                 logger.info("✅ 'tracks' table created or already exists.")
         except sqlite3.Error as e:
@@ -135,11 +117,11 @@ class LibraryParser:
             logger.error(f"❌ Unexpected error parsing XML file: {e}")
             return
 
-    def _process_string_field(self, value_elem: Element) -> Optional[str]:
+    def _process_string_field(self, value_elem: ET.Element) -> Optional[str]:
         """Process a string field from XML"""
         return value_elem.text if value_elem.text is not None else None
 
-    def _process_location_field(self, value_elem: Element) -> Optional[str]:
+    def _process_location_field(self, value_elem: ET.Element) -> Optional[str]:
         """Process location field with URL decoding"""
         if not value_elem.text:
             return None
@@ -147,8 +129,6 @@ class LibraryParser:
         location = value_elem.text
 
         # Decode URL encoding if present
-        import urllib.parse
-
         if location.startswith("file://"):
             # Remove file:// protocol and decode URL encoding
             decoded_location = urllib.parse.unquote(location[7:])
@@ -157,15 +137,15 @@ class LibraryParser:
             # Decode URL encoding if present
             return urllib.parse.unquote(location)
 
-    def _process_int_field(self, value_elem: Element) -> int:
+    def _process_int_field(self, value_elem: ET.Element) -> int:
         """Process an integer field from XML"""
         return int(value_elem.text) if value_elem.text else 0
 
-    def _process_optional_int_field(self, value_elem: Element) -> Optional[int]:
+    def _process_optional_int_field(self, value_elem: ET.Element) -> Optional[int]:
         """Process an optional integer field from XML"""
         return int(value_elem.text) if value_elem.text else None
 
-    def _get_field_processors(self) -> Dict[str, Callable[[Element], Any]]:
+    def _get_field_processors(self) -> Dict[str, Callable[[ET.Element], Any]]:
         """Get mapping of field names to their processing functions"""
         return {
             "Name": lambda elem: self._process_string_field(elem),
@@ -202,7 +182,7 @@ class LibraryParser:
         }
 
     def _process_track_field(
-        self, key_name: Optional[str], value_elem: Element, data: Dict[str, Any]
+        self, key_name: Optional[str], value_elem: ET.Element, data: Dict[str, Any]
     ) -> None:
         """Process a single track field based on its key name"""
         if key_name in self._field_processors and key_name in self._field_mapping:
@@ -210,7 +190,7 @@ class LibraryParser:
                 value_elem
             )
 
-    def _extract_track_data(self, track_dict: Element) -> Optional[Dict[str, Any]]:
+    def _extract_track_data(self, track_dict: ET.Element) -> Optional[Dict[str, Any]]:
         """
         Extracts relevant data for a single track from its XML element.
 
@@ -264,26 +244,29 @@ class LibraryParser:
                     if (
                         track.get("location")
                         and cursor.execute(
-                            "SELECT id FROM tracks WHERE location = ?",
+                            CHECK_TRACK_EXISTS,
                             (track.get("location"),),
                         ).fetchone()
                         is None
                     ):
-                        # Insert basic track data
+                        # Insert basic track data using centralized query
                         cursor.execute(
-                            """
-                            INSERT INTO tracks (
-                                name, artist, album_artist, composer, album,
-                                genre, year, total_time, track_number, disc_number,
-                                play_count, date_added, location
-                            )
-                            VALUES (
-                                :name, :artist, :album_artist, :composer, :album,
-                                :genre, :year, :total_time, :track_number, :disc_number,
-                                :play_count, :date_added, :location
-                            )
-                        """,
-                            track,
+                            INSERT_TRACK,
+                            (
+                                track.get("name"),
+                                track.get("artist"),
+                                track.get("album_artist"),
+                                track.get("composer"),
+                                track.get("album"),
+                                track.get("genre"),
+                                track.get("year"),
+                                track.get("total_time"),
+                                track.get("track_number"),
+                                track.get("disc_number"),
+                                track.get("play_count"),
+                                track.get("date_added"),
+                                track.get("location"),
+                            ),
                         )
 
                         # Get the inserted track ID
