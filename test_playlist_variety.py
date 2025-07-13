@@ -3,15 +3,15 @@
 Test script to check playlist variety by running the same query multiple times
 """
 
-import sys
 import os
+import sys
 from typing import List, Set
 
 # Add the project root to the path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from tonal_hortator.core.playlist.playlist_generator import LocalPlaylistGenerator
 from tonal_hortator.core.embeddings.embeddings import OllamaEmbeddingService
+from tonal_hortator.core.playlist.playlist_generator import LocalPlaylistGenerator
 
 
 def get_playlist_tracks(query: str, max_tracks: int = 5) -> List[str]:
