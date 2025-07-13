@@ -137,7 +137,7 @@ class LocalPlaylistGenerator:
         max_tracks: Optional[int] = 20,
         min_similarity: float = 0.2,
         max_artist_ratio: float = 0.5,
-        search_breadth_factor: int = 10,
+        search_breadth_factor: int = 15,
     ) -> List[Dict[str, Any]]:
         """
         Generate a playlist based on a semantic query
