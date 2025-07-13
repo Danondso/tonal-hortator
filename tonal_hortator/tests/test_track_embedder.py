@@ -120,7 +120,7 @@ class TestLocalTrackEmbedder(unittest.TestCase):
         with patch(
             "tonal_hortator.core.embeddings.track_embedder.OllamaEmbeddingService"
         ):
-            embedder = LocalTrackEmbedder(self.db_path)
+            LocalTrackEmbedder(self.db_path)
 
             # Check that table was created
             with sqlite3.connect(self.db_path) as conn:
@@ -155,7 +155,7 @@ class TestLocalTrackEmbedder(unittest.TestCase):
             "tonal_hortator.core.embeddings.track_embedder.OllamaEmbeddingService"
         ):
             # Should not raise an error
-            embedder = LocalTrackEmbedder(self.db_path)
+            LocalTrackEmbedder(self.db_path)
 
     def test_get_tracks_without_embeddings(self) -> None:
         """Test getting tracks without embeddings"""
@@ -306,8 +306,6 @@ class TestLocalTrackEmbedder(unittest.TestCase):
         mock_future2.result.return_value = 1
 
         # Mock the as_completed function to return our futures
-        from concurrent.futures import as_completed
-
         with patch(
             "tonal_hortator.core.embeddings.track_embedder.as_completed",
             return_value=[mock_future1, mock_future2],
@@ -352,8 +350,6 @@ class TestLocalTrackEmbedder(unittest.TestCase):
         mock_future2.result.side_effect = Exception("Batch failed")
 
         # Mock the as_completed function to return our futures
-        from concurrent.futures import as_completed
-
         with patch(
             "tonal_hortator.core.embeddings.track_embedder.as_completed",
             return_value=[mock_future1, mock_future2],

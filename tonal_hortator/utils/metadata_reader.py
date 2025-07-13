@@ -10,10 +10,9 @@ import os
 import sqlite3
 import urllib.parse
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, Set
 
 from loguru import logger
-from mutagen import File
 from mutagen.aiff import AIFF
 from mutagen.easyid3 import EasyID3
 from mutagen.flac import FLAC

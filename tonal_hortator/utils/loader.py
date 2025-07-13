@@ -292,30 +292,3 @@ def create_threadsafe_progress_spinner(
     total: int, description: str = "Processing"
 ) -> SpinnerManager:
     return SpinnerManager(total, description)
-
-
-def configure_loguru_for_rich() -> None:
-    """Configure Loguru to use RichHandler for pretty logging output."""
-    try:
-        import logging
-
-        # Remove existing Loguru handlers
-        from loguru import logger
-        from rich.logging import RichHandler
-
-        logger.remove()
-
-        # Add RichHandler
-        logger.add(
-            RichHandler(
-                rich_tracebacks=True,
-                markup=True,
-                show_time=True,
-                show_level=True,
-                show_path=True,
-            ),
-            format="{message}",
-            level="INFO",
-        )
-    except ImportError:
-        pass

@@ -306,6 +306,38 @@ class LocalTrackEmbedder:
             logger.error(f"❌ Error getting embeddings: {e}")
             raise
 
+    def get_all_tracks_by_artist(self, artist_name: str) -> List[Dict[str, Any]]:
+        """
+        Get all tracks from the database for a specific artist.
+        This bypasses the embedding search and uses direct database queries.
+
+        Args:
+            artist_name: Name of the artist to search for (case-insensitive)
+
+        Returns:
+            List of track dictionaries with similarity_score set to 1.0
+        """
+        try:
+            cursor = self.conn.cursor()
+
+            # Query for all tracks by the artist (case-insensitive)
+            query = """
+                SELECT t.*, 1.0 as similarity_score
+                FROM tracks t
+                WHERE LOWER(t.artist) = LOWER(?)
+                ORDER BY t.name
+            """
+
+            cursor.execute(query, (artist_name,))
+            tracks = [dict(row) for row in cursor.fetchall()]
+
+            logger.info(f"🎤 Found {len(tracks)} tracks by artist '{artist_name}'")
+            return tracks
+
+        except sqlite3.Error as e:
+            logger.error(f"❌ Error getting tracks by artist '{artist_name}': {e}")
+            return []
+
     def embed_all_tracks(self, batch_size: int = 500, max_workers: int = 4) -> int:
         """Embed all tracks that don't have embeddings yet"""
         tracks = self.get_tracks_without_embeddings()

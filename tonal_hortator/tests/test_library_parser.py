@@ -84,7 +84,7 @@ class TestLibraryParser(unittest.TestCase):
         ) as mock_metadata_reader:
             mock_metadata_reader.return_value = Mock()
 
-            parser = LibraryParser(db_path=self.db_path)
+            LibraryParser(db_path=self.db_path)
 
             # Verify table was created
             with sqlite3.connect(self.db_path) as conn:
