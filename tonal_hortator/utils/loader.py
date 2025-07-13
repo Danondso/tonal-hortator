@@ -7,22 +7,16 @@ import queue
 import sys
 import threading
 import time
-from typing import Optional
+from typing import Any, Optional
 
 from rich.console import Console
-from rich.live import Live
-from rich.panel import Panel
 from rich.progress import (
     BarColumn,
     Progress,
     SpinnerColumn,
-    TaskProgressColumn,
     TextColumn,
     TimeElapsedColumn,
-    TimeRemainingColumn,
 )
-from rich.style import Style
-from rich.text import Text
 
 
 class ProgressBar:
@@ -42,11 +36,10 @@ class ProgressBar:
             TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
             TextColumn("({task.completed}/{task.total})"),
             TimeElapsedColumn(),
-            TimeRemainingColumn(),
             console=self.console,
             transient=True,
         )
-        self.task_id = None
+        self.task_id: Optional[Any] = None
 
     def update(self, increment: int = 1) -> None:
         """Update the progress bar."""
@@ -81,7 +74,7 @@ class Spinner:
             console=self.console,
             transient=True,
         )
-        self.task_id = None
+        self.task_id: Optional[Any] = None
 
     def start(self) -> None:
         """Start the spinner."""
@@ -131,7 +124,7 @@ class ProgressSpinner:
             transient=True,
             expand=True,
         )
-        self.task_id = None
+        self.task_id: Optional[Any] = None
         self._lock = threading.Lock()
 
     def start(self) -> None:
@@ -259,28 +252,28 @@ class SpinnerManager:
         self, total: int, description: str = "Processing", update_interval: float = 0.1
     ):
         self.spinner = ProgressSpinner(total, description)
-        self.update_queue = queue.Queue()
-        self.track_info_queue = queue.Queue()
+        self.update_queue: queue.Queue[int] = queue.Queue()
+        self.track_info_queue: queue.Queue[str] = queue.Queue()
         self.update_interval = update_interval
         self._stop_event = threading.Event()
         self._thread = threading.Thread(target=self._run, daemon=True)
 
-    def start(self):
+    def start(self) -> None:
         self.spinner.start()
         self._thread.start()
 
-    def update(self, increment: int = 1):
+    def update(self, increment: int = 1) -> None:
         self.update_queue.put(increment)
 
-    def update_track_info(self, track_info: str):
+    def update_track_info(self, track_info: str) -> None:
         self.track_info_queue.put(track_info)
 
-    def stop(self):
+    def stop(self) -> None:
         self._stop_event.set()
         self._thread.join()
         self.spinner.stop()
 
-    def _run(self):
+    def _run(self) -> None:
         while not self._stop_event.is_set() or not self.update_queue.empty():
             try:
                 # Consume all updates in the queue
@@ -288,10 +281,7 @@ class SpinnerManager:
                     increment = self.update_queue.get_nowait()
                     self.spinner.update_safe(increment)
 
-                # Consume track info updates
-                while not self.track_info_queue.empty():
-                    track_info = self.track_info_queue.get_nowait()
-                    self.spinner.update_track_info_safe(track_info)
+                # Track info updates are no longer needed since we removed track info display
 
             except Exception:
                 pass
@@ -304,22 +294,28 @@ def create_threadsafe_progress_spinner(
     return SpinnerManager(total, description)
 
 
-def configure_loguru_for_rich():
-    """Configure loguru to work well with Rich progress bars."""
-    import sys
+def configure_loguru_for_rich() -> None:
+    """Configure Loguru to use RichHandler for pretty logging output."""
+    try:
+        import logging
 
-    from loguru import logger
+        # Remove existing Loguru handlers
+        from loguru import logger
+        from rich.logging import RichHandler
 
-    # Remove default handler
-    logger.remove()
+        logger.remove()
 
-    # Add a custom handler that works well with Rich
-    logger.add(
-        sys.stderr,
-        format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
-        level="INFO",
-        colorize=True,
-        backtrace=True,
-        diagnose=True,
-        enqueue=True,  # Thread-safe logging
-    )
+        # Add RichHandler
+        logger.add(
+            RichHandler(
+                rich_tracebacks=True,
+                markup=True,
+                show_time=True,
+                show_level=True,
+                show_path=True,
+            ),
+            format="{message}",
+            level="INFO",
+        )
+    except ImportError:
+        pass

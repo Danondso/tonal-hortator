@@ -146,7 +146,9 @@ class OllamaEmbeddingService:
             logger.error(f"❌ Error getting embedding for text '{text[:50]}...': {e}")
             raise
 
-    def _process_batch(self, batch_texts: List[str], spinner=None) -> List[np.ndarray]:
+    def _process_batch(
+        self, batch_texts: List[str], spinner: Optional[Any] = None
+    ) -> List[np.ndarray]:
         if self.client is None:
             raise Exception("Ollama client not initialized")
 
@@ -159,7 +161,7 @@ class OllamaEmbeddingService:
         return batch_embeddings
 
     def _fallback_individual_embeddings(
-        self, batch_texts: List[str], spinner=None
+        self, batch_texts: List[str], spinner: Optional[Any] = None
     ) -> List[np.ndarray]:
         embeddings = []
         embedding_dim = self._get_embedding_dimension()
@@ -237,7 +239,7 @@ class OllamaEmbeddingService:
         self,
         texts: List[str],
         tracks: List[Dict[str, Any]],
-        spinner=None,
+        spinner: Optional[Any] = None,
         batch_size: int = 500,
     ) -> List[np.ndarray]:
         """

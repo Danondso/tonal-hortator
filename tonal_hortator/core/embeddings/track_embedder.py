@@ -7,7 +7,6 @@ Embeds music tracks for semantic search without requiring internet.
 import sqlite3
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -20,10 +19,7 @@ from tonal_hortator.core.database import (
     INSERT_TRACK_EMBEDDING,
 )
 from tonal_hortator.core.embeddings.embeddings import OllamaEmbeddingService
-from tonal_hortator.utils.loader import (
-    create_progress_spinner,
-    create_threadsafe_progress_spinner,
-)
+from tonal_hortator.utils.loader import create_progress_spinner
 
 # Configure logging
 # logging.basicConfig(
@@ -117,7 +113,9 @@ class LocalTrackEmbedder:
 
         return f"🎵 {name} by {artist}"
 
-    def _process_batch(self, batch_tracks: List[Dict[str, Any]], spinner=None) -> int:
+    def _process_batch(
+        self, batch_tracks: List[Dict[str, Any]], spinner: Optional[Any] = None
+    ) -> int:
         """Process a single batch of tracks (for parallel execution)"""
         try:
             batch_start = time.time()
