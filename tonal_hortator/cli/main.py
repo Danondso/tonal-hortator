@@ -147,6 +147,7 @@ def generate_playlist(
     query: Optional[str] = None,
     max_tracks: Optional[int] = None,  # Allow None to respect query count
     min_similarity: float = 0.3,
+    search_breadth_factor: int = 15,  # Default to 15 based on benchmark results
     auto_open: bool = False,
 ) -> bool:
     """Generate a playlist with optional Apple Music opening"""
@@ -181,12 +182,22 @@ def generate_playlist(
                     continue
 
                 _generate_single_playlist(
-                    generator, query, max_tracks, min_similarity, auto_open
+                    generator,
+                    query,
+                    max_tracks,
+                    min_similarity,
+                    search_breadth_factor,
+                    auto_open,
                 )
         else:
             # Non-interactive mode
             return _generate_single_playlist(
-                generator, query, max_tracks, min_similarity, auto_open
+                generator,
+                query,
+                max_tracks,
+                min_similarity,
+                search_breadth_factor,
+                auto_open,
             )
 
         logger.info("👋 Thanks for using Tonal Hortator!")
@@ -202,12 +213,18 @@ def _generate_single_playlist(
     query: str,
     max_tracks: Optional[int],  # Allow None to respect query count
     min_similarity: float,
+    search_breadth_factor: int,
     auto_open: bool,
 ) -> bool:
     """Generate a single playlist"""
     try:
         # Pass max_tracks (can be None) so generate_playlist uses the query's count if needed
-        tracks = generator.generate_playlist(query, max_tracks, min_similarity)
+        tracks = generator.generate_playlist(
+            query,
+            max_tracks,
+            min_similarity,
+            search_breadth_factor=search_breadth_factor,
+        )
 
         if not tracks:
             logger.warning(
@@ -377,6 +394,12 @@ Logs are saved to: {log_file}
     gen_parser.add_argument(
         "--auto-open", action="store_true", help="Automatically open in Apple Music"
     )
+    gen_parser.add_argument(
+        "--search-breadth-factor",
+        type=int,
+        default=15,
+        help="Search breadth factor for playlist generation (default: 15)",
+    )
 
     # Embed tracks command
     embed_parser = subparsers.add_parser("embed", help="Embed all tracks in database")
@@ -416,6 +439,12 @@ Logs are saved to: {log_file}
     interactive_parser.add_argument(
         "--auto-open", action="store_true", help="Automatically open in Apple Music"
     )
+    interactive_parser.add_argument(
+        "--search-breadth-factor",
+        type=int,
+        default=15,
+        help="Search breadth factor for playlist generation (default: 15)",
+    )
 
     # Yeet command
     yeet_parser = subparsers.add_parser(
@@ -447,6 +476,7 @@ Logs are saved to: {log_file}
                 max_tracks=(args.max_tracks if args.max_tracks is not None else None),
                 min_similarity=args.min_similarity,
                 auto_open=args.auto_open,
+                search_breadth_factor=args.search_breadth_factor,
             )
         elif args.command == "embed":
             success = embed_tracks(
@@ -463,6 +493,7 @@ Logs are saved to: {log_file}
                 ),
                 min_similarity=args.min_similarity,
                 auto_open=args.auto_open,
+                search_breadth_factor=args.search_breadth_factor,
             )  # Interactive mode
         elif args.command == "yeet":
             success = yeet_everything(
