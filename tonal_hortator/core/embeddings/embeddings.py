@@ -11,6 +11,8 @@ import numpy as np
 import ollama
 from loguru import logger
 
+from tonal_hortator.utils.loader import create_progress_spinner
+
 
 class OllamaEmbeddingService:
     """Service for generating embeddings using Ollama."""
@@ -72,7 +74,7 @@ class OllamaEmbeddingService:
                 raise Exception("Failed to initialize Ollama client")
 
             models = self.client.list()
-            logger.debug(f"Ollama models response: {models}")
+            # Debug logging removed - not needed for normal operation
 
             # Extract model list and names
             model_list = self._extract_model_list(models)
@@ -137,27 +139,27 @@ class OllamaEmbeddingService:
             embedding = np.array(result["embedding"], dtype=np.float32)
             embedding_time = time.time() - start_time
 
-            logger.debug(
-                f"Generated embedding in {embedding_time:.3f}s (dim: {len(embedding)})"
-            )
+            # Debug logging removed - progress bar shows timing information
             return embedding
 
         except Exception as e:
             logger.error(f"❌ Error getting embedding for text '{text[:50]}...': {e}")
             raise
 
-    def _process_batch(self, batch_texts: List[str]) -> List[np.ndarray]:
+    def _process_batch(self, batch_texts: List[str], spinner=None) -> List[np.ndarray]:
         if self.client is None:
             raise Exception("Ollama client not initialized")
 
         batch_embeddings = []
-        for text in batch_texts:
+        for i, text in enumerate(batch_texts):
             result = self.client.embeddings(model=self.model_name, prompt=text)
             batch_embeddings.append(np.array(result["embedding"], dtype=np.float32))
+            if spinner:
+                spinner.update()  # Update spinner per track
         return batch_embeddings
 
     def _fallback_individual_embeddings(
-        self, batch_texts: List[str]
+        self, batch_texts: List[str], spinner=None
     ) -> List[np.ndarray]:
         embeddings = []
         embedding_dim = self._get_embedding_dimension()
@@ -165,13 +167,17 @@ class OllamaEmbeddingService:
             try:
                 embedding = self.get_embedding(text)
                 embeddings.append(embedding)
+                if spinner:
+                    spinner.update()  # Update spinner per track
             except Exception as e_ind:
                 logger.error(f"❌ Failed to embed text: '{text[:50]}...': {e_ind}")
                 embeddings.append(np.zeros(embedding_dim, dtype=np.float32))
+                if spinner:
+                    spinner.update()  # Update spinner even for failed tracks
         return embeddings
 
     def get_embeddings_batch(
-        self, texts: List[str], batch_size: int = 10000
+        self, texts: List[str], batch_size: int = 500, show_spinner: bool = True
     ) -> List[np.ndarray]:
         """
         Get embeddings for multiple texts using Ollama's batch API
@@ -179,6 +185,7 @@ class OllamaEmbeddingService:
         Args:
             texts: List of text strings to embed
             batch_size: The size of batches to send to Ollama. Default is 10000 for optimal performance.
+            show_spinner: Whether to show the progress spinner (default True)
 
         Returns:
             A list of numpy arrays representing the embeddings
@@ -190,42 +197,111 @@ class OllamaEmbeddingService:
             return []
 
         all_embeddings = []
-        logger.info(
-            f"🔄 Generating embeddings for {len(texts)} texts in batches of {batch_size}"
-        )
+        spinner = None
+        if show_spinner:
+            spinner = create_progress_spinner(
+                len(texts), "Generating embeddings", batch_size
+            )
+            spinner.start()
+        start_time = time.time()
 
         for i in range(0, len(texts), batch_size):
             batch_texts = texts[i : i + batch_size]
-            batch_num = (i // batch_size) + 1
-            total_batches = (len(texts) + batch_size - 1) // batch_size
-
-            logger.info(
-                f"📦 Processing batch {batch_num}/{total_batches} ({len(batch_texts)} texts)"
-            )
             batch_start = time.time()
 
             try:
-                batch_embeddings = self._process_batch(batch_texts)
+                batch_embeddings = self._process_batch(batch_texts, spinner)
                 if len(batch_embeddings) == len(batch_texts):
                     all_embeddings.extend(batch_embeddings)
-                    batch_time = time.time() - batch_start
-                    logger.info(f"⏱️  Batch {batch_num} completed in {batch_time:.2f}s")
                 else:
                     logger.error(
                         f"❌ Mismatched embedding count. Got {len(batch_embeddings)} for {len(batch_texts)} prompts."
                     )
                     raise Exception("Incomplete batch response from Ollama library")
             except Exception as e:
-                logger.error(
-                    f"❌ Batch embedding request failed for batch {batch_num}: {e}"
-                )
+                logger.error(f"❌ Batch embedding request failed: {e}")
                 logger.info(
-                    "🔄 Falling back to individual embeddings for this batch (redundant, but safe)..."
+                    "🔄 Falling back to individual embeddings for this batch..."
                 )
-                all_embeddings.extend(self._fallback_individual_embeddings(batch_texts))
+                fallback_embeddings = self._fallback_individual_embeddings(
+                    batch_texts, spinner
+                )
+                all_embeddings.extend(fallback_embeddings)
 
-        logger.info(f"✅ Generated {len(all_embeddings)} embeddings total")
+        if spinner:
+            spinner.stop()
+        total_time = time.time() - start_time
         return all_embeddings
+
+    def get_embeddings_batch_with_progress(
+        self,
+        texts: List[str],
+        tracks: List[Dict[str, Any]],
+        spinner=None,
+        batch_size: int = 500,
+    ) -> List[np.ndarray]:
+        """
+        Get embeddings for multiple texts with real-time progress updates
+
+        Args:
+            texts: List of text strings to embed
+            tracks: List of track dictionaries for display info
+            spinner: Progress spinner for updates
+            batch_size: The size of batches to send to Ollama
+
+        Returns:
+            A list of numpy arrays representing the embeddings
+        """
+        if not self.client:
+            raise Exception("Ollama client not initialized")
+        if not texts:
+            return []
+
+        all_embeddings = []
+        start_time = time.time()
+
+        for i in range(0, len(texts), batch_size):
+            batch_texts = texts[i : i + batch_size]
+            batch_tracks = tracks[i : i + batch_size]
+
+            try:
+                # Process each text individually for real-time updates
+                batch_embeddings = []
+                for j, (text, track) in enumerate(zip(batch_texts, batch_tracks)):
+                    # Remove spinner.update_track_info, just update progress
+                    result = self.client.embeddings(model=self.model_name, prompt=text)
+                    embedding = np.array(result["embedding"], dtype=np.float32)
+                    batch_embeddings.append(embedding)
+
+                    # Update progress
+                    if spinner:
+                        spinner.update(1)
+
+                all_embeddings.extend(batch_embeddings)
+
+            except Exception as e:
+                logger.error(f"❌ Batch embedding request failed: {e}")
+                # Fallback: create zero embeddings for failed batch
+                embedding_dim = self._get_embedding_dimension()
+                for _ in batch_texts:
+                    all_embeddings.append(np.zeros(embedding_dim, dtype=np.float32))
+                    if spinner:
+                        spinner.update(1)
+
+        return all_embeddings
+
+    def _get_track_display_info(self, track: Dict[str, Any]) -> str:
+        """Create a display string for the current track being processed"""
+        name = track.get("name", "Unknown Track")
+        artist = track.get("artist", "Unknown Artist")
+
+        # Truncate long names to keep the display clean
+        if len(name) > 30:
+            name = name[:27] + "..."
+        if len(artist) > 25:
+            artist = artist[:22] + "..."
+
+        return f"🎵 {name} by {artist}"
 
     def create_track_embedding_text(self, track: Dict[str, Any]) -> str:
         """Create text representation of track for embedding with musical analysis"""

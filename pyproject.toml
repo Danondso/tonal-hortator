@@ -18,6 +18,7 @@ dependencies = [
     "ollama",
     "mutagen",
     "defusedxml",
+    "rich",
 ]
 
 [tool.setuptools.packages.find]

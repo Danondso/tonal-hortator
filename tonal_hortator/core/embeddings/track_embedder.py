@@ -20,6 +20,10 @@ from tonal_hortator.core.database import (
     INSERT_TRACK_EMBEDDING,
 )
 from tonal_hortator.core.embeddings.embeddings import OllamaEmbeddingService
+from tonal_hortator.utils.loader import (
+    create_progress_spinner,
+    create_threadsafe_progress_spinner,
+)
 
 # Configure logging
 # logging.basicConfig(
@@ -100,9 +104,20 @@ class LocalTrackEmbedder:
         """Create text representation of track for embedding"""
         return self.embedding_service.create_track_embedding_text(track)
 
-    def _process_batch(
-        self, batch_tracks: List[Dict[str, Any]], batch_num: int, total_batches: int
-    ) -> int:
+    def _get_track_display_info(self, track: Dict[str, Any]) -> str:
+        """Create a display string for the current track being processed"""
+        name = track.get("name", "Unknown Track")
+        artist = track.get("artist", "Unknown Artist")
+
+        # Truncate long names to keep the display clean
+        if len(name) > 30:
+            name = name[:27] + "..."
+        if len(artist) > 25:
+            artist = artist[:22] + "..."
+
+        return f"🎵 {name} by {artist}"
+
+    def _process_batch(self, batch_tracks: List[Dict[str, Any]], spinner=None) -> int:
         """Process a single batch of tracks (for parallel execution)"""
         try:
             batch_start = time.time()
@@ -118,32 +133,31 @@ class LocalTrackEmbedder:
                     text = self.create_track_embedding_text(track)
                     embedding_texts.append(text)
 
-                # Get embeddings from Ollama (using optimized batch API)
-                embeddings = self.embedding_service.get_embeddings_batch(
-                    embedding_texts, batch_size=50
+                # Get embeddings from Ollama with real-time updates
+                embeddings = self.embedding_service.get_embeddings_batch_with_progress(
+                    embedding_texts, batch_tracks, spinner, batch_size=2000
                 )
 
                 # Store embeddings in database using thread-specific connection
                 batch_embedded = self._store_embeddings_batch(
                     batch_tracks, embeddings, embedding_texts, thread_conn
                 )
+                # Progress updates are now handled in the embedding service
 
             batch_time = time.time() - batch_start
-            logger.info(
-                f"⏱️  Batch {batch_num}/{total_batches} completed in {batch_time:.2f}s ({batch_embedded}/{len(batch_tracks)} embedded)"
-            )
+            # Debug logging removed - progress bar now shows this information
 
             return batch_embedded
 
         except Exception as e:
-            logger.error(f"❌ Error processing batch {batch_num}: {e}")
+            logger.error(f"❌ Error processing batch: {e}")
             return 0
 
     def embed_tracks_batch(
-        self, tracks: List[Dict[str, Any]], batch_size: int = 100, max_workers: int = 4
+        self, tracks: List[Dict[str, Any]], batch_size: int = 500, max_workers: int = 4
     ) -> int:
         """
-        Embed a batch of tracks using parallel processing
+        Embed a batch of tracks using parallel processing with progress spinner
 
         Args:
             tracks: List of track dictionaries
@@ -159,40 +173,35 @@ class LocalTrackEmbedder:
 
         total_tracks = len(tracks)
         embedded_count = 0
-
-        logger.info(
-            f"🔄 Starting to embed {total_tracks} tracks in batches of {batch_size} with {max_workers} parallel workers"
-        )
+        spinner = create_progress_spinner(total_tracks, "Embedding tracks", 1)
+        start_time = time.time()
 
         # Split tracks into batches
         batches = []
         for i in range(0, total_tracks, batch_size):
             batch_tracks = tracks[i : i + batch_size]
-            batch_num = (i // batch_size) + 1
-            total_batches = (total_tracks + batch_size - 1) // batch_size
-            batches.append((batch_tracks, batch_num, total_batches))
+            batches.append(batch_tracks)
 
         # Process batches in parallel
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Submit all batch processing tasks
-            future_to_batch = {
-                executor.submit(
-                    self._process_batch, batch_tracks, batch_num, total_batches
-                ): batch_num
-                for batch_tracks, batch_num, total_batches in batches
-            }
+            futures = [
+                executor.submit(self._process_batch, batch_tracks, spinner)
+                for batch_tracks in batches
+            ]
 
-            # Collect results as they complete
-            for future in as_completed(future_to_batch):
-                batch_num = future_to_batch[future]
+            # Collect results as they complete and update spinner
+            for future in as_completed(futures):
                 try:
                     batch_embedded = future.result()
                     embedded_count += batch_embedded
                 except Exception as e:
-                    logger.error(f"❌ Batch {batch_num} failed: {e}")
+                    logger.error(f"❌ Batch failed: {e}")
 
-        logger.info(
-            f"✅ Completed embedding process. {embedded_count}/{total_tracks} tracks embedded"
+        spinner.stop()
+        total_time = time.time() - start_time
+        logger.debug(
+            f"✅ Successfully embedded {embedded_count} tracks in {total_time:.2f}s"
         )
         return embedded_count
 
@@ -302,7 +311,7 @@ class LocalTrackEmbedder:
             logger.error(f"❌ Error getting embeddings: {e}")
             raise
 
-    def embed_all_tracks(self, batch_size: int = 100, max_workers: int = 4) -> int:
+    def embed_all_tracks(self, batch_size: int = 500, max_workers: int = 4) -> int:
         """Embed all tracks that don't have embeddings yet"""
         tracks = self.get_tracks_without_embeddings()
         return self.embed_tracks_batch(

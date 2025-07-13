@@ -349,3 +349,50 @@ logging.basicConfig(level=logging.DEBUG)
 - **Code Quality**: Follows Python best practices and PEP 8
 - **Documentation**: Full API documentation and usage examples
 - **Performance**: Optimized for large music libraries 
+
+## Quickstart
+
+1. **Install the package**
+   ```sh
+   pip install .
+   ```
+   This installs all dependencies including `defusedxml` for secure XML parsing and `rich` for beautiful progress bars.
+
+2. **Alternative: Install in development mode**
+   ```sh
+   pip install -e .
+   ```
+   This installs the package in editable mode for development.
+
+3. **Run the CLI**
+   - **Preferred:**
+     ```sh
+     python -m tonal_hortator.cli <command> [options]
+     ```
+     Example:
+     ```sh
+     python -m tonal_hortator.cli yeet /path/to/Library.xml --db-path ./music_library.db
+     ```
+   - **Or, if installed as a script:**
+     ```sh
+     tonal-hortator <command> [options]
+     ```
+
+## Troubleshooting
+
+- **defusedxml warning:**
+  > `UserWarning: defusedxml not available. Using regular ElementTree. Install defusedxml for better security: pip install defusedxml`
+
+  This warning should not appear if you installed the package with `pip install .` as it includes `defusedxml`. If you see this warning, try reinstalling:
+  ```sh
+  pip install --force-reinstall .
+  ```
+
+- **RuntimeWarning about sys.modules and unpredictable behaviour:**
+  > `<frozen runpy>:128: RuntimeWarning: 'tonal_hortator.cli.main' found in sys.modules ...`
+
+  This is a Python import warning that can occur if you run the CLI as a module file. To avoid it, always use:
+  ```sh
+  python -m tonal_hortator.cli <command> [options]
+  ```
+  or the installed script entry point. 

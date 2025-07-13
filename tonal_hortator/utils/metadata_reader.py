@@ -480,7 +480,7 @@ class MetadataReader:
             logger.error(f"Database error updating track {track_id} ({file_path}): {e}")
             return False
 
-    def update_all_tracks_metadata(self, batch_size: int = 100) -> int:
+    def update_all_tracks_metadata(self, batch_size: int = 500) -> int:
         """
         Update metadata for all tracks in the database
 
