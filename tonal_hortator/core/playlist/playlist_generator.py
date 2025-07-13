@@ -125,11 +125,11 @@ class LocalPlaylistGenerator:
         Returns:
             Final max_tracks value to use
         """
-        # If max_tracks is None, use parsed count or fallback to default (20)
-        if max_tracks is None:
-            return parsed_count if parsed_count is not None else 20
-        else:
-            return parsed_count if parsed_count is not None else max_tracks
+        # Prioritize user-provided max_tracks over parsed count
+        if max_tracks is not None:
+            return max_tracks
+        # If no user-provided max_tracks, use parsed count or fallback to default (20)
+        return parsed_count if parsed_count is not None else 20
 
     def generate_playlist(
         self,
