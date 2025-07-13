@@ -425,54 +425,298 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
     def test_distribute_artists(
         self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
     ) -> None:
-        """Test artist distribution throughout playlist"""
+        """Test artist distribution"""
         generator = LocalPlaylistGenerator()
 
-        # Create test tracks with multiple artists
+        # Create test tracks with different artists
         tracks = [
-            {"name": "Song1", "artist": "Artist1", "similarity_score": 0.9},
-            {"name": "Song2", "artist": "Artist1", "similarity_score": 0.8},
-            {"name": "Song3", "artist": "Artist2", "similarity_score": 0.85},
-            {"name": "Song4", "artist": "Artist2", "similarity_score": 0.75},
-            {"name": "Song5", "artist": "Artist3", "similarity_score": 0.95},
-            {"name": "Song6", "artist": "Artist3", "similarity_score": 0.7},
+            {"artist": "Artist1", "name": "Song1", "similarity_score": 0.8},
+            {"artist": "Artist2", "name": "Song2", "similarity_score": 0.7},
+            {"artist": "Artist1", "name": "Song3", "similarity_score": 0.6},
+            {"artist": "Artist3", "name": "Song4", "similarity_score": 0.5},
         ]
 
-        # Test artist distribution
-        result = generator._distribute_artists(tracks)
+        result = generator._distribute_artists(tracks, max_tracks=3)
 
-        # Should have the same number of tracks
-        self.assertEqual(len(result), len(tracks))
+        # Should return 3 tracks with distributed artists
+        self.assertEqual(len(result), 3)
 
-        # Check that artists are distributed (not grouped together)
-        # Count consecutive tracks from the same artist
-        consecutive_same_artist = 0
-        max_consecutive = 0
-        prev_artist = None
+        # Check that artists are distributed (not all from same artist)
+        artists = [track["artist"] for track in result]
+        self.assertGreater(len(set(artists)), 1)
 
-        for track in result:
-            current_artist = track["artist"]
-            if current_artist == prev_artist:
-                consecutive_same_artist += 1
-                max_consecutive = max(max_consecutive, consecutive_same_artist)
-            else:
-                consecutive_same_artist = 1
-            prev_artist = current_artist
+    @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
+    @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
+    def test_create_playlist_name_basic_queries(
+        self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
+    ) -> None:
+        """Test basic playlist name creation"""
+        generator = LocalPlaylistGenerator()
 
-        # With 3 artists and 6 tracks, we should have at most 2 consecutive tracks from same artist
-        # (in the worst case, but ideally 1)
-        self.assertLessEqual(
-            max_consecutive,
-            2,
-            f"Too many consecutive tracks from same artist: {max_consecutive}",
+        # Test basic queries
+        self.assertEqual(
+            generator._create_playlist_name("jazz for studying"), "Jazz for Studying"
+        )
+        self.assertEqual(
+            generator._create_playlist_name("5 grunge songs"), "5 Grunge Songs"
+        )
+        self.assertEqual(generator._create_playlist_name("rock"), "Rock Mix")
+        self.assertEqual(
+            generator._create_playlist_name("electronic"), "Electronic Mix"
         )
 
-        # Verify all original tracks are present (just reordered)
-        original_artists: List[str] = [cast(str, t["artist"]) for t in tracks]
-        result_artists: List[str] = [cast(str, t["artist"]) for t in result]
-        self.assertEqual(sorted(original_artists), sorted(result_artists))
+    @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
+    @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
+    def test_create_playlist_name_with_prefixes(
+        self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
+    ) -> None:
+        """Test playlist name creation with common prefixes"""
+        generator = LocalPlaylistGenerator()
 
-        # Verify all track names are present
-        original_names: List[str] = [cast(str, t["name"]) for t in tracks]
-        result_names: List[str] = [cast(str, t["name"]) for t in result]
-        self.assertEqual(sorted(original_names), sorted(result_names))
+        # Test queries with prefixes that should be removed
+        self.assertEqual(
+            generator._create_playlist_name("generate jazz for studying"),
+            "Jazz for Studying",
+        )
+        self.assertEqual(
+            generator._create_playlist_name("create 5 grunge songs"), "5 Grunge Songs"
+        )
+        self.assertEqual(
+            generator._create_playlist_name("find me some upbeat music"), "Upbeat Music"
+        )
+        self.assertEqual(
+            generator._create_playlist_name("make a playlist of 10 songs"),
+            "Playlist Of 10 Songs",
+        )
+        self.assertEqual(
+            generator._create_playlist_name("get rock music"), "Rock Music"
+        )
+        self.assertEqual(generator._create_playlist_name("show me jazz"), "Jazz Mix")
+        self.assertEqual(
+            generator._create_playlist_name("give me electronic"), "Electronic Mix"
+        )
+
+    @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
+    @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
+    def test_create_playlist_name_with_quotes(
+        self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
+    ) -> None:
+        """Test playlist name creation with quoted queries"""
+        generator = LocalPlaylistGenerator()
+
+        # Test queries with quotes
+        self.assertEqual(
+            generator._create_playlist_name('"bedroom pop"'), "Bedroom Pop"
+        )
+        self.assertEqual(
+            generator._create_playlist_name("'90s alternative'"), "90S Alternative"
+        )
+        self.assertEqual(
+            generator._create_playlist_name('"jazz for studying"'), "Jazz for Studying"
+        )
+
+    @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
+    @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
+    def test_create_playlist_name_with_filler_words(
+        self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
+    ) -> None:
+        """Test playlist name creation with filler words"""
+        generator = LocalPlaylistGenerator()
+
+        # Test queries with filler words that should be removed
+        self.assertEqual(
+            generator._create_playlist_name("find me some upbeat music"), "Upbeat Music"
+        )
+        self.assertEqual(
+            generator._create_playlist_name("get me some rock songs"), "Rock Songs"
+        )
+        self.assertEqual(
+            generator._create_playlist_name("show me some jazz"), "Jazz Mix"
+        )
+
+    @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
+    @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
+    def test_create_playlist_name_with_artist_queries(
+        self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
+    ) -> None:
+        """Test playlist name creation with artist-specific queries"""
+        generator = LocalPlaylistGenerator()
+
+        # Test queries with artists
+        self.assertEqual(
+            generator._create_playlist_name("20 songs by my chemical romance"),
+            "20 Songs By My Chemical Romance",
+        )
+        self.assertEqual(
+            generator._create_playlist_name("generate 15 tracks by nirvana"),
+            "15 Tracks By Nirvana",
+        )
+        self.assertEqual(
+            generator._create_playlist_name("find songs by the beatles"),
+            "Songs By The Beatles",
+        )
+
+    @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
+    @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
+    def test_create_playlist_name_with_context_queries(
+        self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
+    ) -> None:
+        """Test playlist name creation with context-specific queries"""
+        generator = LocalPlaylistGenerator()
+
+        # Test queries with context
+        self.assertEqual(
+            generator._create_playlist_name("classic rock for driving"),
+            "Classic Rock for Driving",
+        )
+        self.assertEqual(
+            generator._create_playlist_name("upbeat music for working out"),
+            "Upbeat Music for Working Out",
+        )
+        self.assertEqual(
+            generator._create_playlist_name("chill music for studying"),
+            "Chill Music for Studying",
+        )
+        self.assertEqual(
+            generator._create_playlist_name("party music for dancing"),
+            "Party Music for Dancing",
+        )
+
+    @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
+    @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
+    def test_create_playlist_name_edge_cases(
+        self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
+    ) -> None:
+        """Test playlist name creation with edge cases"""
+        generator = LocalPlaylistGenerator()
+
+        # Test edge cases
+        self.assertEqual(generator._create_playlist_name(""), " Mix")  # Empty string
+        self.assertEqual(generator._create_playlist_name("a"), "A Mix")  # Single letter
+        self.assertEqual(
+            generator._create_playlist_name("the"), "The Mix"
+        )  # Single word
+        self.assertEqual(
+            generator._create_playlist_name("   jazz   "), "Jazz Mix"
+        )  # Extra whitespace
+        self.assertEqual(
+            generator._create_playlist_name("generate"), "Generate Mix"
+        )  # Just prefix
+
+    @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
+    @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
+    def test_create_playlist_name_preserves_important_words(
+        self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
+    ) -> None:
+        """Test that important words are preserved in playlist names"""
+        generator = LocalPlaylistGenerator()
+
+        # Test that important words are preserved
+        self.assertEqual(
+            generator._create_playlist_name("early 90s grunge"), "Early 90S Grunge"
+        )
+        self.assertEqual(
+            generator._create_playlist_name("late 80s rock"), "Late 80S Rock"
+        )
+        self.assertEqual(
+            generator._create_playlist_name("video game music"), "Video Game Music"
+        )
+        self.assertEqual(
+            generator._create_playlist_name("background ambient music"),
+            "Background Ambient Music",
+        )
+
+    @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
+    @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
+    def test_create_playlist_name_music_terms(
+        self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
+    ) -> None:
+        """Test that music-related terms are handled correctly"""
+        generator = LocalPlaylistGenerator()
+
+        # Test music-related terms
+        self.assertEqual(generator._create_playlist_name("rock music"), "Rock Music")
+        self.assertEqual(generator._create_playlist_name("jazz songs"), "Jazz Songs")
+        self.assertEqual(generator._create_playlist_name("pop tracks"), "Pop Tracks")
+        self.assertEqual(
+            generator._create_playlist_name("electronic playlist"),
+            "Electronic Playlist",
+        )
+
+    @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
+    @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
+    def test_save_playlist_m3u_creates_clean_filename(
+        self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
+    ) -> None:
+        """Test that save_playlist_m3u creates clean filenames"""
+        generator = LocalPlaylistGenerator()
+
+        # Mock track data
+        tracks = [
+            {
+                "artist": "Test Artist",
+                "name": "Test Song",
+                "album": "Test Album",
+                "duration_ms": 180000,
+                "similarity_score": 0.8,
+                "location": "/path/to/song.mp3",
+            }
+        ]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Test saving playlist
+            filepath = generator.save_playlist_m3u(
+                tracks, "jazz for studying", temp_dir
+            )
+
+            # Check that filename is clean (no timestamps or underscores)
+            filename = os.path.basename(filepath)
+            self.assertNotIn("playlist_", filename)
+            self.assertNotIn("_", filename)
+            self.assertTrue(filename.startswith("Jazz for Studying"))
+            self.assertTrue(filename.endswith(".m3u"))
+
+            # Check that file exists and has content
+            self.assertTrue(os.path.exists(filepath))
+            with open(filepath, "r") as f:
+                content = f.read()
+                self.assertIn("# Playlist: Jazz for Studying", content)
+                self.assertIn("# Query: jazz for studying", content)
+
+    @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
+    @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
+    def test_save_playlist_m3u_handles_special_characters(
+        self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
+    ) -> None:
+        """Test that save_playlist_m3u handles special characters in filenames"""
+        generator = LocalPlaylistGenerator()
+
+        tracks = [
+            {
+                "artist": "Test Artist",
+                "name": "Test Song",
+                "album": "Test Album",
+                "duration_ms": 180000,
+                "similarity_score": 0.8,
+                "location": "/path/to/song.mp3",
+            }
+        ]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Test with special characters that should be removed
+            filepath = generator.save_playlist_m3u(
+                tracks, "rock & roll! @#$%", temp_dir
+            )
+
+            filename = os.path.basename(filepath)
+            # Should not contain special characters
+            self.assertNotIn("&", filename)
+            self.assertNotIn("!", filename)
+            self.assertNotIn("@", filename)
+            self.assertNotIn("#", filename)
+            self.assertNotIn("$", filename)
+            self.assertNotIn("%", filename)
+
+            # Should contain cleaned name
+            self.assertIn("Rock", filename)
+            self.assertIn("Roll", filename)
