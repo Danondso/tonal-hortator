@@ -101,12 +101,34 @@ tonal-hortator generate "moody electronic music" --auto-open
 # Generate playlist with custom parameters
 tonal-hortator generate "classic rock from the 70s" --max-tracks 30 --min-similarity 0.5
 
+# Generate with search breadth control
+tonal-hortator generate "jazz for studying" --search-breadth-factor 20 --max-tracks 15
+
 # Start interactive mode
 tonal-hortator interactive
 
 # Embed tracks with custom batch size
 tonal-hortator embed --batch-size 100
 ```
+
+### Search Breadth Factor
+
+The `--search-breadth-factor` parameter controls how many candidate tracks are considered during playlist generation. This affects both performance and variety:
+
+- **Higher values** (15-25): More variety, more tracks to choose from
+- **Lower values** (5-10): Faster generation, less variety
+
+**Benchmark Results** (for 5-track playlists):
+- **Factor 5**: 3.55s, 73.3% variety
+- **Factor 10**: 3.03s, 66.7% variety  
+- **Factor 15**: 4.24s, 80.0% variety ⭐ **Recommended**
+- **Factor 20**: 3.00s, 66.7% variety
+- **Factor 25**: 3.13s, similar variety to 20
+
+**Recommendations**:
+- **Default (15)**: Best balance of variety and performance
+- **Speed-focused**: Use 10 for faster generation
+- **Variety-focused**: Use 15-20 for maximum track diversity
 
 ### Python API
 

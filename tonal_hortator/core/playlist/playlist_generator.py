@@ -132,7 +132,12 @@ class LocalPlaylistGenerator:
             return parsed_count if parsed_count is not None else max_tracks
 
     def generate_playlist(
-        self, query: str, max_tracks: Optional[int] = 20, min_similarity: float = 0.3
+        self,
+        query: str,
+        max_tracks: Optional[int] = 20,
+        min_similarity: float = 0.2,
+        max_artist_ratio: float = 0.5,
+        search_breadth_factor: int = 15,
     ) -> List[Dict[str, Any]]:
         """
         Generate a playlist based on a semantic query
@@ -141,6 +146,8 @@ class LocalPlaylistGenerator:
             query: Search query (e.g., "upbeat rock songs")
             max_tracks: Maximum number of tracks in playlist
             min_similarity: Minimum similarity score threshold
+            max_artist_ratio: Maximum ratio of tracks per artist (default 0.5)
+            search_breadth_factor: Factor to multiply max_tracks by for search breadth (default 10)
 
         Returns:
             List of track dictionaries with similarity scores
@@ -183,8 +190,16 @@ class LocalPlaylistGenerator:
             logger.info(f"📊 Using {len(embeddings)} track embeddings for search")
 
             # Perform similarity search
+            start_time = time.time()
             results = self.embedding_service.similarity_search(
-                query, embeddings, track_data, top_k=max_tracks * 5
+                query,
+                embeddings,
+                track_data,
+                top_k=max_tracks * search_breadth_factor,
+            )
+            search_time = time.time() - start_time
+            logger.info(
+                f"🔍 Similarity search took {search_time:.2f}s for {len(results)} results"
             )
 
             # 3. Filter by artist if detected
@@ -202,7 +217,11 @@ class LocalPlaylistGenerator:
 
             # 5. Filter by similarity threshold and deduplicate
             filtered_results = self._filter_and_deduplicate_results(
-                results, min_similarity, max_tracks, is_artist_specific
+                results,
+                min_similarity,
+                max_tracks,
+                is_artist_specific,
+                max_artist_ratio,
             )
 
             # 6. Apply artist randomization
@@ -442,12 +461,50 @@ class LocalPlaylistGenerator:
 
         return True
 
+    def _sample_with_randomization(
+        self, tracks: List[Dict[str, Any]], max_count: int, top_ratio: float = 0.3
+    ) -> List[Dict[str, Any]]:
+        """
+        Sample tracks with a mix of top similarity and random selection
+
+        Args:
+            tracks: List of tracks to sample from
+            max_count: Maximum number of tracks to return
+            top_ratio: Ratio of top similarity tracks (default 0.5 = 50%)
+
+        Returns:
+            List of sampled tracks
+        """
+        if len(tracks) <= max_count:
+            return tracks
+
+        # Sort by similarity first
+        tracks.sort(key=lambda t: t.get("similarity_score", 0), reverse=True)
+
+        # Take top tracks by similarity, then random from the rest
+        top_count = int(max_count * top_ratio)
+        remaining_count = max_count - top_count
+
+        top_tracks = tracks[:top_count]
+        remaining_tracks = tracks[top_count:]
+
+        # Randomly sample from remaining tracks
+        if remaining_tracks and remaining_count > 0:
+            rng = secrets.SystemRandom()
+            random_tracks = rng.sample(
+                remaining_tracks, min(remaining_count, len(remaining_tracks))
+            )
+            return top_tracks + random_tracks
+        else:
+            return top_tracks[:max_count]
+
     def _filter_and_deduplicate_results(  # noqa: C901
         self,
         results: List[Dict[str, Any]],
         min_similarity: float,
         max_tracks: int,
         is_artist_specific: bool,
+        max_artist_ratio: float = 0.3,
     ) -> List[Dict[str, Any]]:
         """Filter results by similarity and remove duplicates using multiple strategies"""
         # Filter by similarity threshold
@@ -530,10 +587,10 @@ class LocalPlaylistGenerator:
         else:
             # For general queries, maintain diversity
             max_tracks_per_artist = max(
-                1, min(5, max_tracks // 3)
-            )  # 1-5 tracks per artist, more lenient
+                2, int(max_tracks * max_artist_ratio)
+            )  # e.g., 70% of playlist per artist, minimum 2
             logger.info(
-                f"🎵 General query, allowing up to {max_tracks_per_artist} tracks per artist"
+                f"🎵 General query, allowing up to {max_tracks_per_artist} tracks per artist (ratio {max_artist_ratio})"
             )
 
             diverse_tracks = self._enforce_artist_diversity(
@@ -547,8 +604,9 @@ class LocalPlaylistGenerator:
         # After artist diversity, use weighted random sampling for variance
         # Ensure we return exactly max_tracks
         top_k = max_tracks * 10
-        diverse_tracks.sort(key=lambda t: t.get("similarity_score", 0), reverse=True)
-        candidates = diverse_tracks[:top_k]
+
+        # Use shared sampling logic
+        candidates = self._sample_with_randomization(diverse_tracks, top_k)
 
         if len(candidates) < max_tracks:
             # If we don't have enough candidates, return what we have
@@ -590,12 +648,23 @@ class LocalPlaylistGenerator:
                 selected.add(pick_id)
             attempts += 1
 
-        # If weighted sampling didn't give us enough tracks, fill with highest-similarity tracks
+        # If weighted sampling didn't give us enough tracks, fill with randomized remaining tracks
         if len(final_tracks) < max_tracks:
             logger.info(
-                f"🎲 Weighted sampling gave {len(final_tracks)} tracks, filling with top similarity tracks"
+                f"🎲 Weighted sampling gave {len(final_tracks)} tracks, filling with randomized remaining tracks"
             )
-            for t in candidates:
+            # Get remaining tracks that weren't selected
+            remaining_candidates = [
+                t
+                for t in candidates
+                if (t.get("id") or f"{t.get('name', '')}-{t.get('artist', '')}")
+                not in selected
+            ]
+
+            # Shuffle remaining candidates for variety
+            rng.shuffle(remaining_candidates)
+
+            for t in remaining_candidates:
                 t_id = t.get("id") or f"{t.get('name', '')}-{t.get('artist', '')}"
                 if t_id not in selected:
                     final_tracks.append(t)
@@ -1017,9 +1086,18 @@ class LocalPlaylistGenerator:
                 # Artist is within limit, keep all tracks
                 diverse_tracks.extend(artist_tracks)
 
-        # Sort by similarity score and limit to max_tracks
-        diverse_tracks.sort(key=lambda t: t.get("similarity_score", 0), reverse=True)
-        final_tracks = diverse_tracks[:max_tracks]
+        # Instead of always taking top tracks by similarity, add randomization
+        if len(diverse_tracks) > max_tracks:
+            # Sort by similarity first
+            diverse_tracks.sort(
+                key=lambda t: t.get("similarity_score", 0), reverse=True
+            )
+
+            # Use shared sampling logic
+            final_tracks = self._sample_with_randomization(diverse_tracks, max_tracks)
+        else:
+            # If we have fewer tracks than max_tracks, use all of them
+            final_tracks = diverse_tracks
 
         # Distribute artists throughout the playlist to avoid grouping
         distributed_tracks = self._distribute_artists(final_tracks, max_tracks)
