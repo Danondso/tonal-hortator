@@ -77,7 +77,7 @@ VALUES (?, ?, ?)
 """
 
 INSERT_METADATA_MAPPING = """
-INSERT INTO metadata_mappings 
+INSERT INTO metadata_mappings
 (source_format, source_tag, normalized_tag, data_type, description)
 VALUES (?, ?, ?, ?, ?)
 """
@@ -99,7 +99,7 @@ GET_EMBEDDING_STATS = {
 
 # Utility Queries
 CHECK_TABLE_EXISTS = """
-SELECT name FROM sqlite_master 
+SELECT name FROM sqlite_master
 WHERE type='table' AND name=?
 """
 

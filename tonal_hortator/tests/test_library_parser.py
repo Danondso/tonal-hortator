@@ -3,15 +3,12 @@
 Unit tests for the LibraryParser class.
 """
 
-import os
 import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
 from typing import Any, Dict
 from unittest.mock import Mock, patch
-
-import pytest
 
 from tonal_hortator.utils.library_parser import LibraryParser
 

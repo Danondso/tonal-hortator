@@ -5,8 +5,6 @@ This module contains database schema definitions, column specifications,
 and schema validation functions.
 """
 
-from typing import List, Tuple
-
 # Tracks table schema definition
 TRACKS_TABLE_SCHEMA = [
     ("id", "INTEGER PRIMARY KEY"),

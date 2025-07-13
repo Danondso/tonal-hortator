@@ -4,6 +4,17 @@
 
 A Python package that generates music playlists using semantic search with local AI embeddings, featuring seamless Apple Music integration and robust deduplication.
 
+---
+
+## 🚀 New CLI Experience!
+
+- **Short command:** Use `th` for all commands (or `python -m tonal_hortator.cli.main`)
+- **Beautiful output:** Powered by [Typer](https://typer.tiangolo.com/) and [Rich](https://rich.readthedocs.io/)
+- **Interactive prompts, colors, and tables**
+- **Fun, memorable commands**
+
+---
+
 ## 🚀 Features
 
 - **Local AI Embeddings**: Uses Ollama with `nomic-embed-text` model for offline operation
@@ -48,7 +59,7 @@ A Python package that generates music playlists using semantic search with local
    ollama pull nomic-embed-text
    ```
 
-5. **Install the package** (optional):
+5. **Install the package** (optional, enables the `th` command):
    ```bash
    pip install -e .
    ```
@@ -69,7 +80,7 @@ Embed all tracks using the local Ollama model:
 
 ```bash
 # Using the CLI
-tonal-hortator embed
+th embed
 
 # Or using the module directly
 python -m tonal_hortator.cli.main embed
@@ -81,13 +92,13 @@ Create playlists using natural language queries:
 
 ```bash
 # Interactive mode
-tonal-hortator interactive
+th interactive
 
 # Generate specific playlist
-tonal-hortator generate "upbeat rock songs" --max-tracks 20 --auto-open
+th generate "upbeat rock songs" --tracks 20 --open
 
 # Generate with custom parameters
-tonal-hortator generate "jazz for studying" --max-tracks 15 --min-similarity 0.4
+th generate "jazz for studying" --tracks 15 --similarity 0.4
 ```
 
 ## 📖 Usage Examples
@@ -96,24 +107,24 @@ tonal-hortator generate "jazz for studying" --max-tracks 15 --min-similarity 0.4
 
 ```bash
 # Generate a playlist and open in Apple Music
-tonal-hortator generate "moody electronic music" --auto-open
+th generate "moody electronic music" --open
 
 # Generate playlist with custom parameters
-tonal-hortator generate "classic rock from the 70s" --max-tracks 30 --min-similarity 0.5
+th generate "classic rock from the 70s" --tracks 30 --similarity 0.5
 
 # Generate with search breadth control
-tonal-hortator generate "jazz for studying" --search-breadth-factor 20 --max-tracks 15
+th generate "jazz for studying" --breadth 20 --tracks 15
 
 # Start interactive mode
-tonal-hortator interactive
+th interactive
 
 # Embed tracks with custom batch size
-tonal-hortator embed --batch-size 100
+th embed --batch 100
 ```
 
 ### Search Breadth Factor
 
-The `--search-breadth-factor` parameter controls how many candidate tracks are considered during playlist generation. This affects both performance and variety:
+The `--breadth` parameter controls how many candidate tracks are considered during playlist generation. This affects both performance and variety:
 
 - **Higher values** (15-25): More variety, more tracks to choose from
 - **Lower values** (5-10): Faster generation, less variety

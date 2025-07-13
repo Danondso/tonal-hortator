@@ -90,7 +90,7 @@ class TestMetadataReader(unittest.TestCase):
             conn.execute(
                 """
                 INSERT INTO tracks (id, name, artist, album, location)
-                VALUES 
+                VALUES
                     (1, 'Test Song 1', 'Test Artist 1', 'Test Album 1', '/path/to/test1.mp3'),
                     (2, 'Test Song 2', 'Test Artist 2', 'Test Album 2', '/path/to/test2.flac'),
                     (3, 'Test Song 3', 'Test Artist 3', 'Test Album 3', '/path/to/test3.m4a')
@@ -572,14 +572,14 @@ class TestMetadataReader(unittest.TestCase):
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 """
-                UPDATE tracks 
+                UPDATE tracks
                 SET bpm = 120.5, musical_key = 'C', key_scale = 'major', mood = 'happy'
                 WHERE id = 1
             """
             )
             conn.execute(
                 """
-                UPDATE tracks 
+                UPDATE tracks
                 SET bpm = 140.0, musical_key = 'G', key_scale = 'minor'
                 WHERE id = 2
             """

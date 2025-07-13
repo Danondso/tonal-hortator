@@ -127,7 +127,7 @@ class TestLocalTrackEmbedder(unittest.TestCase):
                 cursor = conn.cursor()
                 cursor.execute(
                     """
-                    SELECT name FROM sqlite_master 
+                    SELECT name FROM sqlite_master
                     WHERE type='table' AND name='track_embeddings'
                 """
                 )

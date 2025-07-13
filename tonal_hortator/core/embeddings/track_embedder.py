@@ -118,8 +118,6 @@ class LocalTrackEmbedder:
     ) -> int:
         """Process a single batch of tracks (for parallel execution)"""
         try:
-            batch_start = time.time()
-
             # Create a new database connection for this thread using context manager
             with sqlite3.connect(self.db_path) as thread_conn:
                 # Enable WAL mode for better concurrent performance
@@ -142,7 +140,6 @@ class LocalTrackEmbedder:
                 )
                 # Progress updates are now handled in the embedding service
 
-            batch_time = time.time() - batch_start
             # Debug logging removed - progress bar now shows this information
 
             return batch_embedded

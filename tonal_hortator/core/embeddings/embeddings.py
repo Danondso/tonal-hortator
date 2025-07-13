@@ -4,7 +4,6 @@ Local embedding service using Ollama
 Provides embeddings for music tracks without requiring internet or HuggingFace
 """
 
-import time
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -134,10 +133,8 @@ class OllamaEmbeddingService:
             return np.zeros(self._get_embedding_dimension(), dtype=np.float32)
 
         try:
-            start_time = time.time()
             result = self.client.embeddings(model=self.model_name, prompt=text)
             embedding = np.array(result["embedding"], dtype=np.float32)
-            embedding_time = time.time() - start_time
 
             # Debug logging removed - progress bar shows timing information
             return embedding
@@ -205,11 +202,9 @@ class OllamaEmbeddingService:
                 len(texts), "Generating embeddings", batch_size
             )
             spinner.start()
-        start_time = time.time()
 
         for i in range(0, len(texts), batch_size):
             batch_texts = texts[i : i + batch_size]
-            batch_start = time.time()
 
             try:
                 batch_embeddings = self._process_batch(batch_texts, spinner)
@@ -232,7 +227,6 @@ class OllamaEmbeddingService:
 
         if spinner:
             spinner.stop()
-        total_time = time.time() - start_time
         return all_embeddings
 
     def get_embeddings_batch_with_progress(
@@ -260,7 +254,6 @@ class OllamaEmbeddingService:
             return []
 
         all_embeddings = []
-        start_time = time.time()
 
         for i in range(0, len(texts), batch_size):
             batch_texts = texts[i : i + batch_size]
