@@ -470,7 +470,7 @@ class LocalPlaylistGenerator:
         Args:
             tracks: List of tracks to sample from
             max_count: Maximum number of tracks to return
-            top_ratio: Ratio of top similarity tracks (default 0.3 = 30%)
+            top_ratio: Ratio of top similarity tracks (default 0.5 = 50%)
 
         Returns:
             List of sampled tracks
