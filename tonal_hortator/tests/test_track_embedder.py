@@ -226,14 +226,18 @@ class TestLocalTrackEmbedder(unittest.TestCase):
     @patch("tonal_hortator.core.embeddings.track_embedder.sqlite3.connect")
     def test_process_batch_success(self, mock_connect: Mock) -> None:
         """Test successful batch processing"""
-        # Mock database connection
+        # Mock database connection and cursor
         mock_conn = Mock()
-        mock_connect.return_value.__enter__.return_value = mock_conn
+        mock_cursor = Mock()
+        mock_conn.cursor.return_value = mock_cursor
         mock_conn.execute.return_value = None
+        mock_conn.commit.return_value = None
+        mock_cursor.executemany.return_value = None
+        mock_connect.return_value.__enter__.return_value = mock_conn
 
         # Mock embedding service
         mock_service = Mock()
-        mock_service.get_embeddings_batch.return_value = [
+        mock_service.get_embeddings_batch_with_progress.return_value = [
             np.array([0.1, 0.2, 0.3], dtype=np.float32),
             np.array([0.4, 0.5, 0.6], dtype=np.float32),
         ]
@@ -248,10 +252,12 @@ class TestLocalTrackEmbedder(unittest.TestCase):
                 {"id": 2, "name": "Test Song 2", "artist": "Test Artist 2"},
             ]
 
-            result = embedder._process_batch(batch_tracks, 1, 2)
+            result = embedder._process_batch(batch_tracks, None)
 
             self.assertEqual(result, 2)
-            mock_service.get_embeddings_batch.assert_called_once()
+            mock_service.get_embeddings_batch_with_progress.assert_called_once()
+            mock_cursor.executemany.assert_called_once()
+            mock_conn.commit.assert_called_once()
 
     def test_process_batch_error(self) -> None:
         """Test batch processing with error"""
@@ -265,7 +271,7 @@ class TestLocalTrackEmbedder(unittest.TestCase):
 
             batch_tracks = [{"id": 1, "name": "Test Song 1"}]
 
-            result = embedder._process_batch(batch_tracks, 1, 1)
+            result = embedder._process_batch(batch_tracks, None)
 
             self.assertEqual(result, 0)
 
