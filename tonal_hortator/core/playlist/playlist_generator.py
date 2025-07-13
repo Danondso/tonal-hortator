@@ -462,7 +462,7 @@ class LocalPlaylistGenerator:
         return True
 
     def _sample_with_randomization(
-        self, tracks: List[Dict[str, Any]], max_count: int, top_ratio: float = 0.3
+        self, tracks: List[Dict[str, Any]], max_count: int, top_ratio: float = 0.5
     ) -> List[Dict[str, Any]]:
         """
         Sample tracks with a mix of top similarity and random selection
