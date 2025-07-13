@@ -964,7 +964,7 @@ class LocalPlaylistGenerator:
         if len(playlist_name.split()) <= 1:
             playlist_name = f"{playlist_name} Mix"
 
-        return playlist_name
+        return playlist_name.strip()
 
     def print_playlist_summary(self, tracks: List[Dict[str, Any]], query: str) -> None:
         """Print a summary of the generated playlist"""
