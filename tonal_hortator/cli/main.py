@@ -16,6 +16,7 @@ from rich.table import Table
 from rich.text import Text
 
 from tonal_hortator.core.embeddings.track_embedder import LocalTrackEmbedder
+from tonal_hortator.core.feedback import FeedbackManager
 from tonal_hortator.core.playlist.playlist_generator import LocalPlaylistGenerator
 from tonal_hortator.utils.apple_music import open_in_apple_music
 from tonal_hortator.utils.library_parser import LibraryParser
@@ -220,6 +221,9 @@ def _generate_single_playlist(
     filepath = generator.save_playlist_m3u(tracks, query)
     console.print(f"✅ Playlist saved: {filepath}")
 
+    # Collect user feedback
+    _collect_playlist_feedback(generator.feedback_manager, query, tracks)
+
     # Open in Apple Music
     if auto_open or Confirm.ask("🎵 Open in Apple Music?"):
         open_in_apple_music(filepath)
@@ -271,9 +275,224 @@ def status() -> None:
     try:
         generator = LocalPlaylistGenerator()
         show_status(generator)
+
     except Exception as e:
         console.print(f"[red]❌ Error: {e}[/red]")
         raise typer.Exit(1)
+
+
+@app.command()
+def feedback() -> None:
+    """📝 Manage feedback and learning"""
+    show_banner()
+
+    try:
+        feedback_manager = FeedbackManager()
+
+        while True:
+            console.print("\n[bold cyan]📝 Feedback Management[/bold cyan]")
+            console.print("1. View feedback stats")
+            console.print("2. View user preferences")
+            console.print("3. Set preference")
+            console.print("4. View track ratings")
+            console.print("5. Rate a track")
+            console.print("6. View learning data")
+            console.print("7. Show recommended settings")
+            console.print("8. Back to main menu")
+
+            choice = Prompt.ask(
+                "Choose an option", choices=["1", "2", "3", "4", "5", "6", "7", "8"]
+            )
+
+            if choice == "1":
+                _show_feedback_stats(feedback_manager)
+            elif choice == "2":
+                _show_user_preferences(feedback_manager)
+            elif choice == "3":
+                _set_preference(feedback_manager)
+            elif choice == "4":
+                _show_track_ratings(feedback_manager)
+            elif choice == "5":
+                _rate_track(feedback_manager)
+            elif choice == "6":
+                _show_learning_data(feedback_manager)
+            elif choice == "7":
+                _show_recommended_settings(feedback_manager)
+            elif choice == "8":
+                break
+
+    except Exception as e:
+        console.print(f"[red]❌ Error: {e}[/red]")
+        raise typer.Exit(1)
+
+
+def _show_feedback_stats(feedback_manager: FeedbackManager) -> None:
+    """Show feedback statistics"""
+    stats = feedback_manager.get_feedback_stats()
+
+    if not stats:
+        console.print("[yellow]No feedback data available[/yellow]")
+        return
+
+    table = Table(
+        title="📊 Feedback Statistics", show_header=True, header_style="bold magenta"
+    )
+    table.add_column("Metric", style="cyan")
+    table.add_column("Value", style="green")
+
+    table.add_row("Total Feedback", str(stats.get("total_feedback", 0)))
+
+    avg_rating = stats.get("average_rating")
+    if avg_rating is not None:
+        table.add_row("Average Rating", f"{avg_rating:.1f}")
+    else:
+        table.add_row("Average Rating", "N/A")
+
+    if "feedback_by_type" in stats:
+        for query_type, count in stats["feedback_by_type"].items():
+            table.add_row(f"Feedback ({query_type})", str(count))
+
+    console.print(table)
+
+
+def _show_user_preferences(feedback_manager: FeedbackManager) -> None:
+    """Show user preferences"""
+    preferences = feedback_manager.get_user_preferences()
+
+    if not preferences:
+        console.print("[yellow]No user preferences set[/yellow]")
+        return
+
+    table = Table(
+        title="⚙️ User Preferences", show_header=True, header_style="bold magenta"
+    )
+    table.add_column("Key", style="cyan")
+    table.add_column("Value", style="green")
+    table.add_column("Type", style="yellow")
+    table.add_column("Description", style="blue")
+
+    for key, value, pref_type, description in preferences:
+        table.add_row(key, str(value), pref_type, description or "")
+
+    console.print(table)
+
+
+def _set_preference(feedback_manager: FeedbackManager) -> None:
+    """Set a user preference"""
+    key = Prompt.ask("Preference key")
+    value = Prompt.ask("Preference value")
+    pref_type = Prompt.ask(
+        "Preference type", choices=["string", "integer", "float", "boolean", "json"]
+    )
+    description = Prompt.ask("Description (optional)")
+
+    # Convert value based on type
+    if pref_type == "integer":
+        value = str(int(value))
+    elif pref_type == "float":
+        value = str(float(value))
+    elif pref_type == "boolean":
+        value = str(value.lower() == "true")
+    elif pref_type == "json":
+        import json
+
+        value = json.loads(value)
+
+    if feedback_manager.set_preference(key, value, pref_type, description):
+        console.print(f"[green]✅ Preference '{key}' set successfully[/green]")
+    else:
+        console.print("[red]❌ Failed to set preference[/red]")
+
+
+def _show_track_ratings(feedback_manager: FeedbackManager) -> None:
+    """Show track ratings"""
+    ratings = feedback_manager.get_track_ratings()
+
+    if not ratings:
+        console.print("[yellow]No track ratings available[/yellow]")
+        return
+
+    table = Table(
+        title="⭐ Track Ratings", show_header=True, header_style="bold magenta"
+    )
+    table.add_column("Rating", style="yellow")
+    table.add_column("Context", style="cyan")
+    table.add_column("Track", style="green")
+    table.add_column("Artist", style="blue")
+
+    for rating, context, track_name, artist in ratings:
+        stars = "⭐" * rating
+        table.add_row(stars, context or "", track_name, artist)
+
+    console.print(table)
+
+
+def _rate_track(feedback_manager: FeedbackManager) -> None:
+    """Rate a track"""
+    # This would need track lookup functionality
+    console.print(
+        "[yellow]Track rating functionality requires track lookup - coming soon![/yellow]"
+    )
+
+
+def _show_learning_data(feedback_manager: FeedbackManager) -> None:
+    """Show learning data"""
+    learning_data = feedback_manager.get_learning_data()
+
+    if not learning_data:
+        console.print("[yellow]No learning data available[/yellow]")
+        return
+
+    table = Table(
+        title="🧠 Query Learning Data", show_header=True, header_style="bold magenta"
+    )
+    table.add_column("Query", style="cyan")
+    table.add_column("LLM Result", style="green")
+    table.add_column("User Correction", style="yellow")
+    table.add_column("Score", style="blue")
+
+    for query, llm_result, user_correction, feedback_score in learning_data:
+        llm_str = f"{llm_result.get('query_type', 'unknown')}"
+        correction_str = str(user_correction) if user_correction else "None"
+        score_str = f"{feedback_score:.2f}" if feedback_score else "N/A"
+
+        table.add_row(
+            query[:30] + "...", llm_str, correction_str[:20] + "...", score_str
+        )
+
+    console.print(table)
+
+
+def _show_recommended_settings(feedback_manager: FeedbackManager) -> None:
+    """Show recommended settings based on user feedback"""
+    query_types = ["artist_specific", "similarity", "general"]
+
+    table = Table(
+        title="🎯 Recommended Settings", show_header=True, header_style="bold magenta"
+    )
+    table.add_column("Query Type", style="cyan")
+    table.add_column("Similarity Threshold", style="green")
+    table.add_column("Search Breadth", style="yellow")
+    table.add_column("Avg Rating", style="blue")
+    table.add_column("Feedback Count", style="red")
+
+    for query_type in query_types:
+        settings = feedback_manager.get_recommended_settings(query_type)
+
+        if settings:
+            table.add_row(
+                query_type.replace("_", " ").title(),
+                str(settings.get("similarity_threshold", "N/A")),
+                str(settings.get("search_breadth", "N/A")),
+                str(settings.get("average_rating", "N/A")),
+                str(settings.get("feedback_count", "N/A")),
+            )
+        else:
+            table.add_row(
+                query_type.replace("_", " ").title(), "N/A", "N/A", "N/A", "0"
+            )
+
+    console.print(table)
 
 
 @app.command()
@@ -355,6 +574,50 @@ def import_library(xml_path: str, db_path: str = "music_library.db") -> bool:
     except Exception as e:
         console.print(f"[red]❌ Import error: {e}[/red]")
         return False
+
+
+def _collect_playlist_feedback(
+    feedback_manager: FeedbackManager, query: str, tracks: list
+) -> None:
+    """Collect user feedback for a generated playlist."""
+    if not Confirm.ask("📝 Would you like to provide feedback for this playlist?"):
+        return
+
+    console.print(f"\n[bold cyan]🎵 Playlist Feedback for: {query}[/bold cyan]")
+
+    # Overall playlist rating
+    rating = Prompt.ask(
+        "Rate this playlist (1-5 stars)", choices=["1", "2", "3", "4", "5"]
+    )
+    comments = Prompt.ask("Comments (optional)")
+
+    # Record playlist feedback
+    feedback_manager.record_playlist_feedback(
+        query=query,
+        query_type="general",  # This would need to be passed from the generator
+        parsed_data={},  # This would need to be passed from the generator
+        generated_tracks=tracks,
+        user_rating=int(rating),
+        user_comments=comments,
+        playlist_length=len(tracks),
+    )
+
+    console.print(f"[green]✅ Playlist feedback recorded (Rating: {rating})[/green]")
+
+    # Individual track ratings
+    if Confirm.ask("Would you like to rate individual tracks?"):
+        for i, track in enumerate(tracks):
+            console.print(f"\n{i+1}. {track['name']} - {track['artist']}")
+            if Confirm.ask("Rate this track?"):
+                track_rating = Prompt.ask(
+                    "Rating (1-5 stars)", choices=["1", "2", "3", "4", "5"]
+                )
+                feedback_manager.record_track_rating(
+                    track_id=track.get("id", 0),
+                    rating=int(track_rating),
+                    context=f"Playlist: {query}",
+                )
+                console.print("[green]✅ Track rating recorded[/green]")
 
 
 def main() -> None:

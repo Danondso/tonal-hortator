@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional
 
 from tonal_hortator.core.embeddings.embeddings import OllamaEmbeddingService
 from tonal_hortator.core.embeddings.track_embedder import LocalTrackEmbedder
+from tonal_hortator.core.feedback import FeedbackManager
 
 # Configure logging
 logging.basicConfig(
@@ -42,43 +43,100 @@ class LLMQueryParser:
         return self._extract_json(response)
 
     def _build_prompt(self, query: str) -> str:
-        return f"""You are a playlist assistant. Extract the user's intent from the following query and output it as a JSON object.
+        return f"""You are a music playlist assistant. Analyze the user's query and determine the query type and intent.
 
-Preserve full genre names, including compound genres like "bedroom pop", "progressive metal", "lo-fi hip hop", etc. Do not shorten them to a single word. If the user mentions a specific number of tracks, include it in `count`. If they refer to artists or moods, extract those as well. Return only valid JSON.
+IMPORTANT: Distinguish between these query types:
+
+1. ARTIST_SPECIFIC: User wants tracks by a specific artist
+    - "oso oso" → artist: "oso oso", query_type: "artist_specific"
+    - "The Beatles" → artist: "The Beatles", query_type: "artist_specific"
+    - "Taylor Swift songs" → artist: "Taylor Swift", query_type: "artist_specific"
+
+2. SIMILARITY: User wants artists/tracks similar to a reference artist
+    - "artists similar to oso oso" → artist: null, query_type: "similarity", reference_artist: "oso oso"
+    - "like oso oso" → artist: null, query_type: "similarity", reference_artist: "oso oso"
+    - "sounds like The Beatles" → artist: null, query_type: "similarity", reference_artist: "The Beatles"
+    - "recommendations for Taylor Swift" → artist: null, query_type: "similarity", reference_artist: "Taylor Swift"
+
+3. GENERAL: User wants music by genre, mood, or other criteria
+    - "rock music" → artist: null, query_type: "general", genres: ["rock"]
+    - "upbeat rock" → artist: null, query_type: "general", genres: ["rock"], mood: "upbeat"
+    - "jazz for studying" → artist: null, query_type: "general", genres: ["jazz"], mood: "studying"
+    - "party music" → artist: null, query_type: "general", mood: "party"
+    - "falling asleep in a trailer by the river" → artist: null, query_type: "general", mood: "melancholy", genres: ["folk", "country"]
+
+CRITICAL RULES:
+- For SIMILARITY queries, NEVER set artist to the reference artist
+- For SIMILARITY queries, set artist to null and use reference_artist field
+- For GENERAL queries, NEVER set artist - only set genres and mood
+- Preserve full artist names, don't shorten them
+- For genre detection, preserve compound genres like "bedroom pop", "progressive metal"
+- Context clues like "falling asleep", "trailer", "river" suggest mood/genre, not artist names
+- Common music terms like "rock music", "jazz", "hip hop" are genres, not artists
 
 Query: "{query}"
 
-Output fields:
-- count: (int or null)
-- artist: (string or null)
-- genres: (list of strings)
-- mood: (string or null)
-- unplayed: (true/false)
-- vague: (true/false)
+Output JSON with these fields:
+- query_type: "artist_specific" | "similarity" | "general"
+- artist: (string or null) - ONLY for artist_specific queries
+- reference_artist: (string or null) - ONLY for similarity queries
+- genres: (list of strings) - detected genres
+- mood: (string or null) - detected mood
+- count: (int or null) - requested track count
+- unplayed: (boolean) - whether user wants unplayed tracks
+- vague: (boolean) - whether query is vague/general
 
 Examples:
-Query: "5 bedroom pop songs"
-Output: {{
-  "count": 5,
-  "artist": null,
-  "genres": ["bedroom pop"],
+
+Query: "oso oso"
+{{
+  "query_type": "artist_specific",
+  "artist": "oso oso",
+  "reference_artist": null,
+  "genres": [],
   "mood": null,
-  "unplayed": false,
-  "vague": false
-}}
-
-Query: "jazz and rain on a stormy evening"
-Output: {{
   "count": null,
-  "artist": null,
-  "genres": ["jazz"],
-  "mood": "rain on a stormy evening",
   "unplayed": false,
   "vague": false
 }}
 
-Now respond for the current query.
-"""
+Query: "artists similar to oso oso"
+{{
+  "query_type": "similarity",
+  "artist": null,
+  "reference_artist": "oso oso",
+  "genres": ["indie rock", "emo"],
+  "mood": null,
+  "count": null,
+  "unplayed": false,
+  "vague": false
+}}
+
+Query: "rock music"
+{{
+  "query_type": "general",
+  "artist": null,
+  "reference_artist": null,
+  "genres": ["rock"],
+  "mood": null,
+  "count": null,
+  "unplayed": false,
+  "vague": true
+}}
+
+Query: "falling asleep in a trailer by the river"
+{{
+  "query_type": "general",
+  "artist": null,
+  "reference_artist": null,
+  "genres": ["folk", "country"],
+  "mood": "melancholy",
+  "count": null,
+  "unplayed": false,
+  "vague": true
+}}
+
+Now analyze the current query and respond with valid JSON:"""
 
     def _extract_json(self, response: str) -> dict[Any, Any]:
         import json
@@ -111,6 +169,7 @@ class LocalPlaylistGenerator:
             db_path, embedding_service=self.embedding_service
         )
         self.query_parser = LLMQueryParser()
+        self.feedback_manager = FeedbackManager()
 
     def _determine_max_tracks(
         self, parsed_count: Optional[int], max_tracks: Optional[int]
@@ -156,20 +215,60 @@ class LocalPlaylistGenerator:
             logger.info(f"🎵 Generating playlist for query: '{query}'")
             start_time = time.time()
 
-            # Extract intent from query using LLM
-            parsed = self.query_parser.parse(query)
+            # Check if query exactly matches an artist in the database before LLM parsing
+            query_lower = query.lower().strip()
+            similarity_phrases = [
+                "artists similar to",
+                "similar to",
+                "like",
+                "sounds like",
+                "recommendations for",
+                "recommendations like",
+                "similar artists to",
+            ]
+
+            # Check if query contains any similarity phrase
+            is_similarity_query = any(
+                phrase in query_lower for phrase in similarity_phrases
+            )
+
+            if not is_similarity_query and self._check_artist_in_database(query_lower):
+                # Query exactly matches an artist - treat as artist-specific without LLM parsing
+                artist = query_lower.title()
+                is_artist_specific = True
+                genres = []  # No genres for artist-specific queries
+                is_vague = False
+                logger.info(
+                    f"🎤 Query '{query_lower}' exactly matches artist '{artist}'. Skipping LLM parsing."
+                )
+            else:
+                # Extract intent from query using LLM
+                parsed = self.query_parser.parse(query)
+                parsed_artist: Optional[str] = parsed.get("artist")
+                genres = parsed.get("genres", [])
+                is_vague = parsed.get("vague", False)
+                logger.info(f"🧠 Parsed intent: {parsed}")
 
             # Determine final max_tracks value
-            parsed_count = parsed.get("count")
+            parsed_count = parsed.get("count") if "parsed" in locals() else None
             max_tracks = self._determine_max_tracks(parsed_count, max_tracks)
 
-            artist = parsed.get("artist")
-            genres = parsed.get("genres", [])
-            # Note: mood and unplayed are parsed but not currently used in filtering
-            is_vague = parsed.get("vague", False)
-
-            logger.info(f"🧠 Parsed intent: {parsed}")
             logger.info(f"🎯 Using max_tracks={max_tracks}")
+
+            # Use the new query_type field from improved LLM parser
+            if "parsed" in locals():
+                query_type = parsed.get("query_type", "general")
+                reference_artist = parsed.get("reference_artist")
+                is_artist_specific = query_type == "artist_specific"
+                is_similarity_query = query_type == "similarity"
+                # Use parsed artist for LLM results
+                artist = parsed_artist or ""
+            else:
+                # Fallback for direct database matches
+                query_type = "artist_specific"
+                reference_artist = None
+                is_artist_specific = True
+                is_similarity_query = False
 
             # 2. Get embeddings from database
             embeddings, track_data = self.track_embedder.get_all_embeddings()
@@ -191,29 +290,52 @@ class LocalPlaylistGenerator:
 
             # Perform similarity search
             start_time = time.time()
-            results = self.embedding_service.similarity_search(
-                query,
-                embeddings,
-                track_data,
-                top_k=max_tracks * search_breadth_factor,
-            )
+            # For artist-specific queries, get all tracks by that artist directly from database
+            if is_artist_specific:
+                logger.info(
+                    f"🎤 Artist-specific query detected. Getting all tracks by '{artist}' from database."
+                )
+                results = self._get_tracks_by_artist(artist)
+            else:
+                # For general queries, use similarity search
+                results = self.embedding_service.similarity_search(
+                    query,
+                    embeddings,
+                    track_data,
+                    top_k=max_tracks * search_breadth_factor,
+                )
+
+                # For similarity queries, exclude the reference artist from results
+                if is_similarity_query and reference_artist:
+                    logger.info(
+                        f"🔄 Similarity query detected. Excluding reference artist '{reference_artist}' from results."
+                    )
+                    original_count = len(results)
+                    results = [
+                        track
+                        for track in results
+                        if (track.get("artist") or "").strip().lower()
+                        != reference_artist.lower()
+                    ]
+                    filtered_count = len(results)
+                    logger.info(
+                        f"🔄 Filtered out {original_count - filtered_count} tracks by reference artist '{reference_artist}'"
+                    )
+
             search_time = time.time() - start_time
             logger.info(
                 f"🔍 Similarity search took {search_time:.2f}s for {len(results)} results"
             )
 
-            # 3. Filter by artist if detected
-            is_artist_specific = bool(artist)
-            if artist:
-                logger.info(f"🎤 Found artist in query: '{artist}'. Filtering results.")
-                results = [
-                    track
-                    for track in results
-                    if artist.lower() in track.get("artist", "").lower()
-                ]
-
             # 4. Apply genre filtering and boosting
-            results = self._apply_genre_filtering(genres, results)
+            if is_artist_specific:
+                # For artist-specific queries, skip genre filtering to get all tracks by the artist
+                logger.info(
+                    "🎤 Artist-specific query detected, skipping genre filtering"
+                )
+            else:
+                # For general queries, apply genre filtering and boosting
+                results = self._apply_genre_filtering(genres, results)
 
             # 5. Filter by similarity threshold and deduplicate
             filtered_results = self._filter_and_deduplicate_results(
@@ -232,6 +354,18 @@ class LocalPlaylistGenerator:
             generation_time = time.time() - start_time
             logger.info(
                 f"✅ Generated playlist with {len(filtered_results)} tracks in {generation_time:.2f}s"
+            )
+
+            # Record feedback data for learning
+            self._record_playlist_generation_feedback(
+                query=query,
+                query_type=query_type,
+                parsed_data=parsed if "parsed" in locals() else {},
+                generated_tracks=filtered_results,
+                playlist_length=len(filtered_results),
+                requested_length=max_tracks,
+                similarity_threshold=min_similarity,
+                search_breadth=search_breadth_factor,
             )
 
             return filtered_results
@@ -366,6 +500,7 @@ class LocalPlaylistGenerator:
             r"by\s+([a-zA-Z\s]+?)(?:\s+(?:for|with|and|songs|music|tracks)|$)",  # "songs by [artist]" - capture full name
             r"^([a-zA-Z\s]+?)\s+songs(?:\s|$)",  # "[artist] songs" - start of query only
             r"([a-zA-Z\s]+?)\s+radio(?:\s|$)",  # "[artist] radio"
+            r"^([a-zA-Z\s]+)$",  # Direct artist name (whole query, greedy)
         ]
 
         query_lower = query.lower()
@@ -419,6 +554,7 @@ class LocalPlaylistGenerator:
             "vintage",
             "contemporary",
             "bedroom-pop",
+            "music",  # Add "music" to common words
         }
 
         for pattern in patterns:
@@ -442,9 +578,9 @@ class LocalPlaylistGenerator:
 
         # Check if it's just common words
         artist_words = artist.lower().split()
-        if len(artist_words) <= 2 and all(
-            word in common_words for word in artist_words
-        ):
+
+        # If all words are common words, it's not an artist name
+        if all(word in common_words for word in artist_words):
             return False
 
         # Check if it contains common descriptive words that aren't artist names
@@ -568,7 +704,12 @@ class LocalPlaylistGenerator:
         )
 
         # Strategy 4: Smart deduplication for similar titles with slight variations
-        smart_deduplicated = self._smart_name_deduplication(final_deduplicated)
+        if is_artist_specific:
+            # For artist-specific queries, skip smart name deduplication
+            smart_deduplicated = final_deduplicated
+        else:
+            # For general queries, apply smart name deduplication
+            smart_deduplicated = self._smart_name_deduplication(final_deduplicated)
 
         logger.info(
             f"🧠 Smart name deduplication: {len(final_deduplicated)} → {len(smart_deduplicated)} tracks"
@@ -1311,6 +1452,71 @@ class LocalPlaylistGenerator:
             distributed.extend(remaining_tracks[:space_left])
 
         return distributed
+
+    def _get_tracks_by_artist(self, artist_name: str) -> List[Dict[str, Any]]:
+        """
+        Get all tracks from the database for a specific artist.
+        This bypasses the embedding search and uses direct database queries.
+        """
+        logger.info(f"🔍 Querying database for all tracks by artist: {artist_name}")
+        return self.track_embedder.get_all_tracks_by_artist(artist_name)
+
+    def _check_artist_in_database(self, query: str) -> bool:
+        """
+        Check if a query string exactly matches an artist in the database.
+        This is a fallback for artist-specific queries that don't have a direct artist name.
+        """
+        try:
+            cursor = self.track_embedder.conn.cursor()
+
+            # Check if the query exactly matches any artist in the database (case-insensitive)
+            query_sql = """
+                SELECT COUNT(*)
+                FROM tracks
+                WHERE LOWER(artist) = LOWER(?)
+            """
+
+            cursor.execute(query_sql, (query,))
+            count = cursor.fetchone()[0]
+
+            return bool(count > 0)
+
+        except Exception as e:
+            logger.error(f"❌ Error checking artist in database: {e}")
+            return False
+
+    def _record_playlist_generation_feedback(
+        self,
+        query: str,
+        query_type: str,
+        parsed_data: Dict[str, Any],
+        generated_tracks: List[Dict[str, Any]],
+        playlist_length: int,
+        requested_length: int,
+        similarity_threshold: float,
+        search_breadth: int,
+    ) -> None:
+        """
+        Records feedback data for playlist generation.
+        This method is called after a playlist is successfully generated.
+        """
+        try:
+            # Record playlist feedback using the feedback manager
+            self.feedback_manager.record_playlist_feedback(
+                query=query,
+                query_type=query_type,
+                parsed_data=parsed_data,
+                generated_tracks=generated_tracks,
+                playlist_length=playlist_length,
+                requested_length=requested_length,
+                similarity_threshold=similarity_threshold,
+                search_breadth=search_breadth,
+            )
+
+            logger.info(f"✅ Feedback recorded for playlist generation: {query}")
+
+        except Exception as e:
+            logger.error(f"❌ Error recording playlist generation feedback: {e}")
 
 
 def _check_embeddings_available(generator: LocalPlaylistGenerator) -> bool:
