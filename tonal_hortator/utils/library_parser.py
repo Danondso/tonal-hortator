@@ -23,9 +23,8 @@ from tonal_hortator.utils.metadata_reader import MetadataReader
 
 # Use defusedxml for safe XML parsing
 try:
-    from xml.etree.ElementTree import Element
-
     from defusedxml import ElementTree as ET
+    from defusedxml.ElementTree import Element
 except ImportError:
     # Fallback to regular ElementTree with warning
     import xml.etree.ElementTree as ET
