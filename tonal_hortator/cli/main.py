@@ -388,11 +388,11 @@ def _set_preference(feedback_manager: FeedbackManager) -> None:
 
     # Convert value based on type
     if pref_type == "integer":
-        value = int(value)
+        value = str(int(value))
     elif pref_type == "float":
-        value = float(value)
+        value = str(float(value))
     elif pref_type == "boolean":
-        value = value.lower() == "true"
+        value = str(value.lower() == "true")
     elif pref_type == "json":
         import json
 
@@ -617,7 +617,7 @@ def _collect_playlist_feedback(
                     rating=int(track_rating),
                     context=f"Playlist: {query}",
                 )
-                console.print(f"[green]✅ Track rating recorded[/green]")
+                console.print("[green]✅ Track rating recorded[/green]")
 
 
 def main() -> None:

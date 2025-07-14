@@ -9,8 +9,7 @@ to improve playlist generation over time.
 import json
 import logging
 import sqlite3
-from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 from tonal_hortator.core.database import (
     CREATE_QUERY_LEARNING_TABLE,
@@ -307,20 +306,27 @@ class FeedbackManager:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
 
-                stats = {}
+                stats: Dict[str, Any] = {}
 
                 # Get basic stats
                 for stat_name, query in GET_USER_FEEDBACK_STATS.items():
                     if stat_name == "feedback_by_type":
                         cursor.execute(query)
-                        stats[stat_name] = dict(cursor.fetchall())
+                        stats[stat_name] = cast(Any, dict(cursor.fetchall()))
                     elif stat_name == "recent_feedback":
                         cursor.execute(query)
-                        stats[stat_name] = cursor.fetchall()
+                        stats[stat_name] = cast(Any, cursor.fetchall())
                     else:
                         cursor.execute(query)
                         result = cursor.fetchone()
-                        stats[stat_name] = result[0] if result else 0
+                        stats[stat_name] = cast(
+                            Any,
+                            (
+                                float(result[0])
+                                if result and result[0] is not None
+                                else 0.0
+                            ),
+                        )
 
                 return stats
 
@@ -342,13 +348,13 @@ class FeedbackManager:
                 cursor.execute(GET_USER_PREFERENCES)
                 results = cursor.fetchall()
 
-                preferences = []
+                preferences: List[Tuple[str, Any, str, str]] = []
                 for key, value_str, preference_type, description in results:
                     # Convert value back to original type
                     if preference_type == "integer":
                         value = int(value_str)
                     elif preference_type == "float":
-                        value = float(value_str)
+                        value = int(float(value_str))
                     elif preference_type == "boolean":
                         value = value_str.lower() == "true"
                     elif preference_type == "json":
@@ -463,12 +469,12 @@ class FeedbackManager:
                 # Get average ratings for different settings
                 cursor.execute(
                     """
-                    SELECT 
+                    SELECT
                         AVG(similarity_threshold) as avg_similarity,
                         AVG(search_breadth) as avg_breadth,
                         AVG(user_rating) as avg_rating,
                         COUNT(*) as feedback_count
-                    FROM user_feedback 
+                    FROM user_feedback
                     WHERE query_type = ? AND user_rating IS NOT NULL
                     """,
                     (query_type,),
