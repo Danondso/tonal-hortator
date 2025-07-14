@@ -48,6 +48,62 @@ CREATE TABLE metadata_mappings (
 )
 """
 
+CREATE_USER_FEEDBACK_TABLE = """
+CREATE TABLE IF NOT EXISTS user_feedback (
+    id INTEGER PRIMARY KEY,
+    query TEXT NOT NULL,
+    query_type TEXT NOT NULL,
+    parsed_artist TEXT,
+    parsed_reference_artist TEXT,
+    parsed_genres TEXT,
+    parsed_mood TEXT,
+    generated_tracks TEXT,
+    user_rating INTEGER,
+    user_comments TEXT,
+    user_actions TEXT,
+    playlist_length INTEGER,
+    requested_length INTEGER,
+    similarity_threshold REAL,
+    search_breadth INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+"""
+
+CREATE_USER_PREFERENCES_TABLE = """
+CREATE TABLE IF NOT EXISTS user_preferences (
+    id INTEGER PRIMARY KEY,
+    preference_key TEXT UNIQUE NOT NULL,
+    preference_value TEXT NOT NULL,
+    preference_type TEXT NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+"""
+
+CREATE_TRACK_RATINGS_TABLE = """
+CREATE TABLE IF NOT EXISTS track_ratings (
+    id INTEGER PRIMARY KEY,
+    track_id INTEGER NOT NULL,
+    rating INTEGER NOT NULL,
+    context TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (track_id) REFERENCES tracks (id)
+)
+"""
+
+CREATE_QUERY_LEARNING_TABLE = """
+CREATE TABLE IF NOT EXISTS query_learning (
+    id INTEGER PRIMARY KEY,
+    original_query TEXT NOT NULL,
+    llm_parsed_result TEXT NOT NULL,
+    user_correction TEXT,
+    feedback_score REAL,
+    learning_applied BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+"""
+
 # Common Queries
 GET_TRACKS_WITHOUT_EMBEDDINGS = """
 SELECT
@@ -80,6 +136,66 @@ INSERT_METADATA_MAPPING = """
 INSERT INTO metadata_mappings
 (source_format, source_tag, normalized_tag, data_type, description)
 VALUES (?, ?, ?, ?, ?)
+"""
+
+INSERT_USER_FEEDBACK = """
+INSERT INTO user_feedback (
+    query, query_type, parsed_artist, parsed_reference_artist,
+    parsed_genres, parsed_mood, generated_tracks, user_rating,
+    user_comments, user_actions, playlist_length, requested_length,
+    similarity_threshold, search_breadth
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+"""
+
+INSERT_USER_PREFERENCE = """
+INSERT OR REPLACE INTO user_preferences (
+    preference_key, preference_value, preference_type, description, updated_at
+) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+"""
+
+INSERT_TRACK_RATING = """
+INSERT INTO track_ratings (track_id, rating, context)
+VALUES (?, ?, ?)
+"""
+
+INSERT_QUERY_LEARNING = """
+INSERT INTO query_learning (
+    original_query, llm_parsed_result, user_correction, feedback_score
+) VALUES (?, ?, ?, ?)
+"""
+
+# Feedback and preferences queries
+GET_USER_FEEDBACK_STATS = {
+    "total_feedback": "SELECT COUNT(*) FROM user_feedback",
+    "average_rating": "SELECT AVG(user_rating) FROM user_feedback WHERE user_rating IS NOT NULL",
+    "feedback_by_type": "SELECT query_type, COUNT(*) FROM user_feedback GROUP BY query_type",
+    "recent_feedback": "SELECT * FROM user_feedback ORDER BY created_at DESC LIMIT 10",
+}
+
+GET_USER_PREFERENCES = """
+SELECT preference_key, preference_value, preference_type, description
+FROM user_preferences
+ORDER BY updated_at DESC
+"""
+
+GET_TRACK_RATINGS = """
+SELECT tr.rating, tr.context, t.name, t.artist
+FROM track_ratings tr
+JOIN tracks t ON tr.track_id = t.id
+ORDER BY tr.created_at DESC
+"""
+
+GET_QUERY_LEARNING_DATA = """
+SELECT original_query, llm_parsed_result, user_correction, feedback_score
+FROM query_learning
+WHERE learning_applied = FALSE
+ORDER BY created_at DESC
+"""
+
+UPDATE_QUERY_LEARNING_APPLIED = """
+UPDATE query_learning
+SET learning_applied = TRUE
+WHERE id = ?
 """
 
 # Statistics Queries

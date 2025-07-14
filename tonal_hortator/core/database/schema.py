@@ -71,6 +71,58 @@ METADATA_MAPPINGS_TABLE_SCHEMA = [
     ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
 ]
 
+# User feedback table schema
+USER_FEEDBACK_TABLE_SCHEMA = [
+    ("id", "INTEGER PRIMARY KEY"),
+    ("query", "TEXT NOT NULL"),
+    ("query_type", "TEXT NOT NULL"),  # artist_specific, similarity, general
+    ("parsed_artist", "TEXT"),
+    ("parsed_reference_artist", "TEXT"),
+    ("parsed_genres", "TEXT"),  # JSON array
+    ("parsed_mood", "TEXT"),
+    ("generated_tracks", "TEXT"),  # JSON array of track IDs
+    ("user_rating", "INTEGER"),  # 1-5 stars
+    ("user_comments", "TEXT"),
+    ("user_actions", "TEXT"),  # JSON array of actions (skip, like, dislike, etc.)
+    ("playlist_length", "INTEGER"),
+    ("requested_length", "INTEGER"),
+    ("similarity_threshold", "REAL"),
+    ("search_breadth", "INTEGER"),
+    ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+]
+
+# User preferences table schema
+USER_PREFERENCES_TABLE_SCHEMA = [
+    ("id", "INTEGER PRIMARY KEY"),
+    ("preference_key", "TEXT UNIQUE NOT NULL"),
+    ("preference_value", "TEXT NOT NULL"),
+    ("preference_type", "TEXT NOT NULL"),  # string, integer, float, boolean, json
+    ("description", "TEXT"),
+    ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+    ("updated_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+]
+
+# Track ratings table schema
+TRACK_RATINGS_TABLE_SCHEMA = [
+    ("id", "INTEGER PRIMARY KEY"),
+    ("track_id", "INTEGER NOT NULL"),
+    ("rating", "INTEGER NOT NULL"),  # 1-5 stars
+    ("context", "TEXT"),  # playlist context where rating was given
+    ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+    ("FOREIGN KEY (track_id) REFERENCES tracks (id)"),
+]
+
+# Query learning table schema (for improving LLM prompts)
+QUERY_LEARNING_TABLE_SCHEMA = [
+    ("id", "INTEGER PRIMARY KEY"),
+    ("original_query", "TEXT NOT NULL"),
+    ("llm_parsed_result", "TEXT NOT NULL"),  # JSON
+    ("user_correction", "TEXT"),  # JSON - what user expected
+    ("feedback_score", "REAL"),  # -1 to 1 (negative = wrong, positive = correct)
+    ("learning_applied", "BOOLEAN DEFAULT FALSE"),
+    ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+]
+
 # Valid column types for validation
 VALID_COLUMN_TYPES = {"TEXT", "INTEGER", "REAL", "BLOB", "TIMESTAMP", "BOOLEAN"}
 
