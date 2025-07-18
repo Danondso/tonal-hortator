@@ -337,7 +337,46 @@ class LocalPlaylistGenerator:
                 # For general queries, apply genre filtering and boosting
                 results = self._apply_genre_filtering(genres, results)
 
-            # 5. Filter by similarity threshold and deduplicate
+            # 5. Apply feedback + iTunes score adjustments
+            for track in results:
+                track_id = track.get("id")
+                if track_id is not None:
+                    adjustment = self.feedback_manager.get_adjusted_score(
+                        track_id, track
+                    )
+                    original_score = track.get("similarity_score", 0)
+                    adjusted_score = max(0.0, min(1.0, original_score + adjustment))
+                    track["similarity_score"] = adjusted_score
+                    track["feedback_adjusted"] = adjustment
+            # 🧮 Summarize adjustment impact
+            adjustments = [
+                track["feedback_adjusted"]
+                for track in results
+                if "feedback_adjusted" in track
+            ]
+            logger.info(f"🔄 Adjustments: {adjustments}")
+            if adjustments:
+                avg_adj = sum(adjustments) / len(adjustments)
+                pos_count = len([a for a in adjustments if a > 0])
+                neg_count = len([a for a in adjustments if a < 0])
+                max_adj = max(adjustments)
+                min_adj = min(adjustments)
+
+                logger.info(
+                    f"📈 Feedback summary: avg_adj={avg_adj:.3f}, +{pos_count}, -{neg_count}, max={max_adj:.3f}, min={min_adj:.3f}"
+                )
+
+                # Optional: log most boosted + penalized tracks
+                top_positive = max(results, key=lambda t: t.get("feedback_adjusted", 0))
+                top_negative = min(results, key=lambda t: t.get("feedback_adjusted", 0))
+
+                logger.info(
+                    f"🔺 Most boosted: {top_positive.get('title')} by {top_positive.get('artist')} (+{top_positive['feedback_adjusted']:.2f})"
+                )
+                logger.info(
+                    f"🔻 Most penalized: {top_negative.get('title')} by {top_negative.get('artist')} ({top_negative['feedback_adjusted']:.2f})"
+                )
+                # 6. Filter by similarity threshold and deduplicate
             filtered_results = self._filter_and_deduplicate_results(
                 results,
                 min_similarity,
@@ -346,7 +385,7 @@ class LocalPlaylistGenerator:
                 max_artist_ratio,
             )
 
-            # 6. Apply artist randomization
+            # 7. Apply artist randomization
             filtered_results = self._apply_artist_randomization(
                 filtered_results, max_tracks, is_vague
             )
@@ -1543,6 +1582,23 @@ def _process_playlist_request(generator: LocalPlaylistGenerator, query: str) -> 
         # Print summary
         generator.print_playlist_summary(tracks, query)
 
+        # Ask for feedback on each track
+        for track in tracks:
+            artist = track.get("artist", "Unknown")
+            name = track.get("name", "Unknown")
+            track_id = track.get("id", "")
+            print(f"\nTrack: {artist} - {name}")
+            fb = (
+                input("Feedback? (l = like, d = dislike, b = block, enter to skip): ")
+                .strip()
+                .lower()
+            )
+            if fb in ["l", "d", "b"]:
+                fb_map = {"l": "like", "d": "dislike", "b": "block"}
+                generator.feedback_manager.record_user_feedback(
+                    track_id, fb_map[fb], query
+                )
+
         # Ask if user wants to save
         save = input("\nSave playlist to file? (y/n): ").strip().lower()
         if save in ["y", "yes"]:
@@ -1587,6 +1643,93 @@ def _process_playlist_request(generator: LocalPlaylistGenerator, query: str) -> 
         logger.error(f"❌ Error generating playlist: {e}")
         print(f"❌ Error: {e}")
         return False
+
+
+# --- Add persistent feedback saving and decay logic to FeedbackManager using SQLite ---
+def _add_feedback_manager_methods() -> None:
+    import os
+    import sqlite3
+    from datetime import datetime
+
+    def record_user_feedback(
+        self: FeedbackManager, track_id: str, feedback: str, query_context: str = ""
+    ) -> None:
+        feedback_map = {"like": 0.2, "dislike": -0.2, "block": -1.0}
+        adjustment = feedback_map.get(feedback, 0.0)
+        timestamp = datetime.now().isoformat()
+        db_path = "feedback.db"
+        conn = sqlite3.connect(db_path)
+        cur = conn.cursor()
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS feedback (
+                track_id TEXT,
+                feedback TEXT,
+                adjustment REAL,
+                timestamp TEXT,
+                query_context TEXT
+            )
+        """
+        )
+        cur.execute(
+            """
+            INSERT INTO feedback (track_id, feedback, adjustment, timestamp, query_context)
+            VALUES (?, ?, ?, ?, ?)
+        """,
+            (track_id, feedback, adjustment, timestamp, query_context),
+        )
+        conn.commit()
+        conn.close()
+
+    def get_adjusted_score(self: FeedbackManager, track_id: str, track: dict) -> float:
+        import sqlite3
+        from datetime import datetime
+
+        db_path = "feedback.db"
+        if not os.path.exists(db_path):
+            return 0.0
+        conn = sqlite3.connect(db_path)
+        cur = conn.cursor()
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS feedback (
+                track_id TEXT,
+                feedback TEXT,
+                adjustment REAL,
+                timestamp TEXT,
+                query_context TEXT
+            )
+        """
+        )
+        cur.execute(
+            "SELECT adjustment, timestamp FROM feedback WHERE track_id = ?", (track_id,)
+        )
+        rows = cur.fetchall()
+        conn.close()
+        total_adjustment = 0.0
+        for adjustment, ts in rows:
+            try:
+                weeks_old = (datetime.now() - datetime.fromisoformat(ts)).days / 7.0
+                decay = 0.95**weeks_old
+                total_adjustment += adjustment * decay
+            except Exception:
+                total_adjustment += adjustment
+        return total_adjustment
+
+    # Patch FeedbackManager if not already present
+    from tonal_hortator.core import feedback as _feedback_mod
+
+    cls = getattr(_feedback_mod, "FeedbackManager")
+    if not hasattr(cls, "record_user_feedback"):
+        cls.record_user_feedback = record_user_feedback
+    if (
+        not hasattr(cls, "get_adjusted_score")
+        or getattr(cls.get_adjusted_score, "__module__", "") != __name__
+    ):
+        cls.get_adjusted_score = get_adjusted_score
+
+
+_add_feedback_manager_methods()
 
 
 def _run_interactive_loop(generator: LocalPlaylistGenerator) -> None:

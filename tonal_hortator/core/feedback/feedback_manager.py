@@ -498,3 +498,101 @@ class FeedbackManager:
         except sqlite3.Error as e:
             logger.error(f"❌ Error getting recommended settings: {e}")
             return {}
+
+    def get_adjusted_score(self, track_id: int, track_meta: dict) -> float:
+        """
+        Combine feedback ratings and iTunes play metadata to compute an adjusted score.
+        """
+        feedback_adj = self._get_feedback_rating_score(track_id)
+        itunes_adj = self._get_itunes_score(track_meta)
+        return max(-0.2, min(0.2, feedback_adj + itunes_adj))
+
+    def _get_feedback_rating_score(self, track_id: int) -> float:
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                cursor.execute(
+                    "SELECT rating FROM track_ratings WHERE track_id = ?",
+                    (track_id,),
+                )
+                ratings = [row[0] for row in cursor.fetchall()]
+
+                if not ratings:
+                    return 0.0
+
+                avg_rating = sum(ratings) / len(ratings)
+
+                if avg_rating >= 4.5:
+                    return 0.15
+                elif avg_rating >= 4.0:
+                    return 0.1
+                elif avg_rating >= 3.0:
+                    return 0.05
+                elif avg_rating <= 1.5:
+                    return -0.15
+                elif avg_rating <= 2.0:
+                    return -0.1
+                else:
+                    return 0.0
+
+        except sqlite3.Error as e:
+            logger.error(f"❌ Error getting feedback rating score: {e}")
+            return 0.0
+
+    def _get_itunes_score(self, track: dict) -> float:
+        score = 0.0
+        play_count = track.get("play_count", 0)
+        rating = track.get("rating", 0)
+        skip_count = track.get("skip_count", 0)
+
+        if play_count > 50:
+            score += 0.1
+        elif play_count > 20:
+            score += 0.05
+
+        if rating >= 80:
+            score += 0.1
+        elif rating >= 60:
+            score += 0.05
+
+        if skip_count > 25:
+            score -= 0.1
+        elif skip_count > 10:
+            score -= 0.05
+
+        return score
+
+    def record_user_feedback(
+        self, track_id: str, feedback: str, query_context: str = ""
+    ) -> None:
+        import sqlite3
+        from datetime import datetime
+
+        feedback_map = {"like": 0.2, "dislike": -0.2, "block": -1.0}
+        adjustment = feedback_map.get(feedback, 0.0)
+        timestamp = datetime.now().isoformat()
+
+        conn = sqlite3.connect("feedback.db")
+        cur = conn.cursor()
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS feedback (
+                track_id TEXT,
+                feedback TEXT,
+                adjustment REAL,
+                timestamp TEXT,
+                query_context TEXT,
+                source TEXT DEFAULT 'user'
+            )
+        """
+        )
+        cur.execute(
+            """
+            INSERT INTO feedback (track_id, feedback, adjustment, timestamp, query_context, source)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """,
+            (track_id, feedback, adjustment, timestamp, query_context, "user"),
+        )
+        conn.commit()
+        conn.close()

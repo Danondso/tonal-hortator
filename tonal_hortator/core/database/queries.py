@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS tracks (
 """
 
 CREATE_TRACK_EMBEDDINGS_TABLE = """
-CREATE TABLE track_embeddings (
+CREATE TABLE IF NOT EXISTS track_embeddings (
     track_id INTEGER PRIMARY KEY,
     embedding BLOB,
     embedding_text TEXT,
