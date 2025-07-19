@@ -101,6 +101,54 @@ class FeedbackManager:
         Returns:
             True if feedback was recorded successfully
         """
+
+        valid_query_types = ["artist_specific", "similarity", "general"]
+        if query_type not in valid_query_types:
+            logger.error(
+                f"❌ Invalid query type: {query_type}. Must be one of {valid_query_types}"
+            )
+            return False
+
+        # Validate user rating if provided
+        if user_rating is not None:
+            if user_rating < 0 or user_rating > 5:
+                logger.error("❌ User rating must be between 0 and 5")
+                return False
+
+        # Validate user actions if provided
+        if user_actions is not None:
+            valid_actions = ["like", "dislike", "skip", "block", "favorite"]
+            for action in user_actions:
+                if not isinstance(action, str) or action not in valid_actions:
+                    logger.error(
+                        f"❌ Invalid user action: {action}. Must be one of {valid_actions}"
+                    )
+                    return False
+
+        # Validate playlist length if provided
+        if playlist_length is not None:
+            if playlist_length < 0:
+                logger.error("❌ Playlist length cannot be negative")
+                return False
+
+        # Validate requested length if provided
+        if requested_length is not None:
+            if requested_length < 0:
+                logger.error("❌ Requested length cannot be negative")
+                return False
+
+        # Validate similarity threshold if provided
+        if similarity_threshold is not None:
+            if similarity_threshold < 0.0 or similarity_threshold > 1.0:
+                logger.error("❌ Similarity threshold must be between 0.0 and 1.0")
+                return False
+
+        # Validate search breadth if provided
+        if search_breadth is not None:
+            if search_breadth < 1:
+                logger.error("❌ Search breadth must be at least 1")
+                return False
+
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
@@ -162,6 +210,15 @@ class FeedbackManager:
         Returns:
             True if rating was recorded successfully
         """
+
+        if track_id <= 0:
+            logger.error("❌ Track ID must be a positive integer")
+            return False
+
+        if rating < 0 or rating > 5:
+            logger.error("❌ Rating must be between 0 and 5")
+            return False
+
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
@@ -195,6 +252,35 @@ class FeedbackManager:
         Returns:
             True if preference was set successfully
         """
+
+        valid_types = ["string", "integer", "float", "boolean", "json"]
+        if preference_type not in valid_types:
+            logger.error(
+                f"❌ Invalid preference type: {preference_type}. Must be one of {valid_types}"
+            )
+            return False
+
+        # Validate value based on type
+        if preference_type == "integer":
+            if not isinstance(value, int):
+                logger.error("❌ Integer preference value must be an integer")
+                return False
+        elif preference_type == "float":
+            if not isinstance(value, (int, float)):
+                logger.error("❌ Float preference value must be a number")
+                return False
+        elif preference_type == "boolean":
+            if not isinstance(value, bool):
+                logger.error("❌ Boolean preference value must be a boolean")
+                return False
+        elif preference_type == "json":
+            # JSON values can be any serializable type, so we'll validate during serialization
+            pass
+        elif preference_type == "string":
+            if not isinstance(value, str):
+                logger.error("❌ String preference value must be a string")
+                return False
+
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
@@ -564,18 +650,34 @@ class FeedbackManager:
     def record_user_feedback(
         self, track_id: str, feedback: str, query_context: str = ""
     ) -> None:
+        # Input validation
+
+        if not track_id.strip():
+            logger.error("❌ Track ID cannot be empty")
+            raise ValueError("Track ID cannot be empty")
+
+        valid_feedback_types = ["like", "dislike", "block"]
+        if feedback not in valid_feedback_types:
+            logger.error(
+                f"❌ Invalid feedback type: {feedback}. Must be one of {valid_feedback_types}"
+            )
+            raise ValueError(f"Invalid feedback type: {feedback}")
+
         feedback_map = {"like": 0.2, "dislike": -0.2, "block": -1.0}
         adjustment = feedback_map.get(feedback, 0.0)
         timestamp = datetime.now().isoformat()
 
-        conn = sqlite3.connect(self.db_path)
-        cur = conn.cursor()
-        cur.execute(
-            """
-            INSERT INTO feedback (track_id, feedback, adjustment, timestamp, query_context, source)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """,
-            (track_id, feedback, adjustment, timestamp, query_context, "user"),
-        )
-        conn.commit()
-        conn.close()
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    INSERT INTO feedback (track_id, feedback, adjustment, timestamp, query_context, source)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                    (track_id, feedback, adjustment, timestamp, query_context, "user"),
+                )
+                conn.commit()
+        except sqlite3.Error as e:
+            logger.error(f"❌ Error recording user feedback: {e}")
+            raise

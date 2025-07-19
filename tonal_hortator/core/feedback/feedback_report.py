@@ -8,66 +8,71 @@ DB_PATH = "feedback.db"
 
 
 def seed_feedback(db_path: str = DB_PATH) -> None:
-    conn = sqlite3.connect(db_path)
-    cur = conn.cursor()
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS feedback (
-            track_id TEXT,
-            feedback TEXT,
-            adjustment REAL,
-            timestamp TEXT,
-            query_context TEXT,
-            source TEXT DEFAULT 'user'
-        )
-    """
-    )
+    try:
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS feedback (
+                    track_id TEXT,
+                    feedback TEXT,
+                    adjustment REAL,
+                    timestamp TEXT,
+                    query_context TEXT,
+                    source TEXT DEFAULT 'user'
+                )
+            """
+            )
 
-    now = datetime.now().isoformat()
+            now = datetime.now().isoformat()
 
-    print("🌱 Seeding preferences...")
+            print("🌱 Seeding preferences...")
 
-    fav_artists = input(
-        "Enter comma-separated favorite artists (e.g., 'Aphex Twin, Nujabes'): "
-    )
-    for artist in [a.strip() for a in fav_artists.split(",") if a.strip()]:
-        track_id = f"artist:{artist.lower().replace(' ', '_')}"
-        cur.execute(
-            "INSERT INTO feedback VALUES (?, ?, ?, ?, ?, ?)",
-            (track_id, "like", 0.25, now, "seed", "seed"),
-        )
+            fav_artists = input(
+                "Enter comma-separated favorite artists (e.g., 'Aphex Twin, Nujabes'): "
+            )
+            for artist in [a.strip() for a in fav_artists.split(",") if a.strip()]:
+                track_id = f"artist:{artist.lower().replace(' ', '_')}"
+                cursor.execute(
+                    "INSERT INTO feedback VALUES (?, ?, ?, ?, ?, ?)",
+                    (track_id, "like", 0.25, now, "seed", "seed"),
+                )
 
-    blocked_genres = input(
-        "Enter comma-separated disliked genres (e.g., 'country, reggaeton'): "
-    )
-    for genre in [g.strip() for g in blocked_genres.split(",") if g.strip()]:
-        track_id = f"genre:{genre.lower().replace(' ', '_')}"
-        cur.execute(
-            "INSERT INTO feedback VALUES (?, ?, ?, ?, ?, ?)",
-            (track_id, "dislike", -0.3, now, "seed", "seed"),
-        )
+            blocked_genres = input(
+                "Enter comma-separated disliked genres (e.g., 'country, reggaeton'): "
+            )
+            for genre in [g.strip() for g in blocked_genres.split(",") if g.strip()]:
+                track_id = f"genre:{genre.lower().replace(' ', '_')}"
+                cursor.execute(
+                    "INSERT INTO feedback VALUES (?, ?, ?, ?, ?, ?)",
+                    (track_id, "dislike", -0.3, now, "seed", "seed"),
+                )
 
-    hard_blocks = input("Enter comma-separated hard blocks (artist, song, etc.): ")
-    for block in [b.strip() for b in hard_blocks.split(",") if b.strip()]:
-        track_id = f"block:{block.lower().replace(' ', '_')}"
-        cur.execute(
-            "INSERT INTO feedback VALUES (?, ?, ?, ?, ?, ?)",
-            (track_id, "block", -1.0, now, "seed", "seed"),
-        )
+            hard_blocks = input(
+                "Enter comma-separated hard blocks (artist, song, etc.): "
+            )
+            for block in [b.strip() for b in hard_blocks.split(",") if b.strip()]:
+                track_id = f"block:{block.lower().replace(' ', '_')}"
+                cursor.execute(
+                    "INSERT INTO feedback VALUES (?, ?, ?, ?, ?, ?)",
+                    (track_id, "block", -1.0, now, "seed", "seed"),
+                )
 
-    notes = input(
-        "Enter optional notes or tags for this seeding session (press enter to skip): "
-    )
-    if notes.strip():
-        track_id = f"notes:{notes.lower().replace(' ', '_')}"
-        cur.execute(
-            "INSERT INTO feedback VALUES (?, ?, ?, ?, ?, ?)",
-            (track_id, "note", 0.0, now, "seed", "seed"),
-        )
+            notes = input(
+                "Enter optional notes or tags for this seeding session (press enter to skip): "
+            )
+            if notes.strip():
+                track_id = f"notes:{notes.lower().replace(' ', '_')}"
+                cursor.execute(
+                    "INSERT INTO feedback VALUES (?, ?, ?, ?, ?, ?)",
+                    (track_id, "note", 0.0, now, "seed", "seed"),
+                )
 
-    conn.commit()
-    conn.close()
-    print("✅ Seeding complete.\n")
+            conn.commit()
+            print("✅ Seeding complete.\n")
+    except sqlite3.Error as e:
+        print(f"❌ Error during seeding: {e}")
+        raise
 
 
 def load_feedback(
@@ -77,17 +82,19 @@ def load_feedback(
         print("No feedback database found.")
         return []
 
-    conn = sqlite3.connect(db_path)
-    cur = conn.cursor()
-    cur.execute(
-        """
-        SELECT track_id, feedback, adjustment, timestamp, query_context, source
-        FROM feedback
-    """
-    )
-    rows = cur.fetchall()
-    conn.close()
-    return rows
+    try:
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT track_id, feedback, adjustment, timestamp, query_context, source
+                FROM feedback
+            """
+            )
+            return cursor.fetchall()
+    except sqlite3.Error as e:
+        print(f"❌ Error loading feedback: {e}")
+        return []
 
 
 def summarize_feedback(rows: list[tuple[str, str, float, str, str, str]]) -> None:

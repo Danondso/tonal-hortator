@@ -202,9 +202,7 @@ Label', 'Test Producer')
 
         for strategy in HybridStrategy:
             config = updater._get_default_hybrid_config(strategy)
-            old_weight, new_weight = updater._calculate_weights(
-                track, strategy, config
-            )
+            old_weight, new_weight = updater._calculate_weights(track, strategy, config)
 
             # Weights should sum to 1.0
             assert abs(old_weight + new_weight - 1.0) < 1e-6
