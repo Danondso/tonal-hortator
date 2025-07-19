@@ -175,10 +175,117 @@ class EmbeddingUpdater:
         if existing_embedding is None:
             return True  # No existing embedding, needs one
 
-        # For now, always update if we have an existing embedding
-        # This is a simple heuristic - you might want to make this more sophisticated
-        # by comparing actual field values with what was used to create the original embedding
-        return True
+        # Get the embedding creation time and metadata
+        embedding_info = self._get_embedding_info(track["id"])
+        if embedding_info is None:
+            return True  # No embedding info, update to be safe
+
+        # Check if key metadata fields have changed since embedding was created
+        return self._has_metadata_changed(track, embedding_info)
+
+    def _get_embedding_info(self, track_id: int) -> Optional[Dict[str, Any]]:
+        """Get embedding creation time and metadata for a track."""
+        try:
+            cursor = self.embedder.conn.cursor()
+            cursor.execute(
+                "SELECT embedding_text, created_at FROM track_embeddings WHERE track_id = ?",
+                (track_id,),
+            )
+            result = cursor.fetchone()
+            if result:
+                return {"embedding_text": result[0], "created_at": result[1]}
+            return None
+        except Exception as e:
+            logger.warning(f"Error getting embedding info for track {track_id}: {e}")
+            return None
+
+    def _has_metadata_changed(
+        self, track: Dict[str, Any], embedding_info: Dict[str, Any]
+    ) -> bool:
+        """Check if track metadata has changed since embedding was created."""
+        # All fields that are used in create_track_embedding_text method
+        # Basic metadata fields
+        basic_fields = [
+            "name",
+            "artist",
+            "album",
+            "album_artist",
+            "composer",
+            "genre",
+            "year",
+        ]
+
+        # Musical analysis fields
+        musical_fields = [
+            "bpm",
+            "musical_key",
+            "key_scale",
+            "mood",
+            "chord_changes_rate",
+        ]
+
+        # Production and recording fields
+        production_fields = [
+            "label",
+            "producer",
+            "arranger",
+            "lyricist",
+            "release_country",
+        ]
+
+        # User engagement and preference fields
+        engagement_fields = [
+            "play_count",
+            "track_rating",
+            "avg_rating",
+        ]
+
+        # Combine all relevant fields
+        key_fields = basic_fields + musical_fields + production_fields + engagement_fields
+
+        # Extract current metadata for comparison
+        current_metadata = {
+            field: str(track.get(field, "")).lower().strip() for field in key_fields
+        }
+
+        # Try to extract metadata from embedding text (if it contains metadata)
+        # For now, we'll use a simple heuristic: if embedding is older than 30 days, update it
+        try:
+            from datetime import datetime
+
+            created_at = datetime.fromisoformat(
+                embedding_info["created_at"].replace("Z", "+00:00")
+            )
+            age_days = (datetime.now() - created_at).days
+
+            # Update if embedding is older than 30 days
+            if age_days > 30:
+                logger.debug(
+                    f"Track {track['id']} embedding is {age_days} days old, updating"
+                )
+                return True
+
+            # Update if any key metadata fields are missing or significantly different
+            embedding_text = embedding_info.get("embedding_text", "").lower()
+
+            # Check if key metadata appears in embedding text
+            for field, value in current_metadata.items():
+                if value and value not in embedding_text:
+                    logger.debug(
+                        f"Track {track['id']} missing {field} in embedding, updating"
+                    )
+                    return True
+
+            logger.debug(
+                f"Track {track['id']} metadata unchanged, preserving embedding"
+            )
+            return False
+
+        except Exception as e:
+            logger.warning(
+                f"Error checking metadata changes for track {track['id']}: {e}"
+            )
+            return True  # Update to be safe
 
     def _get_existing_embedding(self, track_id: int) -> Optional[np.ndarray]:
         """Get existing embedding for a track."""

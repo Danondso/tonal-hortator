@@ -244,7 +244,7 @@ class LocalTrackEmbedder:
         try:
             cursor = self.conn.cursor()
 
-            # Join tracks and track_embeddings tables
+            # Join tracks and track_embeddings tables with rating data
             cursor.execute(
                 """
                 SELECT
@@ -275,9 +275,18 @@ class LocalTrackEmbedder:
                     t.chord_changes_rate,
                     t.script,
                     t.replay_gain,
-                    t.release_country
+                    t.release_country,
+                    COALESCE(AVG(tr.rating), 0) as avg_rating,
+                    COUNT(tr.id) as rating_count
                 FROM tracks t
                 LEFT JOIN track_embeddings te ON t.id = te.track_id
+                LEFT JOIN track_ratings tr ON t.id = tr.track_id
+                GROUP BY t.id, t.name, t.artist, t.album_artist, t.composer, t.album,
+                         t.genre, t.year, t.total_time, t.track_number, t.disc_number,
+                         t.play_count, t.location, t.bpm, t.musical_key, t.key_scale,
+                         t.mood, t.label, t.producer, t.arranger, t.lyricist,
+                         t.original_year, t.original_date, t.chord_changes_rate,
+                         t.script, t.replay_gain, t.release_country, te.embedding
                 ORDER BY t.id
             """
             )

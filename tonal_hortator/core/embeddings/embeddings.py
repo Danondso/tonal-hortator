@@ -358,8 +358,53 @@ class OllamaEmbeddingService:
         if track.get("release_country"):
             production_parts.append(f"released in {track.get('release_country')}")
 
+        # User engagement and preference data
+        engagement_parts = []
+
+        # Play count (indicates popularity/usage)
+        play_count = track.get("play_count")
+        if play_count and play_count > 0:
+            if play_count > 100:
+                engagement_parts.append("frequently played")
+            elif play_count > 50:
+                engagement_parts.append("moderately played")
+            elif play_count > 10:
+                engagement_parts.append("occasionally played")
+            else:
+                engagement_parts.append("rarely played")
+
+        # Track rating (if available)
+        track_rating = track.get("track_rating")
+        if track_rating:
+            try:
+                rating = float(track_rating)
+                if rating >= 4.5:
+                    engagement_parts.append("highly rated")
+                elif rating >= 4.0:
+                    engagement_parts.append("well rated")
+                elif rating >= 3.0:
+                    engagement_parts.append("moderately rated")
+                elif rating < 2.0:
+                    engagement_parts.append("poorly rated")
+            except (ValueError, TypeError):
+                pass
+
+        # Average rating from track_ratings table (if available)
+        avg_rating = track.get("avg_rating")
+        if avg_rating:
+            try:
+                rating = float(avg_rating)
+                if rating >= 4.5:
+                    engagement_parts.append("user favorite")
+                elif rating >= 4.0:
+                    engagement_parts.append("user liked")
+                elif rating < 2.0:
+                    engagement_parts.append("user disliked")
+            except (ValueError, TypeError):
+                pass
+
         # Combine all parts
-        all_parts = basic_parts + musical_parts + production_parts
+        all_parts = basic_parts + musical_parts + production_parts + engagement_parts
         return ", ".join(filter(None, all_parts))
 
     def similarity_search(
