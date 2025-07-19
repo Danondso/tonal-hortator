@@ -14,8 +14,15 @@ from loguru import logger
 
 from tonal_hortator.core.database import (
     CHECK_TABLE_EXISTS,
+    CHECK_TRACK_RATINGS_TABLE_EXISTS,
     CREATE_TRACK_EMBEDDINGS_TABLE,
+    GET_ALL_EMBEDDINGS_SIMPLE,
+    GET_ALL_EMBEDDINGS_WITH_RATINGS,
+    GET_EMBEDDING_COUNT,
+    GET_TRACK_COUNT,
+    GET_TRACKS_BY_ARTIST,
     GET_TRACKS_WITHOUT_EMBEDDINGS,
+    GET_TRACKS_WITHOUT_EMBEDDINGS_SIMPLE,
     INSERT_TRACK_EMBEDDING,
 )
 from tonal_hortator.core.embeddings.embeddings import OllamaEmbeddingService
@@ -81,12 +88,20 @@ class LocalTrackEmbedder:
             raise
 
     def get_tracks_without_embeddings(self) -> List[Dict[str, Any]]:
-        """Get all tracks from the database that don't have embeddings"""
+        """Get all tracks that don't have embeddings yet"""
         try:
             cursor = self.conn.cursor()
 
-            # Get tracks that are not in the track_embeddings table using centralized query
-            cursor.execute(GET_TRACKS_WITHOUT_EMBEDDINGS)
+            # Check if track_ratings table exists
+            cursor.execute(CHECK_TRACK_RATINGS_TABLE_EXISTS)
+            has_ratings_table = cursor.fetchone() is not None
+
+            if has_ratings_table:
+                # Use the full query with ratings
+                cursor.execute(GET_TRACKS_WITHOUT_EMBEDDINGS)
+            else:
+                # Use a simpler query without ratings
+                cursor.execute(GET_TRACKS_WITHOUT_EMBEDDINGS_SIMPLE)
 
             tracks = [dict(row) for row in cursor.fetchall()]
             logger.info(f"🔍 Found {len(tracks)} tracks without embeddings")
@@ -244,52 +259,16 @@ class LocalTrackEmbedder:
         try:
             cursor = self.conn.cursor()
 
-            # Join tracks and track_embeddings tables with rating data
-            cursor.execute(
-                """
-                SELECT
-                    te.embedding,
-                    t.id,
-                    t.name,
-                    t.artist,
-                    t.album_artist,
-                    t.composer,
-                    t.album,
-                    t.genre,
-                    t.year,
-                    t.total_time,
-                    t.track_number,
-                    t.disc_number,
-                    t.play_count,
-                    t.location,
-                    t.bpm,
-                    t.musical_key,
-                    t.key_scale,
-                    t.mood,
-                    t.label,
-                    t.producer,
-                    t.arranger,
-                    t.lyricist,
-                    t.original_year,
-                    t.original_date,
-                    t.chord_changes_rate,
-                    t.script,
-                    t.replay_gain,
-                    t.release_country,
-                    COALESCE(AVG(tr.rating), 0) as avg_rating,
-                    COUNT(tr.id) as rating_count
-                FROM tracks t
-                LEFT JOIN track_embeddings te ON t.id = te.track_id
-                LEFT JOIN track_ratings tr ON t.id = tr.track_id
-                GROUP BY t.id, t.name, t.artist, t.album_artist, t.composer, t.album,
-                         t.genre, t.year, t.total_time, t.track_number, t.disc_number,
-                         t.play_count, t.location, t.bpm, t.musical_key, t.key_scale,
-                         t.mood, t.label, t.producer, t.arranger, t.lyricist,
-                         t.original_year, t.original_date, t.chord_changes_rate,
-                         t.script, t.replay_gain, t.release_country, te.embedding
-                ORDER BY t.id
-            """
-            )
+            # Check if track_ratings table exists
+            cursor.execute(CHECK_TRACK_RATINGS_TABLE_EXISTS)
+            has_ratings_table = cursor.fetchone() is not None
+
+            if has_ratings_table:
+                # Use the full query with ratings
+                cursor.execute(GET_ALL_EMBEDDINGS_WITH_RATINGS)
+            else:
+                # Use a simpler query without ratings
+                cursor.execute(GET_ALL_EMBEDDINGS_SIMPLE)
 
             rows = cursor.fetchall()
             embeddings = []
@@ -330,12 +309,7 @@ class LocalTrackEmbedder:
             cursor = self.conn.cursor()
 
             # Query for all tracks by the artist (case-insensitive)
-            query = """
-                SELECT t.*, 1.0 as similarity_score
-                FROM tracks t
-                WHERE LOWER(t.artist) = LOWER(?)
-                ORDER BY t.name
-            """
+            query = GET_TRACKS_BY_ARTIST
 
             cursor.execute(query, (artist_name,))
             tracks = [dict(row) for row in cursor.fetchall()]
@@ -360,11 +334,11 @@ class LocalTrackEmbedder:
             cursor = self.conn.cursor()
 
             # Total tracks
-            cursor.execute("SELECT COUNT(*) FROM tracks")
+            cursor.execute(GET_TRACK_COUNT)
             total_tracks = cursor.fetchone()[0]
 
             # Tracks with embeddings
-            cursor.execute("SELECT COUNT(*) FROM track_embeddings")
+            cursor.execute(GET_EMBEDDING_COUNT)
             tracks_with_embeddings = cursor.fetchone()[0]
 
             # Tracks without embeddings

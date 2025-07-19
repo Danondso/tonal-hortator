@@ -18,8 +18,11 @@ from tonal_hortator.core.database import (
     CREATE_USER_FEEDBACK_TABLE,
     CREATE_USER_PREFERENCES_TABLE,
     GET_QUERY_LEARNING_DATA,
+    GET_RECOMMENDED_SETTINGS,
+    GET_TRACK_RATING,
     GET_TRACK_RATINGS,
     GET_USER_FEEDBACK_STATS,
+    GET_USER_PREFERENCE,
     GET_USER_PREFERENCES,
     INSERT_QUERY_LEARNING,
     INSERT_TRACK_RATING,
@@ -51,10 +54,10 @@ class FeedbackManager:
                 cursor = conn.cursor()
 
                 # Create tables if they don't exist
-                cursor.execute(CREATE_USER_PREFERENCES_TABLE)
+                cursor.execute(CREATE_USER_FEEDBACK_TABLE)
                 cursor.execute(CREATE_TRACK_RATINGS_TABLE)
                 cursor.execute(CREATE_QUERY_LEARNING_TABLE)
-                cursor.execute(CREATE_USER_FEEDBACK_TABLE)
+                cursor.execute(CREATE_USER_PREFERENCES_TABLE)
 
                 conn.commit()
                 logger.info("✅ Feedback tables ensured")
@@ -229,7 +232,7 @@ class FeedbackManager:
                 cursor = conn.cursor()
 
                 cursor.execute(
-                    "SELECT preference_value, preference_type FROM user_preferences WHERE preference_key = ?",
+                    GET_USER_PREFERENCE,
                     (key,),
                 )
                 result = cursor.fetchone()
@@ -469,15 +472,7 @@ class FeedbackManager:
 
                 # Get average ratings for different settings
                 cursor.execute(
-                    """
-                    SELECT
-                        AVG(similarity_threshold) as avg_similarity,
-                        AVG(search_breadth) as avg_breadth,
-                        AVG(user_rating) as avg_rating,
-                        COUNT(*) as feedback_count
-                    FROM user_feedback
-                    WHERE query_type = ? AND user_rating IS NOT NULL
-                    """,
+                    GET_RECOMMENDED_SETTINGS,
                     (query_type,),
                 )
 
@@ -514,7 +509,7 @@ class FeedbackManager:
                 cursor = conn.cursor()
 
                 cursor.execute(
-                    "SELECT rating FROM track_ratings WHERE track_id = ?",
+                    GET_TRACK_RATING,
                     (track_id,),
                 )
                 ratings = [row[0] for row in cursor.fetchall()]

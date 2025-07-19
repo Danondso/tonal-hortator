@@ -14,6 +14,7 @@ import numpy as np
 from loguru import logger
 
 from tonal_hortator.core.database import (
+    GET_EMBEDDING_INFO,
     GET_TRACK_EMBEDDING,
     INSERT_OR_REPLACE_TRACK_EMBEDDING,
 )
@@ -187,10 +188,7 @@ class EmbeddingUpdater:
         """Get embedding creation time and metadata for a track."""
         try:
             cursor = self.embedder.conn.cursor()
-            cursor.execute(
-                "SELECT embedding_text, created_at FROM track_embeddings WHERE track_id = ?",
-                (track_id,),
-            )
+            cursor.execute(GET_EMBEDDING_INFO, (track_id,))
             result = cursor.fetchone()
             if result:
                 return {"embedding_text": result[0], "created_at": result[1]}
@@ -241,7 +239,9 @@ class EmbeddingUpdater:
         ]
 
         # Combine all relevant fields
-        key_fields = basic_fields + musical_fields + production_fields + engagement_fields
+        key_fields = (
+            basic_fields + musical_fields + production_fields + engagement_fields
+        )
 
         # Extract current metadata for comparison
         current_metadata = {

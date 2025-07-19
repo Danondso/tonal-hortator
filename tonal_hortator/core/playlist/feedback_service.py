@@ -11,6 +11,8 @@ import sqlite3
 from datetime import datetime
 from typing import Protocol
 
+from tonal_hortator.core.database import GET_FEEDBACK_BY_TRACK_ID
+
 
 class FeedbackService(Protocol):
     """Protocol defining the interface for feedback services"""
@@ -78,9 +80,7 @@ class PlaylistFeedbackService:
 
         conn = sqlite3.connect(self.db_path)
         cur = conn.cursor()
-        cur.execute(
-            "SELECT adjustment, timestamp FROM feedback WHERE track_id = ?", (track_id,)
-        )
+        cur.execute(GET_FEEDBACK_BY_TRACK_ID, (track_id,))
         rows = cur.fetchall()
         conn.close()
 

@@ -385,3 +385,213 @@ class TestOllamaEmbeddingService(unittest.TestCase):
             "composer": "Composer 2",
         },
     ]
+
+    @patch("tonal_hortator.core.embeddings.embeddings.ollama.Client")
+    def test_create_track_embedding_text_with_engagement_data(
+        self, mock_client_class: Mock
+    ) -> None:
+        """Test track embedding text creation with engagement data"""
+        mock_client = Mock()
+        mock_client_class.return_value = mock_client
+
+        mock_models_response = Mock()
+        mock_models_response.models = [Mock(model="nomic-embed-text:latest")]
+        mock_client.list.return_value = mock_models_response
+
+        service = OllamaEmbeddingService()
+
+        # Test with play count
+        track_data = {
+            "name": "Popular Song",
+            "artist": "Popular Artist",
+            "play_count": 150,
+        }
+        result = service.create_track_embedding_text(track_data)
+        self.assertIn("frequently played", result)
+
+        # Test with track rating
+        track_data = {
+            "name": "Highly Rated Song",
+            "artist": "Great Artist",
+            "track_rating": 4.8,
+        }
+        result = service.create_track_embedding_text(track_data)
+        self.assertIn("highly rated", result)
+
+        # Test with average rating
+        track_data = {
+            "name": "User Favorite",
+            "artist": "Beloved Artist",
+            "avg_rating": 4.7,
+        }
+        result = service.create_track_embedding_text(track_data)
+        self.assertIn("user favorite", result)
+
+    @patch("tonal_hortator.core.embeddings.embeddings.ollama.Client")
+    def test_create_track_embedding_text_play_count_categories(
+        self, mock_client_class: Mock
+    ) -> None:
+        """Test play count categorization in embedding text"""
+        mock_client = Mock()
+        mock_client_class.return_value = mock_client
+
+        mock_models_response = Mock()
+        mock_models_response.models = [Mock(model="nomic-embed-text:latest")]
+        mock_client.list.return_value = mock_models_response
+
+        service = OllamaEmbeddingService()
+
+        # Test different play count categories
+        test_cases = [
+            (200, "frequently played"),
+            (75, "moderately played"),
+            (25, "occasionally played"),
+            (5, "rarely played"),
+            (0, None),  # Should not add any play count text
+            (None, None),  # Should not add any play count text
+        ]
+
+        for play_count, expected_text in test_cases:
+            track_data = {
+                "name": "Test Song",
+                "artist": "Test Artist",
+                "play_count": play_count,
+            }
+            result = service.create_track_embedding_text(track_data)
+
+            if expected_text:
+                self.assertIn(expected_text, result)
+            else:
+                # Should not contain any play count related text
+                self.assertNotIn("played", result)
+
+    @patch("tonal_hortator.core.embeddings.embeddings.ollama.Client")
+    def test_create_track_embedding_text_rating_categories(
+        self, mock_client_class: Mock
+    ) -> None:
+        """Test rating categorization in embedding text"""
+        mock_client = Mock()
+        mock_client_class.return_value = mock_client
+
+        mock_models_response = Mock()
+        mock_models_response.models = [Mock(model="nomic-embed-text:latest")]
+        mock_client.list.return_value = mock_models_response
+
+        service = OllamaEmbeddingService()
+
+        # Test track_rating categories
+        track_rating_cases = [
+            (4.8, "highly rated"),
+            (4.2, "well rated"),
+            (3.5, "moderately rated"),
+            (1.5, "poorly rated"),
+            (2.5, None),  # Should not add rating text for middle range
+        ]
+
+        for rating, expected_text in track_rating_cases:
+            track_data = {
+                "name": "Test Song",
+                "artist": "Test Artist",
+                "track_rating": rating,
+            }
+            result = service.create_track_embedding_text(track_data)
+
+            if expected_text:
+                self.assertIn(expected_text, result)
+            else:
+                # Should not contain any rating related text
+                self.assertNotIn("rated", result)
+
+        # Test avg_rating categories
+        avg_rating_cases = [
+            (4.8, "user favorite"),
+            (4.3, "user liked"),
+            (1.5, "user disliked"),
+            (3.0, None),  # Should not add rating text for middle range
+        ]
+
+        for rating, expected_text in avg_rating_cases:
+            track_data = {
+                "name": "Test Song",
+                "artist": "Test Artist",
+                "avg_rating": rating,
+            }
+            result = service.create_track_embedding_text(track_data)
+
+            if expected_text:
+                self.assertIn(expected_text, result)
+            else:
+                # Should not contain any user rating related text
+                self.assertNotIn("user", result)
+
+    @patch("tonal_hortator.core.embeddings.embeddings.ollama.Client")
+    def test_create_track_embedding_text_comprehensive_engagement(
+        self, mock_client_class: Mock
+    ) -> None:
+        """Test comprehensive engagement data in embedding text"""
+        mock_client = Mock()
+        mock_client_class.return_value = mock_client
+
+        mock_models_response = Mock()
+        mock_models_response.models = [Mock(model="nomic-embed-text:latest")]
+        mock_client.list.return_value = mock_models_response
+
+        service = OllamaEmbeddingService()
+
+        # Test with all engagement fields
+        track_data = {
+            "name": "Amazing Song",
+            "artist": "Amazing Artist",
+            "album": "Amazing Album",
+            "genre": "Rock",
+            "year": "2023",
+            "play_count": 200,
+            "track_rating": 4.9,
+            "avg_rating": 4.8,
+        }
+
+        result = service.create_track_embedding_text(track_data)
+
+        # Should contain all engagement indicators
+        self.assertIn("frequently played", result)
+        self.assertIn("highly rated", result)
+        self.assertIn("user favorite", result)
+
+        # Should contain basic metadata
+        self.assertIn("Amazing Song", result)
+        self.assertIn("Amazing Artist", result)
+        self.assertIn("Amazing Album", result)
+        self.assertIn("Rock", result)
+        self.assertIn("2023", result)
+
+    @patch("tonal_hortator.core.embeddings.embeddings.ollama.Client")
+    def test_create_track_embedding_text_invalid_rating_data(
+        self, mock_client_class: Mock
+    ) -> None:
+        """Test handling of invalid rating data"""
+        mock_client = Mock()
+        mock_client_class.return_value = mock_client
+
+        mock_models_response = Mock()
+        mock_models_response.models = [Mock(model="nomic-embed-text:latest")]
+        mock_client.list.return_value = mock_models_response
+
+        service = OllamaEmbeddingService()
+
+        # Test with invalid rating data
+        track_data = {
+            "name": "Test Song",
+            "artist": "Test Artist",
+            "track_rating": "invalid",
+            "avg_rating": "not_a_number",
+        }
+
+        result = service.create_track_embedding_text(track_data)
+
+        # Should not contain any rating text due to invalid data
+        self.assertNotIn("rated", result)
+        self.assertNotIn("user", result)
+
+        # Should still contain basic metadata
+        self.assertIn("Test Song", result)
+        self.assertIn("Test Artist", result)
