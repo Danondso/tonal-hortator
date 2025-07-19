@@ -110,7 +110,10 @@ class TestCoreFunctionality(unittest.TestCase):
         "Skipping playlist generation test in CI (Ollama not running)",
     )
     @patch("tonal_hortator.core.embeddings.embeddings.ollama")
-    def test_playlist_generation(self, mock_ollama: Mock) -> None:
+    @patch("tonal_hortator.core.llm.llm_client.ollama")
+    def test_playlist_generation(
+        self, mock_llm_ollama: Mock, mock_ollama: Mock
+    ) -> None:
         """Test that a simple playlist can be generated."""
         # Mock the Ollama client and embeddings
         mock_client = Mock()
@@ -124,6 +127,22 @@ class TestCoreFunctionality(unittest.TestCase):
         # Mock the embeddings response
         mock_embedding = np.random.rand(384).astype(np.float32)
         mock_client.embeddings.return_value = {"embedding": mock_embedding.tolist()}
+
+        # Mock the LLM response for query parsing
+        mock_llm_ollama.chat.return_value = {
+            "message": {
+                "content": """{
+  "query_type": "general",
+  "artist": null,
+  "reference_artist": null,
+  "genres": ["rock"],
+  "mood": null,
+  "count": null,
+  "unplayed": false,
+  "vague": true
+}"""
+            }
+        }
 
         # First, ensure the tracks are embedded
         embedder = LocalTrackEmbedder(db_path=self.db_path, conn=self.conn)
