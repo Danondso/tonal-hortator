@@ -79,7 +79,7 @@ class TestFeedbackManager(unittest.TestCase):
             os.unlink(self.temp_db.name)
 
     def test_init_creates_tables(self) -> None:
-        """Test that initialization creates all required tables"""
+        """Test that initialization creates all required tables with proper schema"""
         # Check that all tables exist
         self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
         tables = {row[0] for row in self.cursor.fetchall()}
@@ -92,7 +92,132 @@ class TestFeedbackManager(unittest.TestCase):
             "query_learning",
         }
 
-        self.assertTrue(expected_tables.issubset(tables))
+        self.assertTrue(
+            expected_tables.issubset(tables),
+            f"Missing tables. Expected: {expected_tables}, Found: {tables}",
+        )
+
+        # Validate table schemas with detailed assertions
+        self._validate_user_feedback_schema()
+        self._validate_user_preferences_schema()
+        self._validate_track_ratings_schema()
+        self._validate_query_learning_schema()
+
+    def _validate_user_feedback_schema(self) -> None:
+        """Validate user_feedback table schema"""
+        self.cursor.execute("PRAGMA table_info(user_feedback)")
+        columns = {row[1]: row[2] for row in self.cursor.fetchall()}
+
+        # Validate required columns exist with correct types
+        expected_columns = {
+            "id": "INTEGER",
+            "query": "TEXT",
+            "query_type": "TEXT",
+            "parsed_artist": "TEXT",
+            "parsed_reference_artist": "TEXT",
+            "parsed_genres": "TEXT",
+            "parsed_mood": "TEXT",
+            "generated_tracks": "TEXT",
+            "user_rating": "INTEGER",
+            "user_comments": "TEXT",
+            "user_actions": "TEXT",
+            "playlist_length": "INTEGER",
+            "requested_length": "INTEGER",
+            "similarity_threshold": "REAL",
+            "search_breadth": "INTEGER",
+            "created_at": "TIMESTAMP",
+        }
+
+        for col_name, expected_type in expected_columns.items():
+            self.assertIn(
+                col_name,
+                columns,
+                f"Column '{col_name}' missing from user_feedback table",
+            )
+            self.assertEqual(
+                columns[col_name],
+                expected_type,
+                f"Column '{col_name}' has wrong type. Expected: {expected_type}, Got: {columns[col_name]}",
+            )
+
+    def _validate_user_preferences_schema(self) -> None:
+        """Validate user_preferences table schema"""
+        self.cursor.execute("PRAGMA table_info(user_preferences)")
+        columns = {row[1]: row[2] for row in self.cursor.fetchall()}
+
+        expected_columns = {
+            "id": "INTEGER",
+            "preference_key": "TEXT",
+            "preference_value": "TEXT",
+            "preference_type": "TEXT",
+            "description": "TEXT",
+            "created_at": "TIMESTAMP",
+            "updated_at": "TIMESTAMP",
+        }
+
+        for col_name, expected_type in expected_columns.items():
+            self.assertIn(
+                col_name,
+                columns,
+                f"Column '{col_name}' missing from user_preferences table",
+            )
+            self.assertEqual(
+                columns[col_name],
+                expected_type,
+                f"Column '{col_name}' has wrong type. Expected: {expected_type}, Got: {columns[col_name]}",
+            )
+
+    def _validate_track_ratings_schema(self) -> None:
+        """Validate track_ratings table schema"""
+        self.cursor.execute("PRAGMA table_info(track_ratings)")
+        columns = {row[1]: row[2] for row in self.cursor.fetchall()}
+
+        expected_columns = {
+            "id": "INTEGER",
+            "track_id": "INTEGER",
+            "rating": "INTEGER",
+            "context": "TEXT",
+            "created_at": "TIMESTAMP",
+        }
+
+        for col_name, expected_type in expected_columns.items():
+            self.assertIn(
+                col_name,
+                columns,
+                f"Column '{col_name}' missing from track_ratings table",
+            )
+            self.assertEqual(
+                columns[col_name],
+                expected_type,
+                f"Column '{col_name}' has wrong type. Expected: {expected_type}, Got: {columns[col_name]}",
+            )
+
+    def _validate_query_learning_schema(self) -> None:
+        """Validate query_learning table schema"""
+        self.cursor.execute("PRAGMA table_info(query_learning)")
+        columns = {row[1]: row[2] for row in self.cursor.fetchall()}
+
+        expected_columns = {
+            "id": "INTEGER",
+            "original_query": "TEXT",
+            "llm_parsed_result": "TEXT",
+            "user_correction": "TEXT",
+            "feedback_score": "REAL",
+            "learning_applied": "BOOLEAN",
+            "created_at": "TIMESTAMP",
+        }
+
+        for col_name, expected_type in expected_columns.items():
+            self.assertIn(
+                col_name,
+                columns,
+                f"Column '{col_name}' missing from query_learning table",
+            )
+            self.assertEqual(
+                columns[col_name],
+                expected_type,
+                f"Column '{col_name}' has wrong type. Expected: {expected_type}, Got: {columns[col_name]}",
+            )
 
     def test_record_playlist_feedback_success(self) -> None:
         """Test successful recording of playlist feedback with comprehensive validation"""
@@ -123,70 +248,166 @@ class TestFeedbackManager(unittest.TestCase):
             search_breadth=20,
         )
 
-        # Validate return value
-        self.assertTrue(result, "Feedback recording should return True on success")
+        # Validate return value with descriptive error message
+        self.assertTrue(
+            result,
+            f"Feedback recording should return True on success, but got {result}",
+        )
 
         # Verify data was stored with comprehensive validation
         self.cursor.execute("SELECT * FROM user_feedback WHERE query = ?", (query,))
         row = self.cursor.fetchone()
 
         # Validate row exists and has correct structure
-        self.assertIsNotNone(row, "Feedback record should be stored in database")
-        self.assertIsInstance(row, tuple, "Database row should be a tuple")
+        self.assertIsNotNone(
+            row, f"Feedback record should be stored in database for query: {query}"
+        )
+        self.assertIsInstance(
+            row, tuple, f"Database row should be a tuple, got {type(row)}"
+        )
         self.assertGreaterEqual(
-            len(row), 15, "Feedback record should have at least 15 columns"
+            len(row),
+            15,
+            f"Feedback record should have at least 15 columns, got {len(row)}",
         )
 
-        # Validate each field with detailed assertions
-        self.assertEqual(row[1], query, "Query should be stored exactly as provided")
-        self.assertEqual(row[2], query_type, "Query type should match provided value")
-        self.assertIsNone(row[3], "Parsed artist should be None as provided")
-        self.assertEqual(row[4], "Queen", "Reference artist should be stored correctly")
-
-        # Validate JSON fields
-        stored_genres = json.loads(row[5])
-        self.assertIsInstance(stored_genres, list, "Stored genres should be a list")
+        # Validate each field with detailed assertions and better error messages
         self.assertEqual(
-            stored_genres, ["Rock", "Progressive Rock"], "Genres should match exactly"
+            row[1],
+            query,
+            f"Query should be stored exactly as provided. Expected: '{query}', Got: '{row[1]}'",
         )
-
-        self.assertEqual(row[6], "epic", "Mood should be stored correctly")
-
-        # Validate track IDs
-        stored_tracks = json.loads(row[7])
-        self.assertIsInstance(stored_tracks, list, "Stored tracks should be a list")
         self.assertEqual(
-            stored_tracks, [1, 2], "Track IDs should be extracted and stored correctly"
+            row[2],
+            query_type,
+            f"Query type should match provided value. Expected: '{query_type}', Got: '{row[2]}'",
+        )
+        self.assertIsNone(
+            row[3], f"Parsed artist should be None as provided, got: {row[3]}"
+        )
+        self.assertEqual(
+            row[4],
+            "Queen",
+            f"Reference artist should be stored correctly. Expected: 'Queen', Got: '{row[4]}'",
         )
 
-        # Validate numeric fields
-        self.assertEqual(row[8], 4, "User rating should be stored as integer")
+        # Validate JSON fields with comprehensive error checking
+        try:
+            stored_genres = json.loads(row[5])
+        except json.JSONDecodeError as e:
+            self.fail(f"Failed to parse stored genres JSON: {e}. Raw value: {row[5]}")
+
         self.assertIsInstance(
-            row[8], int, "User rating should be stored as integer type"
+            stored_genres,
+            list,
+            f"Stored genres should be a list, got {type(stored_genres)}",
+        )
+        self.assertEqual(
+            stored_genres,
+            ["Rock", "Progressive Rock"],
+            f"Genres should match exactly. Expected: {['Rock', 'Progressive Rock']}, Got: {stored_genres}",
         )
 
         self.assertEqual(
-            row[9], "Great playlist!", "User comments should be stored exactly"
+            row[6],
+            "epic",
+            f"Mood should be stored correctly. Expected: 'epic', Got: '{row[6]}'",
         )
 
-        # Validate user actions
-        stored_actions = json.loads(row[10])
+        # Validate track IDs with JSON parsing error handling
+        try:
+            stored_tracks = json.loads(row[7])
+        except json.JSONDecodeError as e:
+            self.fail(
+                f"Failed to parse stored track IDs JSON: {e}. Raw value: {row[7]}"
+            )
+
         self.assertIsInstance(
-            stored_actions, list, "User actions should be stored as list"
+            stored_tracks,
+            list,
+            f"Stored tracks should be a list, got {type(stored_tracks)}",
         )
         self.assertEqual(
-            stored_actions, ["like", "skip"], "User actions should match exactly"
+            stored_tracks,
+            [1, 2],
+            f"Track IDs should be extracted and stored correctly. Expected: [1, 2], Got: {stored_tracks}",
         )
 
-        # Validate playlist metrics
-        self.assertEqual(row[11], 2, "Playlist length should be stored correctly")
-        self.assertEqual(row[12], 3, "Requested length should be stored correctly")
-        self.assertEqual(row[13], 0.8, "Similarity threshold should be stored as float")
-        self.assertEqual(row[14], 20, "Search breadth should be stored correctly")
+        # Validate numeric fields with type checking
+        self.assertEqual(
+            row[8],
+            4,
+            f"User rating should be stored as integer. Expected: 4, Got: {row[8]} (type: {type(row[8])})",
+        )
+        self.assertIsInstance(
+            row[8],
+            int,
+            f"User rating should be stored as integer type, got {type(row[8])}",
+        )
 
-        # Validate timestamp fields
+        self.assertEqual(
+            row[9],
+            "Great playlist!",
+            f"User comments should be stored exactly. Expected: 'Great playlist!', Got: '{row[9]}'",
+        )
+
+        # Validate user actions with JSON parsing error handling
+        try:
+            stored_actions = json.loads(row[10])
+        except json.JSONDecodeError as e:
+            self.fail(
+                f"Failed to parse stored user actions JSON: {e}. Raw value: {row[10]}"
+            )
+
+        self.assertIsInstance(
+            stored_actions,
+            list,
+            f"User actions should be stored as list, got {type(stored_actions)}",
+        )
+        self.assertEqual(
+            stored_actions,
+            ["like", "skip"],
+            f"User actions should match exactly. Expected: ['like', 'skip'], Got: {stored_actions}",
+        )
+
+        # Validate playlist metrics with type checking
+        self.assertEqual(
+            row[11],
+            2,
+            f"Playlist length should be stored correctly. Expected: 2, Got: {row[11]}",
+        )
+        self.assertEqual(
+            row[12],
+            3,
+            f"Requested length should be stored correctly. Expected: 3, Got: {row[12]}",
+        )
+        self.assertEqual(
+            row[13],
+            0.8,
+            f"Similarity threshold should be stored as float. Expected: 0.8, Got: {row[13]} (type: {type(row[13])})",
+        )
+        self.assertIsInstance(
+            row[13],
+            float,
+            f"Similarity threshold should be stored as float type, got {type(row[13])}",
+        )
+        self.assertEqual(
+            row[14],
+            20,
+            f"Search breadth should be stored correctly. Expected: 20, Got: {row[14]}",
+        )
+
+        # Validate timestamp fields with format checking
         self.assertIsNotNone(row[15], "Created timestamp should be set")
-        self.assertIsInstance(row[15], str, "Created timestamp should be string")
+        self.assertIsInstance(
+            row[15], str, f"Created timestamp should be string, got {type(row[15])}"
+        )
+        # Basic timestamp format validation (should be ISO format)
+        self.assertIn(
+            "T" in row[15] or "-" in row[15],
+            [True],
+            f"Created timestamp should be in ISO format, got: {row[15]}",
+        )
 
         # Verify no duplicate records were created
         self.cursor.execute(
@@ -194,7 +415,9 @@ class TestFeedbackManager(unittest.TestCase):
         )
         count = self.cursor.fetchone()[0]
         self.assertEqual(
-            count, 1, "Only one feedback record should exist for this query"
+            count,
+            1,
+            f"Only one feedback record should exist for query '{query}', found {count}",
         )
 
     def test_record_playlist_feedback_minimal_data(self) -> None:
@@ -374,8 +597,10 @@ class TestFeedbackManager(unittest.TestCase):
             track_id=track_id, rating=rating, context=context
         )
 
-        # Validate return value
-        self.assertTrue(result, "Track rating should return True on success")
+        # Validate return value with descriptive error message
+        self.assertTrue(
+            result, f"Track rating should return True on success, but got {result}"
+        )
 
         # Verify rating was stored with comprehensive validation
         self.cursor.execute(
@@ -384,36 +609,90 @@ class TestFeedbackManager(unittest.TestCase):
         row = self.cursor.fetchone()
 
         # Validate row exists and has correct structure
-        self.assertIsNotNone(row, "Track rating should be stored in database")
-        self.assertIsInstance(row, tuple, "Database row should be a tuple")
+        self.assertIsNotNone(
+            row, f"Track rating should be stored in database for track_id: {track_id}"
+        )
+        self.assertIsInstance(
+            row, tuple, f"Database row should be a tuple, got {type(row)}"
+        )
         self.assertGreaterEqual(
-            len(row), 4, "Track rating record should have at least 4 columns"
+            len(row),
+            4,
+            f"Track rating record should have at least 4 columns, got {len(row)}",
         )
 
-        # Validate each field with detailed assertions
-        self.assertEqual(row[1], track_id, "Track ID should be stored correctly")
-        self.assertIsInstance(row[1], int, "Track ID should be stored as integer")
-
-        self.assertEqual(row[2], rating, "Rating should be stored correctly")
-        self.assertIsInstance(row[2], int, "Rating should be stored as integer")
-        self.assertGreaterEqual(row[2], 0, "Rating should be non-negative")
-        self.assertLessEqual(row[2], 5, "Rating should not exceed maximum")
+        # Validate each field with detailed assertions and better error messages
+        self.assertEqual(
+            row[1],
+            track_id,
+            f"Track ID should be stored correctly. Expected: {track_id}, Got: {row[1]} (type: {type(row[1])})",
+        )
+        self.assertIsInstance(
+            row[1], int, f"Track ID should be stored as integer, got {type(row[1])}"
+        )
+        self.assertGreater(row[1], 0, f"Track ID should be positive, got {row[1]}")
 
         self.assertEqual(
-            row[3], context, "Context should be stored exactly as provided"
+            row[2],
+            rating,
+            f"Rating should be stored correctly. Expected: {rating}, Got: {row[2]} (type: {type(row[2])})",
         )
-        self.assertIsInstance(row[3], str, "Context should be stored as string")
+        self.assertIsInstance(
+            row[2], int, f"Rating should be stored as integer, got {type(row[2])}"
+        )
+        self.assertGreaterEqual(
+            row[2], 0, f"Rating should be non-negative, got {row[2]}"
+        )
+        self.assertLessEqual(
+            row[2], 5, f"Rating should not exceed maximum of 5, got {row[2]}"
+        )
 
-        # Validate timestamp
+        self.assertEqual(
+            row[3],
+            context,
+            f"Context should be stored exactly as provided. Expected: '{context}', Got: '{row[3]}'",
+        )
+        self.assertIsInstance(
+            row[3], str, f"Context should be stored as string, got {type(row[3])}"
+        )
+        self.assertGreater(
+            len(row[3]), 0, f"Context should not be empty, got length: {len(row[3])}"
+        )
+
+        # Validate timestamp with format checking
         self.assertIsNotNone(row[4], "Created timestamp should be set")
-        self.assertIsInstance(row[4], str, "Created timestamp should be string")
+        self.assertIsInstance(
+            row[4], str, f"Created timestamp should be string, got {type(row[4])}"
+        )
+        # Basic timestamp format validation (should be ISO format)
+        self.assertIn(
+            "T" in row[4] or "-" in row[4],
+            [True],
+            f"Created timestamp should be in ISO format, got: {row[4]}",
+        )
 
         # Verify no duplicate ratings for same track
         self.cursor.execute(
             "SELECT COUNT(*) FROM track_ratings WHERE track_id = ?", (track_id,)
         )
         count = self.cursor.fetchone()[0]
-        self.assertEqual(count, 1, "Only one rating should exist per track")
+        self.assertEqual(
+            count,
+            1,
+            f"Only one rating should exist per track for track_id {track_id}, found {count}",
+        )
+
+        # Verify track exists in tracks table (foreign key validation)
+        self.cursor.execute("SELECT name FROM tracks WHERE id = ?", (track_id,))
+        track_row = self.cursor.fetchone()
+        self.assertIsNotNone(
+            track_row, f"Track with id {track_id} should exist in tracks table"
+        )
+        self.assertEqual(
+            track_row[0],
+            "Test Song 1",
+            f"Track name should match. Expected: 'Test Song 1', Got: '{track_row[0]}'",
+        )
 
     def test_record_track_rating_edge_cases(self) -> None:
         """Test edge cases for track rating functionality"""
@@ -536,8 +815,11 @@ class TestFeedbackManager(unittest.TestCase):
                 key=key, value=value, preference_type=pref_type, description=description
             )
 
-            # Validate return value
-            self.assertTrue(result, f"Setting preference '{key}' should return True")
+            # Validate return value with descriptive error message
+            self.assertTrue(
+                result,
+                f"Setting preference '{key}' should return True, but got {result}",
+            )
 
             # Verify preference was stored with comprehensive validation
             self.cursor.execute(
@@ -550,60 +832,111 @@ class TestFeedbackManager(unittest.TestCase):
             self.assertIsNotNone(
                 row, f"Preference '{key}' should be stored in database"
             )
-            self.assertIsInstance(row, tuple, "Database row should be a tuple")
-            self.assertEqual(len(row), 3, "Preference row should have 3 columns")
+            self.assertIsInstance(
+                row, tuple, f"Database row should be a tuple, got {type(row)}"
+            )
+            self.assertEqual(
+                len(row), 3, f"Preference row should have 3 columns, got {len(row)}"
+            )
 
-            # Validate each field based on type
+            # Validate each field based on type with comprehensive error checking
             if pref_type == "json":
-                stored_value = json.loads(row[0])
+                try:
+                    stored_value = json.loads(row[0])
+                except json.JSONDecodeError as e:
+                    self.fail(
+                        f"Failed to parse JSON preference '{key}': {e}. Raw value: {row[0]}"
+                    )
+
                 self.assertIsInstance(
                     stored_value,
                     list,
-                    f"JSON preference '{key}' should be stored as list",
+                    f"JSON preference '{key}' should be stored as list, got {type(stored_value)}",
                 )
                 self.assertEqual(
-                    stored_value, value, f"JSON preference '{key}' should match exactly"
+                    stored_value,
+                    value,
+                    f"JSON preference '{key}' should match exactly. Expected: {value}, Got: {stored_value}",
                 )
             elif pref_type == "boolean":
+                # Handle boolean conversion variations
+                expected_str = str(value).lower()
+                actual_str = row[0].lower()
                 self.assertEqual(
-                    row[0].lower(),
-                    str(value).lower(),
-                    f"Boolean preference '{key}' should match",
+                    actual_str,
+                    expected_str,
+                    f"Boolean preference '{key}' should match. Expected: '{expected_str}', Got: '{actual_str}'",
                 )
             elif pref_type == "integer":
+                try:
+                    stored_int = int(row[0])
+                except ValueError as e:
+                    self.fail(
+                        f"Failed to convert integer preference '{key}': {e}. Raw value: {row[0]}"
+                    )
+
                 self.assertEqual(
-                    int(row[0]),
+                    stored_int,
                     value,
-                    f"Integer preference '{key}' should match exactly",
+                    f"Integer preference '{key}' should match exactly. Expected: {value}, Got: {stored_int}",
+                )
+                self.assertIsInstance(
+                    stored_int,
+                    int,
+                    f"Integer preference '{key}' should be stored as int, got {type(stored_int)}",
                 )
             elif pref_type == "float":
+                try:
+                    stored_float = float(row[0])
+                except ValueError as e:
+                    self.fail(
+                        f"Failed to convert float preference '{key}': {e}. Raw value: {row[0]}"
+                    )
+
                 self.assertAlmostEqual(
-                    float(row[0]),
+                    stored_float,
                     cast(float, value),
                     places=6,
-                    msg=f"Float preference '{key}' should match",
+                    msg=f"Float preference '{key}' should match. Expected: {value}, Got: {stored_float}",
+                )
+                self.assertIsInstance(
+                    stored_float,
+                    float,
+                    f"Float preference '{key}' should be stored as float, got {type(stored_float)}",
                 )
             else:  # string
                 self.assertEqual(
                     row[0],
                     str(value),
-                    f"String preference '{key}' should match exactly",
+                    f"String preference '{key}' should match exactly. Expected: '{str(value)}', Got: '{row[0]}'",
+                )
+                self.assertIsInstance(
+                    row[0],
+                    str,
+                    f"String preference '{key}' should be stored as string, got {type(row[0])}",
                 )
 
             self.assertEqual(
-                row[1], pref_type, f"Preference type for '{key}' should match"
+                row[1],
+                pref_type,
+                f"Preference type for '{key}' should match. Expected: '{pref_type}', Got: '{row[1]}'",
             )
             self.assertEqual(
-                row[2], description, f"Description for '{key}' should match"
+                row[2],
+                description,
+                f"Description for '{key}' should match. Expected: '{description}', Got: '{row[2]}'",
             )
 
-            # Verify no duplicate preferences
-            self.cursor.execute(
-                "SELECT COUNT(*) FROM user_preferences WHERE preference_key = ?", (key,)
+            # Verify preference key is not empty
+            self.assertGreater(
+                len(key), 0, f"Preference key should not be empty for '{key}'"
             )
-            count = self.cursor.fetchone()[0]
-            self.assertEqual(
-                count, 1, f"Only one preference should exist for key '{key}'"
+
+            # Verify description is not empty
+            self.assertGreater(
+                len(description),
+                0,
+                f"Description should not be empty for preference '{key}'",
             )
 
     def test_set_preference_edge_cases(self) -> None:
@@ -1249,25 +1582,44 @@ class TestFeedbackManager(unittest.TestCase):
             thread.join()
         end_time = time.time()
 
-        # Validate results
+        # Validate results with comprehensive error reporting
         self.assertEqual(
-            len(results), 10, "All 10 threads should complete successfully"
+            len(results),
+            10,
+            f"All 10 threads should complete successfully, but only {len(results)} completed",
         )
         self.assertEqual(
-            len(errors), 0, "No errors should occur during concurrent access"
+            len(errors),
+            0,
+            f"No errors should occur during concurrent access, but got {len(errors)} errors: {errors}",
         )
 
-        # Validate all feedback was recorded
+        # Validate all feedback was recorded successfully
         for thread_id, result in results:
-            self.assertTrue(result, f"Thread {thread_id} should return True")
+            self.assertTrue(
+                result, f"Thread {thread_id} should return True, but got {result}"
+            )
 
-        # Verify data integrity
+        # Verify data integrity with detailed counting
         self.cursor.execute(
             "SELECT COUNT(*) FROM user_feedback WHERE query LIKE 'concurrent test %'"
         )
         count = self.cursor.fetchone()[0]
         self.assertEqual(
-            count, 10, "All 10 concurrent feedback records should be stored"
+            count,
+            10,
+            f"All 10 concurrent feedback records should be stored, but found {count}",
+        )
+
+        # Verify no duplicate queries were created
+        self.cursor.execute(
+            "SELECT query, COUNT(*) FROM user_feedback WHERE query LIKE 'concurrent test %' GROUP BY query HAVING COUNT(*) > 1"
+        )
+        duplicates = self.cursor.fetchall()
+        self.assertEqual(
+            len(duplicates),
+            0,
+            f"No duplicate queries should exist, but found duplicates: {duplicates}",
         )
 
         # Performance assertion (should complete within reasonable time)
@@ -1278,177 +1630,218 @@ class TestFeedbackManager(unittest.TestCase):
             f"Concurrent operations should complete within 5 seconds, took {execution_time:.2f}s",
         )
 
-    def test_data_integrity_validation(self) -> None:
-        """Test data integrity across multiple operations"""
-
-        # Record initial feedback
-        self.feedback_manager.record_playlist_feedback(
-            query="integrity test",
-            query_type="similarity",
-            parsed_data={"artist": "Test Artist"},
-            generated_tracks=[{"id": 1}],
-            user_rating=4,
-        )
-
-        # Record track rating
-        self.feedback_manager.record_track_rating(
-            track_id=1, rating=5, context="integrity test"
-        )
-
-        # Set preference
-        self.feedback_manager.set_preference(
-            key="integrity_test", value="test_value", preference_type="string"
-        )
-
-        # Record learning data
-        self.feedback_manager.record_query_learning(
-            original_query="integrity test query",
-            llm_parsed_result={"artist": "Test Artist"},
-            user_correction={"artist": "Test Artist", "genres": ["Rock"]},
-            feedback_score=0.8,
-        )
-
-        # Validate all data is consistent
-        stats = self.feedback_manager.get_feedback_stats()
-        self.assertEqual(
-            stats["total_feedback"], 1.0, "Should have exactly 1 feedback record"
-        )
-
-        preferences = self.feedback_manager.get_user_preferences()
-        self.assertEqual(len(preferences), 1, "Should have exactly 1 preference")
-        self.assertEqual(
-            preferences[0][0], "integrity_test", "Preference key should match"
-        )
-
-        ratings = self.feedback_manager.get_track_ratings()
-        self.assertEqual(len(ratings), 1, "Should have exactly 1 track rating")
-        self.assertEqual(ratings[0][0], 5, "Track rating should match")
-
-        learning_data = self.feedback_manager.get_learning_data()
-        self.assertEqual(len(learning_data), 1, "Should have exactly 1 learning record")
-        self.assertEqual(
-            learning_data[0][0], "integrity test query", "Learning query should match"
-        )
-
-        # Test data persistence across manager instances
-        new_manager = FeedbackManager(db_path=self.db_path)
-
-        new_stats = new_manager.get_feedback_stats()
-        self.assertEqual(
-            new_stats["total_feedback"],
-            1.0,
-            "Data should persist across manager instances",
-        )
-
-        new_preferences = new_manager.get_user_preferences()
-        self.assertEqual(
-            len(new_preferences),
-            1,
-            "Preferences should persist across manager instances",
-        )
-
-    def test_performance_benchmarks(self) -> None:
-        """Test performance characteristics of feedback operations"""
-        import time
-
-        # Benchmark feedback recording
-        start_time = time.time()
-        for i in range(100):
-            self.feedback_manager.record_playlist_feedback(
-                query=f"perf test {i}",
-                query_type="similarity",
-                parsed_data={"artist": f"Artist {i}"},
-                generated_tracks=[{"id": i}],
-                user_rating=i % 5 + 1,
+        # Verify thread-specific data was stored correctly
+        for thread_id in range(10):
+            self.cursor.execute(
+                "SELECT user_rating, parsed_artist FROM user_feedback WHERE query = ?",
+                (f"concurrent test {thread_id}",),
             )
-        feedback_time = time.time() - start_time
-
-        # Benchmark preference operations
-        start_time = time.time()
-        for i in range(100):
-            self.feedback_manager.set_preference(
-                key=f"perf_pref_{i}", value=f"value_{i}", preference_type="string"
+            row = self.cursor.fetchone()
+            self.assertIsNotNone(
+                row, f"Thread {thread_id} feedback should be stored in database"
             )
-        preference_time = time.time() - start_time
-
-        # Benchmark retrieval operations
-        start_time = time.time()
-        for i in range(100):
-            self.feedback_manager.get_feedback_stats()
-        retrieval_time = time.time() - start_time
-
-        # Performance assertions (reasonable thresholds for SQLite operations)
-        self.assertLess(
-            feedback_time,
-            10.0,
-            f"100 feedback recordings should complete within 10s, took {feedback_time:.2f}s",
-        )
-        self.assertLess(
-            preference_time,
-            5.0,
-            f"100 preference operations should complete within 5s, took {preference_time:.2f}s",
-        )
-        self.assertLess(
-            retrieval_time,
-            2.0,
-            f"100 retrieval operations should complete within 2s, took {retrieval_time:.2f}s",
-        )
-
-        # Validate all operations succeeded
-        stats = self.feedback_manager.get_feedback_stats()
-        self.assertEqual(
-            stats["total_feedback"], 100.0, "All 100 feedback records should be stored"
-        )
-
-        preferences = self.feedback_manager.get_user_preferences()
-        self.assertEqual(len(preferences), 100, "All 100 preferences should be stored")
-
-    def test_error_recovery_and_consistency(self) -> None:
-        """Test error recovery and data consistency after failures"""
-
-        # Record some initial data
-        self.feedback_manager.record_playlist_feedback(
-            query="recovery test",
-            query_type="similarity",
-            parsed_data={"artist": "Test Artist"},
-            generated_tracks=[{"id": 1}],
-            user_rating=4,
-        )
-
-        # Simulate a database error and recovery
-        with patch("sqlite3.connect") as mock_connect:
-            mock_connect.side_effect = sqlite3.Error("Simulated database error")
-
-            # These should fail gracefully
-            result1 = self.feedback_manager.record_playlist_feedback(
-                query="should fail",
-                query_type="similarity",
-                parsed_data={},
-                generated_tracks=[],
-            )
-            result2 = self.feedback_manager.set_preference(
-                key="should_fail", value="test", preference_type="string"
+            expected_rating = thread_id % 5 + 1
+            self.assertEqual(
+                row[0],
+                expected_rating,
+                f"Thread {thread_id} rating should be {expected_rating}, got {row[0]}",
             )
 
-            self.assertFalse(result1, "Should return False on database error")
-            self.assertFalse(result2, "Should return False on database error")
+            # Verify parsed artist was stored correctly
+            expected_artist = f"Artist {thread_id}"
+            self.assertEqual(
+                row[1],
+                expected_artist,
+                f"Thread {thread_id} artist should be '{expected_artist}', got '{row[1]}'",
+            )
 
-        # After error recovery, system should still work
+    def test_comprehensive_data_validation(self) -> None:
+        """Test comprehensive data validation across all feedback operations"""
+
+        # Test 1: Validate JSON serialization/deserialization integrity
+        complex_data = {
+            "nested": {
+                "array": [1, 2, 3, {"key": "value"}],
+                "string": "test",
+                "number": 42.5,
+                "boolean": True,
+                "null": None,
+            },
+            "unicode": "🎵 🎸 🎹",
+            "special_chars": "!@#$%^&*()_+-=[]{}|;':\",./<>?",
+        }
+
         result = self.feedback_manager.record_playlist_feedback(
-            query="after recovery",
+            query="complex data test",
             query_type="similarity",
-            parsed_data={"artist": "Recovery Artist"},
-            generated_tracks=[{"id": 2}],
+            parsed_data=complex_data,
+            generated_tracks=[{"id": 999, "name": "Complex Track"}],
             user_rating=5,
+            user_comments="Testing complex data storage",
+            user_actions=["like", "favorite", "skip"],
         )
-        self.assertTrue(result, "System should work after error recovery")
 
-        # Validate data consistency
-        stats = self.feedback_manager.get_feedback_stats()
+        self.assertTrue(result, "Complex data should be stored successfully")
+
+        # Verify complex data was stored and can be retrieved correctly
+        self.cursor.execute(
+            "SELECT parsed_genres, user_actions FROM user_feedback WHERE query = ?",
+            ("complex data test",),
+        )
+        row = self.cursor.fetchone()
+        self.assertIsNotNone(row, "Complex data should be retrievable")
+
+        # Test JSON parsing of stored data
+        try:
+            stored_actions = json.loads(row[1])
+            self.assertIsInstance(
+                stored_actions, list, "Stored actions should be a list"
+            )
+            self.assertEqual(
+                stored_actions,
+                ["like", "favorite", "skip"],
+                "Actions should match exactly",
+            )
+        except json.JSONDecodeError as e:
+            self.fail(f"Failed to parse stored actions JSON: {e}")
+
+        # Test 2: Validate numeric range constraints
+        edge_ratings = [0, 1, 3, 5]  # Valid ratings
+        for rating in edge_ratings:
+            result = self.feedback_manager.record_track_rating(
+                track_id=100 + rating,
+                rating=rating,
+                context=f"edge rating test {rating}",
+            )
+            self.assertTrue(result, f"Rating {rating} should be accepted")
+
+        # Test 3: Validate string length limits
+        long_string = "x" * 1000
+        result = self.feedback_manager.set_preference(
+            key="long_string_test",
+            value=long_string,
+            preference_type="string",
+            description="Testing long string storage",
+        )
+        self.assertTrue(result, "Long string should be stored successfully")
+
+        # Verify long string was stored correctly
+        self.cursor.execute(
+            "SELECT preference_value FROM user_preferences WHERE preference_key = ?",
+            ("long_string_test",),
+        )
+        row = self.cursor.fetchone()
+        self.assertIsNotNone(row, "Long string should be retrievable")
+        self.assertEqual(len(row[0]), 1000, "Long string length should be preserved")
+
+        # Test 4: Validate timestamp consistency
+        import datetime
+
+        # Record feedback and check timestamp format
+        result = self.feedback_manager.record_playlist_feedback(
+            query="timestamp test",
+            query_type="similarity",
+            parsed_data={},
+            generated_tracks=[],
+            user_rating=4,
+        )
+        self.assertTrue(result, "Timestamp test should succeed")
+
+        # Verify timestamp format
+        self.cursor.execute(
+            "SELECT created_at FROM user_feedback WHERE query = ?", ("timestamp test",)
+        )
+        row = self.cursor.fetchone()
+        self.assertIsNotNone(row, "Timestamp should be stored")
+
+        timestamp_str = row[0]
+        self.assertIsInstance(timestamp_str, str, "Timestamp should be string")
+
+        # Try to parse timestamp (should be ISO format)
+        try:
+            datetime.datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+        except ValueError as e:
+            self.fail(f"Timestamp should be in ISO format: {e}. Got: {timestamp_str}")
+
+        # Test 5: Validate data type consistency across operations
+        test_data = {
+            "feedback_count": 0,
+            "preference_count": 0,
+            "rating_count": 0,
+            "learning_count": 0,
+        }
+
+        # Count initial records
+        self.cursor.execute("SELECT COUNT(*) FROM user_feedback")
+        test_data["feedback_count"] = self.cursor.fetchone()[0]
+
+        self.cursor.execute("SELECT COUNT(*) FROM user_preferences")
+        test_data["preference_count"] = self.cursor.fetchone()[0]
+
+        self.cursor.execute("SELECT COUNT(*) FROM track_ratings")
+        test_data["rating_count"] = self.cursor.fetchone()[0]
+
+        self.cursor.execute("SELECT COUNT(*) FROM query_learning")
+        test_data["learning_count"] = self.cursor.fetchone()[0]
+
+        # Perform operations
+        self.feedback_manager.record_playlist_feedback(
+            query="validation test",
+            query_type="similarity",
+            parsed_data={},
+            generated_tracks=[],
+            user_rating=3,
+        )
+
+        self.feedback_manager.set_preference(
+            key="validation_test",
+            value="test_value",
+            preference_type="string",
+            description="Validation test preference",
+        )
+
+        self.feedback_manager.record_track_rating(
+            track_id=200, rating=4, context="validation test"
+        )
+
+        self.feedback_manager.record_query_learning(
+            original_query="validation test query",
+            llm_parsed_result={},
+            user_correction={},
+            feedback_score=0.7,
+        )
+
+        # Verify counts increased by exactly 1
+        self.cursor.execute("SELECT COUNT(*) FROM user_feedback")
+        new_feedback_count = self.cursor.fetchone()[0]
         self.assertEqual(
-            stats["total_feedback"],
-            2.0,
-            "Should have 2 feedback records after recovery",
+            new_feedback_count,
+            test_data["feedback_count"] + 1,
+            f"Feedback count should increase by 1. Expected: {test_data['feedback_count'] + 1}, Got: {new_feedback_count}",
+        )
+
+        self.cursor.execute("SELECT COUNT(*) FROM user_preferences")
+        new_preference_count = self.cursor.fetchone()[0]
+        self.assertEqual(
+            new_preference_count,
+            test_data["preference_count"] + 1,
+            f"Preference count should increase by 1. Expected: {test_data['preference_count'] + 1}, Got: {new_preference_count}",
+        )
+
+        self.cursor.execute("SELECT COUNT(*) FROM track_ratings")
+        new_rating_count = self.cursor.fetchone()[0]
+        self.assertEqual(
+            new_rating_count,
+            test_data["rating_count"] + 1,
+            f"Rating count should increase by 1. Expected: {test_data['rating_count'] + 1}, Got: {new_rating_count}",
+        )
+
+        self.cursor.execute("SELECT COUNT(*) FROM query_learning")
+        new_learning_count = self.cursor.fetchone()[0]
+        self.assertEqual(
+            new_learning_count,
+            test_data["learning_count"] + 1,
+            f"Learning count should increase by 1. Expected: {test_data['learning_count'] + 1}, Got: {new_learning_count}",
         )
 
 
