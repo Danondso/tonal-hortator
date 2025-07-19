@@ -573,7 +573,7 @@ class FeedbackManager:
         adjustment = feedback_map.get(feedback, 0.0)
         timestamp = datetime.now().isoformat()
 
-        conn = sqlite3.connect("feedback.db")
+        conn = sqlite3.connect(self.db_path)
         cur = conn.cursor()
         cur.execute(
             """
