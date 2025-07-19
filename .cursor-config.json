@@ -1,0 +1,47 @@
+{
+  "projectName": "Tonal Hortator",
+  "defaultFile": "tonal_hortator/cli/main.py",
+  "preferredShell": "zsh",
+  "ignored": [
+    "feedback.db",
+    "music_library.db",
+    "*.m3u",
+    "__pycache__",
+    "*.pyc",
+    ".coverage",
+    "coverage.xml",
+    "htmlcov/",
+    "logs/",
+    "playlists/"
+  ],
+  "environment": {
+    "PYTHONPATH": "."
+  },
+  "scripts": {
+    "Seed Feedback": "python tonal_hortator/core/feedback/feedback_report.py seed",
+    "Summarize Feedback": "python tonal_hortator/core/feedback/feedback_report.py",
+    "Run Playlist Generator": "python -m tonal_hortator.cli.main generate",
+    "Run Tests": "python -m tonal_hortator.tests.run_tests",
+    "CI Check": "make ci",
+    "Format Code": "black . && isort .",
+    "Lint Code": "flake8 ."
+  },
+  "shortcuts": {
+    "cmd+i": {
+      "description": "Open Feedback Summary",
+      "file": "tonal_hortator/core/feedback/feedback_report.py"
+    },
+    "cmd+u": {
+      "description": "Open CLI Main",
+      "file": "tonal_hortator/cli/main.py"
+    },
+    "cmd+shift+s": {
+      "description": "Run Seeding Script",
+      "run": "python tonal_hortator/core/feedback/feedback_report.py seed"
+    },
+    "cmd+shift+t": {
+      "description": "Run Tests",
+      "run": "python -m tonal_hortator.tests.run_tests"
+    }
+  }
+}
