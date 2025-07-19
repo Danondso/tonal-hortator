@@ -1,5 +1,5 @@
+import argparse
 import sqlite3
-import sys
 from collections import Counter, defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -7,8 +7,7 @@ from pathlib import Path
 DB_PATH = "feedback.db"
 
 
-def seed_feedback() -> None:
-    db_path = DB_PATH
+def seed_feedback(db_path: str = DB_PATH) -> None:
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
     cur.execute(
@@ -71,12 +70,14 @@ def seed_feedback() -> None:
     print("✅ Seeding complete.\n")
 
 
-def load_feedback() -> list[tuple[str, str, float, str, str, str]]:
-    if not Path(DB_PATH).exists():
+def load_feedback(
+    db_path: str = DB_PATH,
+) -> list[tuple[str, str, float, str, str, str]]:
+    if not Path(db_path).exists():
         print("No feedback database found.")
         return []
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(db_path)
     cur = conn.cursor()
     cur.execute(
         """
@@ -138,10 +139,39 @@ def summarize_feedback(rows: list[tuple[str, str, float, str, str, str]]) -> Non
         print()
 
 
-if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == "seed":
-        seed_feedback()
+def main() -> None:
+    """Main function for feedback report with proper argument parsing"""
+    parser = argparse.ArgumentParser(
+        description="Generate feedback reports and manage feedback data"
+    )
+    parser.add_argument(
+        "--db-path",
+        default=DB_PATH,
+        help=f"Path to feedback database (default: {DB_PATH})",
+    )
+    parser.add_argument(
+        "--seed",
+        action="store_true",
+        help="Seed the feedback database with initial preferences",
+    )
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
+
+    args = parser.parse_args()
+
+    if args.seed:
+        seed_feedback(args.db_path)
     else:
-        rows = load_feedback()
+        if not Path(args.db_path).exists():
+            print(f"No feedback database found at {args.db_path}.")
+            print("Use --seed to initialize the database.")
+            return
+
+        rows = load_feedback(args.db_path)
         if rows:
             summarize_feedback(rows)
+        else:
+            print("No feedback data found. Use --seed to initialize the database.")
+
+
+if __name__ == "__main__":
+    main()

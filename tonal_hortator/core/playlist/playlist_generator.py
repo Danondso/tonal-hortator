@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional
 from tonal_hortator.core.embeddings.embeddings import OllamaEmbeddingService
 from tonal_hortator.core.embeddings.track_embedder import LocalTrackEmbedder
 from tonal_hortator.core.feedback import FeedbackManager
-from tonal_hortator.core.llm.llm_client import (  # You'll need to implement this or wrap Ollama
+from tonal_hortator.core.llm.llm_client import (
     LocalLLMClient,
 )
 

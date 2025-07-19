@@ -4,6 +4,7 @@ CSV ingestion module for importing music data from iPod exports.
 Handles parsing music.csv and updating the tracks table.
 """
 
+import argparse
 import csv
 import logging
 import sqlite3
@@ -199,24 +200,60 @@ class MusicCSVIngester:
 
 
 def main() -> None:
-    if len(sys.argv) < 2:
-        print("Usage: python csv_ingester.py <csv_file> [--dry-run]")
-        sys.exit(1)
-    csv_file = sys.argv[1]
-    dry_run = "--dry-run" in sys.argv
+    """Main function for CSV ingestion with proper argument parsing"""
+    parser = argparse.ArgumentParser(
+        description="Ingest music data from CSV file into database"
+    )
+    parser.add_argument("csv_file", help="Path to the CSV file to ingest")
+    parser.add_argument(
+        "--db-path",
+        default="music_library.db",
+        help="Path to SQLite database (default: music_library.db)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Run in dry-run mode (no database changes)",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=100,
+        help="Batch size for processing (default: 100)",
+    )
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
+
+    args = parser.parse_args()
+
+    # Set verbose logging if requested
+    if args.verbose:
+        logging.getLogger().setLevel(logging.DEBUG)
+
     try:
-        ingester = MusicCSVIngester()
-        stats = ingester.ingest_csv(csv_file, dry_run=dry_run)
-        if dry_run:
+        ingester = MusicCSVIngester(args.db_path)
+        stats = ingester.ingest_csv(
+            args.csv_file, dry_run=args.dry_run, batch_size=args.batch_size
+        )
+
+        if args.dry_run:
             print("DRY RUN COMPLETE - No changes made to database")
         else:
             print("CSV ingestion completed successfully!")
+
         print(f"Statistics: {stats}")
+
+    except FileNotFoundError as e:
+        print(f"❌ Error: File not found - {e}")
+        sys.exit(1)
+    except ValueError as e:
+        print(f"❌ Error: Invalid CSV format - {e}")
+        sys.exit(1)
     except Exception as e:
-        logger.error(f"CSV ingestion failed: {e}")
+        print(f"❌ Error: CSV ingestion failed - {e}")
         sys.exit(1)
     finally:
-        ingester.close()
+        if "ingester" in locals():
+            ingester.close()
 
 
 if __name__ == "__main__":
