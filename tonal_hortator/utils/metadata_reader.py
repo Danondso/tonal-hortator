@@ -213,7 +213,7 @@ class MetadataReader:
             audio = FLAC(file_path)
             if audio:
                 # Get tags
-                if audio.tags:
+                if audio.tags and hasattr(audio.tags, "items"):
                     for key, value in audio.tags.items():
                         # Handle multiple values by joining them
                         if isinstance(value, list) and len(value) > 1:
