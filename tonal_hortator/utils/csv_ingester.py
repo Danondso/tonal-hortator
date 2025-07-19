@@ -67,11 +67,13 @@ class MusicCSVIngester:
             value = csv_row.get(csv_field, None)
             if value is not None:
                 value = value.strip()
-                if (
+                is_numeric: bool = (
                     db_field == "year"
                     or db_field == "play_count"
                     or db_field == "total_time"
-                ):
+                )
+
+                if is_numeric:
                     try:
                         normalized[db_field] = int(value) if value else None
                     except Exception:

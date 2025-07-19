@@ -19,6 +19,8 @@ from tonal_hortator.core.embeddings.embeddings import OllamaEmbeddingService
 from tonal_hortator.core.embeddings.track_embedder import LocalTrackEmbedder
 from tonal_hortator.core.feedback import FeedbackManager
 
+from .feedback_service import FeedbackService, PlaylistFeedbackService
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -149,12 +151,35 @@ Now analyze the current query and respond with valid JSON:"""
 
 
 class LocalPlaylistGenerator:
-    """Generate playlists using local Ollama embeddings"""
+    """Generate playlists using local Ollama embeddings
+
+    Example usage with dependency injection:
+
+    ```python
+    # Use default feedback service
+    generator = LocalPlaylistGenerator()
+
+    # Use custom feedback service
+    custom_feedback = PlaylistFeedbackService(db_path="custom_feedback.db")
+    generator = LocalPlaylistGenerator(feedback_service=custom_feedback)
+
+    # Use mock feedback service for testing
+    class MockFeedbackService:
+        def record_user_feedback(self, track_id, feedback, query_context=""):
+            print(f"Mock: Recorded {feedback} for track {track_id}")
+
+        def get_adjusted_score(self, track_id, track):
+            return 0.0
+
+    generator = LocalPlaylistGenerator(feedback_service=MockFeedbackService())
+    ```
+    """
 
     def __init__(
         self,
         db_path: str = "music_library.db",
         model_name: str = "nomic-embed-text:latest",
+        feedback_service: Optional[FeedbackService] = None,
     ):
         """
         Initialize the local playlist generator
@@ -162,6 +187,7 @@ class LocalPlaylistGenerator:
         Args:
             db_path: Path to SQLite database
             model_name: Name of the embedding model to use
+            feedback_service: Optional feedback service for user feedback
         """
         self.db_path = db_path
         self.embedding_service = OllamaEmbeddingService(model_name=model_name)
@@ -170,6 +196,9 @@ class LocalPlaylistGenerator:
         )
         self.query_parser = LLMQueryParser()
         self.feedback_manager = FeedbackManager()
+
+        # Use provided feedback service or default to PlaylistFeedbackService
+        self.feedback_service = feedback_service or PlaylistFeedbackService()
 
     def _determine_max_tracks(
         self, parsed_count: Optional[int], max_tracks: Optional[int]
@@ -1595,7 +1624,7 @@ def _process_playlist_request(generator: LocalPlaylistGenerator, query: str) -> 
             )
             if fb in ["l", "d", "b"]:
                 fb_map = {"l": "like", "d": "dislike", "b": "block"}
-                generator.feedback_manager.record_user_feedback(
+                generator.feedback_service.record_user_feedback(
                     track_id, fb_map[fb], query
                 )
 
@@ -1643,93 +1672,6 @@ def _process_playlist_request(generator: LocalPlaylistGenerator, query: str) -> 
         logger.error(f"❌ Error generating playlist: {e}")
         print(f"❌ Error: {e}")
         return False
-
-
-# --- Add persistent feedback saving and decay logic to FeedbackManager using SQLite ---
-def _add_feedback_manager_methods() -> None:
-    import os
-    import sqlite3
-    from datetime import datetime
-
-    def record_user_feedback(
-        self: FeedbackManager, track_id: str, feedback: str, query_context: str = ""
-    ) -> None:
-        feedback_map = {"like": 0.2, "dislike": -0.2, "block": -1.0}
-        adjustment = feedback_map.get(feedback, 0.0)
-        timestamp = datetime.now().isoformat()
-        db_path = "feedback.db"
-        conn = sqlite3.connect(db_path)
-        cur = conn.cursor()
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS feedback (
-                track_id TEXT,
-                feedback TEXT,
-                adjustment REAL,
-                timestamp TEXT,
-                query_context TEXT
-            )
-        """
-        )
-        cur.execute(
-            """
-            INSERT INTO feedback (track_id, feedback, adjustment, timestamp, query_context)
-            VALUES (?, ?, ?, ?, ?)
-        """,
-            (track_id, feedback, adjustment, timestamp, query_context),
-        )
-        conn.commit()
-        conn.close()
-
-    def get_adjusted_score(self: FeedbackManager, track_id: str, track: dict) -> float:
-        import sqlite3
-        from datetime import datetime
-
-        db_path = "feedback.db"
-        if not os.path.exists(db_path):
-            return 0.0
-        conn = sqlite3.connect(db_path)
-        cur = conn.cursor()
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS feedback (
-                track_id TEXT,
-                feedback TEXT,
-                adjustment REAL,
-                timestamp TEXT,
-                query_context TEXT
-            )
-        """
-        )
-        cur.execute(
-            "SELECT adjustment, timestamp FROM feedback WHERE track_id = ?", (track_id,)
-        )
-        rows = cur.fetchall()
-        conn.close()
-        total_adjustment = 0.0
-        for adjustment, ts in rows:
-            try:
-                weeks_old = (datetime.now() - datetime.fromisoformat(ts)).days / 7.0
-                decay = 0.95**weeks_old
-                total_adjustment += adjustment * decay
-            except Exception:
-                total_adjustment += adjustment
-        return total_adjustment
-
-    # Patch FeedbackManager if not already present
-    from tonal_hortator.core import feedback as _feedback_mod
-
-    cls = getattr(_feedback_mod, "FeedbackManager")
-    if not hasattr(cls, "record_user_feedback"):
-        cls.record_user_feedback = record_user_feedback
-    if (
-        not hasattr(cls, "get_adjusted_score")
-        or getattr(cls.get_adjusted_score, "__module__", "") != __name__
-    ):
-        cls.get_adjusted_score = get_adjusted_score
-
-
-_add_feedback_manager_methods()
 
 
 def _run_interactive_loop(generator: LocalPlaylistGenerator) -> None:

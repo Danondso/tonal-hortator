@@ -850,7 +850,6 @@ def _update_embeddings_for_tracks(
         raise typer.Exit(1)
 
 
-
 def main() -> None:
     """Main entry point"""
     app()

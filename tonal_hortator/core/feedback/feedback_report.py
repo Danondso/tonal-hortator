@@ -1,7 +1,12 @@
-def seed_feedback() -> None:
-    import sqlite3
-    from datetime import datetime
+import sqlite3
+from collections import Counter, defaultdict
+from datetime import datetime
+from pathlib import Path
 
+DB_PATH = "feedback.db"
+
+
+def seed_feedback() -> None:
     db_path = DB_PATH
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
@@ -63,14 +68,6 @@ def seed_feedback() -> None:
     conn.commit()
     conn.close()
     print("✅ Seeding complete.\n")
-
-
-import sqlite3
-from collections import Counter, defaultdict
-from datetime import datetime
-from pathlib import Path
-
-DB_PATH = "feedback.db"
 
 
 def load_feedback() -> list[tuple[str, str, float, str, str, str]]:
