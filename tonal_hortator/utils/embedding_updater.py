@@ -86,11 +86,7 @@ class EmbeddingUpdater:
             stats["updated"] = 0
             stats["preserved"] = 0
             stats["skipped"] = 0
-            stats["errors"] = (
-                len(tracks_to_update)
-                if "tracks_to_update" in locals()
-                else len(track_ids)
-            )
+            stats["errors"] = self._calculate_error_count(track_ids, locals().get("tracks_to_update"))
         return stats
 
     def _update_embeddings_preserve_mode(
