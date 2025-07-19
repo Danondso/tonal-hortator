@@ -68,7 +68,7 @@ class EmbeddingUpdater:
             tracks_to_update = self._get_tracks_by_ids(track_ids)
             if not tracks_to_update:
                 logger.warning("No tracks found for the provided IDs.")
-                stats["errors"] = len(track_ids)  # All tracks failed if none found
+                stats["errors"] = 0  # Not an error if no tracks found
                 return stats
             logger.info(f"Found {len(tracks_to_update)} tracks to process.")
             if mode == "preserve":
@@ -89,19 +89,8 @@ class EmbeddingUpdater:
             stats["updated"] = 0
             stats["preserved"] = 0
             stats["skipped"] = 0
-            stats["errors"] = self._calculate_error_count(track_ids, tracks_to_update)
+            stats["errors"] = len(track_ids)  # All tracks failed due to exception
         return stats
-
-    def _calculate_error_count(
-        self,
-        track_ids: List[int],
-        tracks_to_update: Optional[List[Dict[str, Any]]] = None,
-    ) -> int:
-        """Calculate the number of tracks that failed to update."""
-        if tracks_to_update is None:
-            return len(track_ids)  # If no tracks were processed, all failed
-        # If we have tracks to update but an exception occurred, all tracks failed
-        return len(track_ids)
 
     def _update_embeddings_preserve_mode(
         self,
