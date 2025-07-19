@@ -1,431 +1,139 @@
-# Tonal Hortator v2
+# Tonal Hortator
 
-**AI-powered local music playlist generator using Ollama embeddings**
+AI-powered local music playlist generator using Ollama embeddings.
 
-A Python package that generates music playlists using semantic search with local AI embeddings, featuring seamless Apple Music integration and robust deduplication.
+## Features
 
----
+- **Local AI**: Uses Ollama with `nomic-embed-text` for offline operation
+- **Semantic Search**: Generate playlists from natural language queries
+- **Apple Music Integration**: One-click playlist opening
+- **Smart Deduplication**: Multi-strategy duplicate removal
+- **Feedback System**: Learn from user ratings and preferences
 
-## 🚀 New CLI Experience!
+## Quick Start
 
-- **Short command:** Use `th` for all commands (or `python -m tonal_hortator.cli.main`)
-- **Beautiful output:** Powered by [Typer](https://typer.tiangolo.com/) and [Rich](https://rich.readthedocs.io/)
-- **Interactive prompts, colors, and tables**
-- **Fun, memorable commands**
-
----
-
-## 🚀 Features
-
-- **Local AI Embeddings**: Uses Ollama with `nomic-embed-text` model for offline operation
-- **Semantic Playlist Generation**: Create playlists based on natural language queries
-- **Apple Music Integration**: One-click playlist opening in Apple Music
-- **Robust Deduplication**: Multi-strategy deduplication to ensure clean playlists
-- **iTunes Library Support**: Parse iTunes XML library into SQLite database
-- **Batch Processing**: Efficient embedding generation with configurable batch sizes
-
-## 📋 Requirements
+### Prerequisites
 
 - Python 3.11+
-- Ollama with `nomic-embed-text:latest` model
+- Ollama with `nomic-embed-text:latest`
 - iTunes XML library export
 - macOS (for Apple Music integration)
 
-## 🛠️ Installation
-
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/yourusername/tonal-hortator-v2.git
-   cd tonal-hortator-v2
-   ```
-
-2. **Create virtual environment**:
-   ```bash
-   python -m venv tonal-hortator-v2-env
-   source tonal-hortator-v2-env/bin/activate  # On Windows: tonal-hortator-v2-env\Scripts\activate
-   ```
-
-3. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Install Ollama and download the embedding model**:
-   ```bash
-   # Install Ollama (if not already installed)
-   curl -fsSL https://ollama.ai/install.sh | sh
-   
-   # Download the embedding model
-   ollama pull nomic-embed-text
-   ```
-
-5. **Install the package** (optional, enables the `th` command):
-   ```bash
-   pip install -e .
-   ```
-
-## 🎵 Quick Start
-
-### 1. Parse iTunes Library
-
-Export your iTunes library as XML and parse it into the database:
-
-```bash
-python parse_library.py
-```
-
-### 2. Generate Embeddings
-
-Embed all tracks using the local Ollama model:
-
-```bash
-# Using the CLI
-th embed
-
-# Or using the module directly
-python -m tonal_hortator.cli.main embed
-```
-
-### 3. Generate Playlists
-
-Create playlists using natural language queries:
-
-```bash
-# Interactive mode
-th interactive
-
-# Generate specific playlist
-th generate "upbeat rock songs" --tracks 20 --open
-
-# Generate with custom parameters
-th generate "jazz for studying" --tracks 15 --similarity 0.4
-```
-
-## 📖 Usage Examples
-
-### Command Line Interface
-
-```bash
-# Generate a playlist and open in Apple Music
-th generate "moody electronic music" --open
-
-# Generate playlist with custom parameters
-th generate "classic rock from the 70s" --tracks 30 --similarity 0.5
-
-# Generate with search breadth control
-th generate "jazz for studying" --breadth 20 --tracks 15
-
-# Start interactive mode
-th interactive
-
-# Embed tracks with custom batch size
-th embed --batch 100
-```
-
-### Search Breadth Factor
-
-The `--breadth` parameter controls how many candidate tracks are considered during playlist generation. This affects both performance and variety:
-
-- **Higher values** (15-25): More variety, more tracks to choose from
-- **Lower values** (5-10): Faster generation, less variety
-
-**Benchmark Results** (for 5-track playlists):
-- **Factor 5**: 3.55s, 73.3% variety
-- **Factor 10**: 3.03s, 66.7% variety  
-- **Factor 15**: 4.24s, 80.0% variety ⭐ **Recommended**
-- **Factor 20**: 3.00s, 66.7% variety
-- **Factor 25**: 3.13s, similar variety to 20
-
-**Recommendations**:
-- **Default (15)**: Best balance of variety and performance
-- **Speed-focused**: Use 10 for faster generation
-- **Variety-focused**: Use 15-20 for maximum track diversity
-
-### Python API
-
-```python
-from tonal_hortator import LocalPlaylistGenerator, OllamaEmbeddingService
-
-# Initialize playlist generator
-generator = LocalPlaylistGenerator()
-
-# Generate playlist
-tracks = generator.generate_playlist("upbeat workout songs", max_tracks=20)
-
-# Save to M3U file
-filepath = generator.save_playlist_m3u(tracks, "workout playlist")
-
-# Print summary
-generator.print_playlist_summary(tracks, "workout playlist")
-```
-
-## 🏗️ Project Structure
-
-```
-tonal-hortator-v2/
-├── tonal_hortator/           # Main package
-│   ├── core/                # Core functionality
-│   │   ├── embeddings.py    # Ollama embedding service
-│   │   ├── playlist_generator.py  # Playlist generation
-│   │   └── track_embedder.py      # Track embedding
-│   ├── cli/                 # Command-line interface
-│   │   └── main.py          # CLI entry point
-│   ├── utils/               # Utility functions
-│   │   └── apple_music.py   # Apple Music integration
-│   └── tests/               # Unit tests
-│       ├── test_embeddings.py
-│       ├── test_playlist_generator.py
-│       └── run_tests.py
-├── playlists/               # Generated playlists
-├── music_library.db         # SQLite database
-├── requirements.txt         # Python dependencies
-├── setup.py                 # Package setup
-└── README.md               # This file
-```
-
-## 🧪 Testing
-
-Run the comprehensive test suite:
-
-```bash
-# Run all tests
-python -m tonal_hortator.tests.run_tests
-
-# Run specific test module
-python -m unittest tonal_hortator.tests.test_embeddings
-
-# Run with coverage (if coverage is installed)
-coverage run -m tonal_hortator.tests.run_tests
-coverage report
-```
-
-## 🔄 CI/CD & Quality Assurance
-
-This project uses comprehensive GitHub Actions workflows for continuous integration and quality assurance.
-
-### Automated Workflows
-
-- **CI Pipeline** (`.github/workflows/ci.yml`): Runs on every push and PR
-  - **Testing**: Multi-Python version testing (3.11, 3.12)
-  - **Linting**: flake8, black, isort code formatting checks
-  - **Type Checking**: mypy static type analysis
-  - **Security**: bandit and safety vulnerability scanning
-  - **Build**: Package building and validation
-  - **Coverage**: Code coverage reporting
-
-- **CodeQL Security** (`.github/workflows/codeql.yml`): Advanced security analysis
-  - Automated security scanning
-  - Weekly scheduled scans
-  - Vulnerability detection
-
-- **Dependency Review** (`.github/workflows/dependency-review.yml`): Dependency security
-  - Checks for known vulnerabilities in dependencies
-  - Runs on all pull requests
-
-### Development Tools
-
-Install development dependencies for local quality checks:
-
-```bash
-pip install -r requirements-dev.txt
-```
-
-### Pre-commit Hooks
-
-Set up pre-commit hooks for automatic code quality checks:
-
-```bash
-# Install pre-commit
-pip install pre-commit
-
-# Install the git hook scripts
-pre-commit install
-
-# Run against all files
-pre-commit run --all-files
-```
-
-### Local Quality Checks
-
-Run quality checks locally before committing:
-
-```bash
-# Code formatting
-black .
-isort .
-
-# Linting
-flake8 .
-
-# Type checking
-mypy tonal_hortator/
-
-# Security checks
-bandit -r tonal_hortator/
-safety check
-
-# Tests with coverage
-pytest tests/ -v --cov=tonal_hortator --cov-report=html
-```
-
-### Automated Dependency Updates
-
-Dependabot is configured to automatically:
-- Check for dependency updates weekly
-- Create pull requests for security updates
-- Update both Python packages and GitHub Actions
-
-### Quality Gates
-
-All pull requests must pass:
-- ✅ All tests passing
-- ✅ Code coverage maintained
-- ✅ No linting errors
-- ✅ Type checking passes
-- ✅ Security scans clean
-- ✅ Build successful
-
-## 🔧 Configuration
-
-### Environment Variables
-
-- `ITUNES_XML_PATH`: Path to iTunes XML library file (default: `~/Music/iTunes/iTunes Music Library.xml`)
-
-### Database Schema
-
-The SQLite database contains two main tables:
-
-- `tracks`: Track metadata (title, artist, album, genre, etc.)
-- `track_embeddings`: AI embeddings for semantic search
-
-## 🎯 Deduplication Strategies
-
-The playlist generator uses multiple deduplication strategies:
-
-1. **File Location Deduplication**: Removes tracks pointing to the same physical file
-2. **Title/Artist Deduplication**: Removes exact duplicate title/artist combinations
-3. **Track ID Deduplication**: Removes duplicate track IDs (safety check)
-4. **Smart Title Deduplication**: Removes variations like "Song (Remix)" vs "Song"
-
-## 🚀 Performance
-
-- **Embedding Generation**: ~50 tracks per batch (configurable)
-- **Playlist Generation**: ~1-2 seconds for 20 tracks
-- **Database**: Supports libraries with 100,000+ tracks
-- **Memory Usage**: Efficient batch processing to minimize memory usage
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature-name`
-3. Make your changes and add tests
-4. Run the test suite: `python -m tonal_hortator.tests.run_tests`
-5. Commit your changes: `git commit -am 'Add feature'`
-6. Push to the branch: `git push origin feature-name`
-7. Submit a pull request
-
-### Development Setup
-
-For contributors, set up the full development environment:
+### Installation
 
 ```bash
 # Clone and setup
-git clone https://github.com/yourusername/tonal-hortator-v2.git
-cd tonal-hortator-v2
-
-# Create virtual environment
+git clone https://github.com/yourusername/tonal-hortator.git
+cd tonal-hortator
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate  # Windows: venv\Scripts\activate
 
 # Install dependencies
 pip install -r requirements.txt
-pip install -r requirements-dev.txt
 
-# Install pre-commit hooks
-pre-commit install
+# Install Ollama and model
+curl -fsSL https://ollama.ai/install.sh | sh
+ollama pull nomic-embed-text
 
-# Install package in development mode
+# Install package (enables `th` command)
 pip install -e .
 ```
 
-## 📝 License
+### Usage
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+```bash
+# Parse iTunes library
+python parse_library.py
 
-## 🙏 Acknowledgments
+# Generate embeddings
+th embed
 
-- [Ollama](https://ollama.ai/) for local AI model serving
-- [Nomic AI](https://nomic.ai/) for the embedding model
-- Apple Music for playlist integration
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-1. **Ollama not running**: Make sure Ollama is running with `ollama serve`
-2. **Model not found**: Download the model with `ollama pull nomic-embed-text`
-3. **Database errors**: Check that the iTunes XML was parsed correctly
-4. **Apple Music not opening**: Ensure Apple Music is installed and running
-
-### Debug Mode
-
-Enable debug logging:
-
-```python
-import logging
-logging.basicConfig(level=logging.DEBUG)
+# Generate playlists
+th generate "upbeat rock songs" --tracks 20 --open
+th interactive
 ```
 
-## 📊 Statistics
+## CLI Commands
 
-- **Test Coverage**: Comprehensive unit tests for all core functionality
-- **Code Quality**: Follows Python best practices and PEP 8
-- **Documentation**: Full API documentation and usage examples
-- **Performance**: Optimized for large music libraries 
+```bash
+# Generate playlists
+th generate "moody electronic" --open
+th generate "jazz for studying" --tracks 15 --similarity 0.4
 
-## Quickstart
+# Interactive mode
+th interactive
 
-1. **Install the package**
-   ```sh
-   pip install .
-   ```
-   This installs all dependencies including `defusedxml` for secure XML parsing and `rich` for beautiful progress bars.
+# Embed tracks
+th embed --batch 100
 
-2. **Alternative: Install in development mode**
-   ```sh
-   pip install -e .
-   ```
-   This installs the package in editable mode for development.
+# Feedback system
+th feedback --query "rock songs" --rating 5
+th set-preference max_playlist_length 25
+th feedback-stats
+```
 
-3. **Run the CLI**
-   - **Preferred:**
-     ```sh
-     python -m tonal_hortator.cli <command> [options]
-     ```
-     Example:
-     ```sh
-     python -m tonal_hortator.cli yeet /path/to/Library.xml --db-path ./music_library.db
-     ```
-   - **Or, if installed as a script:**
-     ```sh
-     tonal-hortator <command> [options]
-     ```
+## Python API
 
-## Troubleshooting
+```python
+from tonal_hortator import LocalPlaylistGenerator
 
-- **defusedxml warning:**
-  > `UserWarning: defusedxml not available. Using regular ElementTree. Install defusedxml for better security: pip install defusedxml`
+generator = LocalPlaylistGenerator()
+tracks = generator.generate_playlist("workout songs", max_tracks=20)
+filepath = generator.save_playlist_m3u(tracks, "workout")
+```
 
-  This warning should not appear if you installed the package with `pip install .` as it includes `defusedxml`. If you see this warning, try reinstalling:
-  ```sh
-  pip install --force-reinstall .
-  ```
+## Feedback System
 
-- **RuntimeWarning about sys.modules and unpredictable behaviour:**
-  > `<frozen runpy>:128: RuntimeWarning: 'tonal_hortator.cli.main' found in sys.modules ...`
+Record ratings and preferences to improve future playlists:
 
-  This is a Python import warning that can occur if you run the CLI as a module file. To avoid it, always use:
-  ```sh
-  python -m tonal_hortator.cli <command> [options]
-  ```
-  or the installed script entry point. 
+```python
+from tonal_hortator.core.feedback.feedback_manager import FeedbackManager
+
+fm = FeedbackManager(db_path="music_library.db")
+
+# Record feedback
+fm.record_playlist_feedback(
+    query="rock songs",
+    user_rating=5,
+    user_comments="Great playlist!"
+)
+
+# Set preferences
+fm.set_preference("max_playlist_length", 25, "int", "Maximum tracks")
+
+# Get recommendations
+settings = fm.get_recommended_settings("similarity")
+```
+
+## Development
+
+```bash
+# Install dev dependencies
+pip install -r requirements-dev.txt
+
+# Run tests
+python -m tonal_hortator.tests.run_tests
+
+# Quality checks
+black .
+isort .
+flake8 .
+mypy tonal_hortator/
+```
+
+## Project Structure
+
+```
+tonal_hortator/
+├── core/                    # Core functionality
+│   ├── embeddings.py       # Ollama embedding service
+│   ├── playlist_generator.py # Playlist generation
+│   └── feedback/           # Feedback system
+├── cli/                    # Command-line interface
+├── utils/                  # Utilities (Apple Music, etc.)
+└── tests/                  # Unit tests
+```
+
+## License
+
+MIT License 

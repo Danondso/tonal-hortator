@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional
 
 from tonal_hortator.core.embeddings.embeddings import OllamaEmbeddingService
 from tonal_hortator.core.embeddings.track_embedder import LocalTrackEmbedder
+from tonal_hortator.core.feedback import FeedbackManager
 
 # Configure logging
 logging.basicConfig(
@@ -168,6 +169,7 @@ class LocalPlaylistGenerator:
             db_path, embedding_service=self.embedding_service
         )
         self.query_parser = LLMQueryParser()
+        self.feedback_manager = FeedbackManager()
 
     def _determine_max_tracks(
         self, parsed_count: Optional[int], max_tracks: Optional[int]
@@ -352,6 +354,18 @@ class LocalPlaylistGenerator:
             generation_time = time.time() - start_time
             logger.info(
                 f"✅ Generated playlist with {len(filtered_results)} tracks in {generation_time:.2f}s"
+            )
+
+            # Record feedback data for learning
+            self._record_playlist_generation_feedback(
+                query=query,
+                query_type=query_type,
+                parsed_data=parsed if "parsed" in locals() else {},
+                generated_tracks=filtered_results,
+                playlist_length=len(filtered_results),
+                requested_length=max_tracks,
+                similarity_threshold=min_similarity,
+                search_breadth=search_breadth_factor,
             )
 
             return filtered_results
@@ -1470,6 +1484,39 @@ class LocalPlaylistGenerator:
         except Exception as e:
             logger.error(f"❌ Error checking artist in database: {e}")
             return False
+
+    def _record_playlist_generation_feedback(
+        self,
+        query: str,
+        query_type: str,
+        parsed_data: Dict[str, Any],
+        generated_tracks: List[Dict[str, Any]],
+        playlist_length: int,
+        requested_length: int,
+        similarity_threshold: float,
+        search_breadth: int,
+    ) -> None:
+        """
+        Records feedback data for playlist generation.
+        This method is called after a playlist is successfully generated.
+        """
+        try:
+            # Record playlist feedback using the feedback manager
+            self.feedback_manager.record_playlist_feedback(
+                query=query,
+                query_type=query_type,
+                parsed_data=parsed_data,
+                generated_tracks=generated_tracks,
+                playlist_length=playlist_length,
+                requested_length=requested_length,
+                similarity_threshold=similarity_threshold,
+                search_breadth=search_breadth,
+            )
+
+            logger.info(f"✅ Feedback recorded for playlist generation: {query}")
+
+        except Exception as e:
+            logger.error(f"❌ Error recording playlist generation feedback: {e}")
 
 
 def _check_embeddings_available(generator: LocalPlaylistGenerator) -> bool:
