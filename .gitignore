@@ -87,6 +87,7 @@ dmypy.json
 
 # VSCode
 .vscode/
+**/*.code-workspace
 
 # Databases
 *.db
@@ -104,3 +105,6 @@ tonal_hortator/logs/
 
 # OS-specific
 .DS_Store
+
+# ipod csv
+*.csv

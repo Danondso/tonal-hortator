@@ -5,6 +5,7 @@ Metadata reader for music files using mutagen library.
 Supports MP3, FLAC, OGG, M4A, WAV, and AIFF formats.
 """
 
+import argparse
 import logging
 import os
 import sqlite3
@@ -213,7 +214,7 @@ class MetadataReader:
             audio = FLAC(file_path)
             if audio:
                 # Get tags
-                if audio.tags:
+                if audio.tags and hasattr(audio.tags, "items"):
                     for key, value in audio.tags.items():
                         # Handle multiple values by joining them
                         if isinstance(value, list) and len(value) > 1:
@@ -629,8 +630,6 @@ class MetadataReader:
 
 def main() -> None:
     """Main function for testing metadata reading"""
-    import argparse
-
     parser = argparse.ArgumentParser(
         description="Update music file metadata in database"
     )

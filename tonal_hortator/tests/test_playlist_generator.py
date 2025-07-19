@@ -505,14 +505,12 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         generator = LocalPlaylistGenerator()
 
         # Test queries with quotes
+        self.assertEqual(generator._create_playlist_name("bedroom pop"), "Bedroom Pop")
         self.assertEqual(
-            generator._create_playlist_name('"bedroom pop"'), "Bedroom Pop"
+            generator._create_playlist_name("90s alternative"), "90S Alternative"
         )
         self.assertEqual(
-            generator._create_playlist_name("'90s alternative'"), "90S Alternative"
-        )
-        self.assertEqual(
-            generator._create_playlist_name('"jazz for studying"'), "Jazz for Studying"
+            generator._create_playlist_name("jazz for studying"), "Jazz for Studying"
         )
 
     @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")

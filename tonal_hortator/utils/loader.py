@@ -9,6 +9,7 @@ import threading
 import time
 from typing import Any, Optional
 
+import psutil
 from rich.console import Console
 from rich.progress import (
     BarColumn,
@@ -292,3 +293,77 @@ def create_threadsafe_progress_spinner(
     total: int, description: str = "Processing"
 ) -> SpinnerManager:
     return SpinnerManager(total, description)
+
+
+def get_optimal_batch_size(
+    base_size: int = 500,
+    memory_factor: float = 0.1,
+    cpu_factor: float = 0.5,
+    min_size: int = 50,
+    max_size: int = 1000,
+) -> int:
+    """
+    Determine optimal batch size based on system resources.
+
+    Args:
+        base_size: Base batch size to start with
+        memory_factor: Factor to adjust based on available memory (0.0-1.0)
+        cpu_factor: Factor to adjust based on CPU cores (0.0-1.0)
+        min_size: Minimum allowed batch size
+        max_size: Maximum allowed batch size
+
+    Returns:
+        Optimal batch size for the current system
+    """
+    try:
+        # Get system information
+        memory = psutil.virtual_memory()
+        cpu_count = psutil.cpu_count(logical=False) or 1
+
+        # Calculate available memory in GB
+        available_memory_gb = memory.available / (1024**3)
+
+        # Adjust batch size based on available memory
+        # Assume each track embedding needs ~1KB of memory
+        memory_based_size = int(available_memory_gb * 1024 * 1024 * memory_factor)
+
+        # Adjust based on CPU cores (more cores can handle larger batches)
+        cpu_based_size = int(base_size * cpu_count * cpu_factor)
+
+        # Take the minimum of memory and CPU based sizes
+        optimal_size = min(memory_based_size, cpu_based_size)
+
+        # Ensure it's within bounds
+        optimal_size = max(min_size, min(optimal_size, max_size))
+
+        return optimal_size
+
+    except Exception:
+        # Fallback to base size if we can't determine system resources
+        return base_size
+
+
+def get_batch_size_with_fallback(
+    user_specified: Optional[int] = None,
+    base_size: int = 500,
+    min_size: int = 50,
+    max_size: int = 1000,
+) -> int:
+    """
+    Get batch size with intelligent fallback to system-optimized size.
+
+    Args:
+        user_specified: User-specified batch size (None for auto-detection)
+        base_size: Base batch size for auto-detection
+        min_size: Minimum allowed batch size
+        max_size: Maximum allowed batch size
+
+    Returns:
+        Final batch size to use
+    """
+    if user_specified is not None:
+        # User specified a size, validate it
+        return max(min_size, min(user_specified, max_size))
+
+    # Auto-detect optimal size
+    return get_optimal_batch_size(base_size, min_size=min_size, max_size=max_size)

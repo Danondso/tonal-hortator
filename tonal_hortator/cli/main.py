@@ -4,6 +4,7 @@
 Beautiful CLI interface with Typer and Rich
 """
 
+import json
 import os
 from pathlib import Path
 from typing import Optional
@@ -19,7 +20,10 @@ from tonal_hortator.core.embeddings.track_embedder import LocalTrackEmbedder
 from tonal_hortator.core.feedback import FeedbackManager
 from tonal_hortator.core.playlist.playlist_generator import LocalPlaylistGenerator
 from tonal_hortator.utils.apple_music import open_in_apple_music
+from tonal_hortator.utils.csv_ingester import MusicCSVIngester
+from tonal_hortator.utils.embedding_updater import EmbeddingUpdater, parse_ids_from_file
 from tonal_hortator.utils.library_parser import LibraryParser
+from tonal_hortator.utils.loader import get_batch_size_with_fallback
 
 # Create logs directory if it doesn't exist
 logs_dir = Path("logs")
@@ -231,22 +235,304 @@ def _generate_single_playlist(
 
 @app.command()
 def embed(
-    batch_size: int = typer.Option(
-        500, "--batch", "-b", help="Batch size for embeddings"
+    batch_size: Optional[int] = typer.Option(
+        None,
+        "--batch",
+        "-b",
+        help="Batch size for embeddings (auto-detected if not specified)",
     ),
     workers: int = typer.Option(
         4, "--workers", "-w", help="Number of worker processes"
     ),
 ) -> None:
-    """🧠 Generate embeddings for all tracks"""
+    """🧠 Generate embeddings for all tracks
+
+    The batch size is automatically optimized based on your system's available memory
+    and CPU cores. Larger batch sizes (500-1000) generally provide better performance
+    on systems with more resources, while smaller batches (50-200) are better for
+    systems with limited memory or for debugging.
+
+    Performance notes:
+    - Default auto-detection: 500 tracks per batch
+    - Memory usage: ~1KB per track embedding
+    - Recommended: Use auto-detection unless you experience memory issues
+    """
     show_banner()
 
+    # Use adaptive batch sizing if not specified
+    final_batch_size = get_batch_size_with_fallback(batch_size, base_size=500)
+
+    if batch_size is None:
+        console.print(f"[cyan]🔧 Auto-detected batch size: {final_batch_size}[/cyan]")
+    else:
+        console.print(f"[cyan]🔧 Using specified batch size: {final_batch_size}[/cyan]")
+
     with console.status("[bold green]Generating embeddings...", spinner="dots"):
-        if embed_tracks(batch_size, max_workers=workers):
+        if embed_tracks(final_batch_size, max_workers=workers):
             console.print("[bold green]✅ Embeddings complete![/bold green]")
         else:
             console.print("[red]❌ Embedding failed[/red]")
             raise typer.Exit(1)
+
+
+@app.command()
+def ingest_csv(
+    csv_path: str = typer.Argument(..., help="Path to music.csv file from iPod export"),
+    db_path: str = typer.Option(DEFAULT_DB_PATH, "--db", "-d", help="Database path"),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Preview changes without applying them"
+    ),
+    batch_size: int = typer.Option(
+        10, "--batch", "-b", help="Batch size for processing"
+    ),
+) -> None:
+    """Ingest music data from iPod CSV export"""
+    show_banner()
+
+    try:
+        ingester = MusicCSVIngester(db_path)
+
+        with console.status(
+            f"[bold green]Ingesting CSV from: {csv_path}[/bold green]", spinner="dots"
+        ):
+            stats = ingester.ingest_csv(
+                csv_path, dry_run=dry_run, batch_size=batch_size
+            )
+
+        # Display results
+        table = Table(
+            title="📊 CSV Ingestion Results",
+            show_header=True,
+            header_style="bold magenta",
+        )
+        table.add_column("Metric", style="cyan")
+        table.add_column("Value", style="green")
+
+        table.add_row("Total Rows", str(stats["total_rows"]))
+        table.add_row("Processed", str(stats["processed"]))
+        table.add_row("Inserted", str(stats["inserted"]))
+        table.add_row("Updated", str(stats["updated"]))
+        table.add_row("Skipped", str(stats["skipped"]))
+        table.add_row("Errors", str(stats["errors"]))
+        table.add_row(
+            "Tracks for Embedding Update",
+            str(len(stats["tracks_to_update_embeddings"])),
+        )
+
+        console.print(table)
+
+        if dry_run:
+            console.print(
+                "[yellow]🔍 DRY RUN COMPLETE - No changes made to database[/yellow]"
+            )
+        else:
+            console.print("[bold green]✅ CSV ingestion complete![/bold green]")
+
+            # Ask if user wants to update embeddings
+            if stats["tracks_to_update_embeddings"] and Confirm.ask(
+                f"🔄 Update embeddings for {len(stats['tracks_to_update_embeddings'])} modified tracks?"
+            ):
+                _update_embeddings_for_tracks(stats["tracks_to_update_embeddings"])
+
+    except Exception as e:
+        console.print(f"[red]❌ CSV ingestion failed: {e}[/red]")
+        raise typer.Exit(1)
+    finally:
+        ingester.close()
+
+
+@app.command()
+def update_embeddings(
+    track_ids: Optional[str] = typer.Argument(
+        None, help="Comma-separated list of track IDs to update"
+    ),
+    file_path: Optional[str] = typer.Option(
+        None, "--file", "-f", help="File containing track IDs (one per line)"
+    ),
+    db_path: str = typer.Option(DEFAULT_DB_PATH, "--db", "-d", help="Database path"),
+    batch_size: Optional[int] = typer.Option(
+        None,
+        "--batch",
+        "-b",
+        help="Batch size for embeddings (auto-detected if not specified)",
+    ),
+    workers: int = typer.Option(
+        4, "--workers", "-w", help="Number of worker processes"
+    ),
+) -> None:
+    """🔄 Update embeddings for specific tracks
+
+    The batch size is automatically optimized based on your system's available memory
+    and CPU cores. For small updates (< 100 tracks), smaller batches may be more
+    responsive. For large updates, larger batches provide better throughput.
+
+    Performance notes:
+    - Default auto-detection: 500 tracks per batch
+    - Memory usage: ~1KB per track embedding
+    - For small updates: Consider using --batch 50-100
+    - For large updates: Let auto-detection choose optimal size
+    """
+    show_banner()
+
+    # Use adaptive batch sizing if not specified
+    final_batch_size = get_batch_size_with_fallback(batch_size, base_size=500)
+
+    if batch_size is None:
+        console.print(f"[cyan]🔧 Auto-detected batch size: {final_batch_size}[/cyan]")
+    else:
+        console.print(f"[cyan]🔧 Using specified batch size: {final_batch_size}[/cyan]")
+
+    try:
+        # Parse track IDs
+        track_id_list = []
+
+        if track_ids:
+            track_id_list = [
+                int(tid.strip())
+                for tid in track_ids.split(",")
+                if tid.strip().isdigit()
+            ]
+
+        if file_path:
+            file_ids = parse_ids_from_file(file_path)
+            track_id_list.extend(file_ids)
+
+        if not track_id_list:
+            console.print("[red]❌ No track IDs provided. Use --help for usage.[/red]")
+            raise typer.Exit(1)
+
+        _update_embeddings_for_tracks(track_id_list, db_path, final_batch_size, workers)
+
+    except Exception as e:
+        console.print(f"[red]❌ Embedding update failed: {e}[/red]")
+        raise typer.Exit(1)
+
+
+@app.command()
+def workflow(
+    csv_path: str = typer.Argument(..., help="Path to music.csv file from iPod export"),
+    db_path: str = typer.Option(DEFAULT_DB_PATH, "--db", "-d", help="Database path"),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Preview CSV changes without applying them"
+    ),
+    skip_embeddings: bool = typer.Option(
+        False, "--skip-embeddings", help="Skip embedding updates"
+    ),
+    batch_size: int = typer.Option(
+        100, "--batch", "-b", help="CSV processing batch size"
+    ),
+    embed_batch_size: Optional[int] = typer.Option(
+        None,
+        "--embed-batch",
+        "-e",
+        help="Embedding batch size (auto-detected if not specified)",
+    ),
+    workers: int = typer.Option(
+        4, "--workers", "-w", help="Number of worker processes"
+    ),
+) -> None:
+    """Complete workflow: Ingest CSV and update embeddings
+
+    The embedding batch size is automatically optimized based on your system's available
+    memory and CPU cores. For the complete workflow, auto-detection is recommended
+    unless you experience memory issues.
+
+    Performance notes:
+    - CSV processing: 100 tracks per batch (good for most systems)
+    - Embedding: Auto-detected based on system resources
+    - Memory usage: ~1KB per track embedding
+    - Recommended: Use auto-detection for embeddings unless debugging
+    """
+    show_banner()
+
+    # Use adaptive batch sizing for embeddings if not specified
+    final_embed_batch_size = get_batch_size_with_fallback(
+        embed_batch_size, base_size=500
+    )
+
+    if embed_batch_size is None:
+        console.print(
+            f"[cyan]🔧 Auto-detected embedding batch size: {final_embed_batch_size}[/cyan]"
+        )
+    else:
+        console.print(
+            f"[cyan]🔧 Using specified embedding batch size: {final_embed_batch_size}[/cyan]"
+        )
+
+    console.print("[bold cyan]🔄 Starting Complete Workflow[/bold cyan]")
+    console.print("This will:")
+    console.print("  1. Ingest music data from CSV")
+    console.print("  2. 🔄 Update embeddings for modified tracks")
+    console.print("3. Show final statistics")
+    if not Confirm.ask("Continue with workflow?"):
+        console.print("[yellow]Workflow cancelled[/yellow]")
+        return
+
+    try:
+        # Step 1: Ingestion
+        console.print("\n[bold green]Step 1: Ingestion[/bold green]")
+        ingester = MusicCSVIngester(db_path)
+
+        with console.status(
+            f"[bold green]Ingesting CSV from: {csv_path}[/bold green]", spinner="dots"
+        ):
+            stats = ingester.ingest_csv(
+                csv_path, dry_run=dry_run, batch_size=batch_size
+            )
+
+        # Display CSV results
+        table = Table(
+            title="📊 CSV Ingestion Results",
+            show_header=True,
+            header_style="bold magenta",
+        )
+        table.add_column("Metric", style="cyan")
+        table.add_column("Value", style="green")
+
+        table.add_row("Total Rows", str(stats["total_rows"]))
+        table.add_row("Processed", str(stats["processed"]))
+        table.add_row("Inserted", str(stats["inserted"]))
+        table.add_row("Updated", str(stats["updated"]))
+        table.add_row("Skipped", str(stats["skipped"]))
+        table.add_row("Errors", str(stats["errors"]))
+
+        console.print(table)
+
+        if dry_run:
+            console.print(
+                "[yellow]🔍 DRY RUN COMPLETE - No changes made to database[/yellow]"
+            )
+            return
+
+        # Step 2: Embedding Updates (if not skipped and there are tracks to update)
+        if stats["tracks_to_update_embeddings"] and Confirm.ask(
+            f"🔄 Update embeddings for {len(stats['tracks_to_update_embeddings'])} modified tracks?"
+        ):
+            _update_embeddings_for_tracks(
+                stats["tracks_to_update_embeddings"],
+                db_path,
+                final_embed_batch_size,
+                workers,
+            )
+        elif skip_embeddings:
+            console.print(
+                "\n[yellow]⏩ Skipping embedding updates as requested[/yellow]"
+            )
+        else:
+            console.print("\n[yellow]ℹ️  No tracks need embedding updates[/yellow]")
+
+        # Step 3: Final Status
+        console.print("\n[bold green]Step 3: Final Status[/bold green]")
+        generator = LocalPlaylistGenerator(db_path=db_path)
+        show_status(generator)
+
+        console.print("\n[bold green]🎉 Workflow Complete![/bold green]")
+
+    except Exception as e:
+        console.print(f"[red]❌ Workflow failed: {e}[/red]")
+        raise typer.Exit(1)
+    finally:
+        ingester.close()
 
 
 @app.command()
@@ -394,8 +680,6 @@ def _set_preference(feedback_manager: FeedbackManager) -> None:
     elif pref_type == "boolean":
         value = str(value.lower() == "true")
     elif pref_type == "json":
-        import json
-
         value = json.loads(value)
 
     if feedback_manager.set_preference(key, value, pref_type, description):
@@ -618,6 +902,42 @@ def _collect_playlist_feedback(
                     context=f"Playlist: {query}",
                 )
                 console.print("[green]✅ Track rating recorded[/green]")
+
+
+def _update_embeddings_for_tracks(
+    track_ids: list,
+    db_path: str = DEFAULT_DB_PATH,
+    batch_size: Optional[int] = None,
+    workers: int = 4,
+) -> None:
+    """Update embeddings for a list of track IDs.
+
+    Args:
+        track_ids: List of track IDs to update
+        db_path: Database path
+        batch_size: Batch size for processing (auto-detected if None)
+        workers: Number of worker processes
+    """
+    try:
+        # Use adaptive batch sizing if not specified
+        final_batch_size = get_batch_size_with_fallback(batch_size, base_size=500)
+
+        if batch_size is None:
+            console.print(
+                f"[cyan]🔧 Auto-detected batch size: {final_batch_size}[/cyan]"
+            )
+
+        updater = EmbeddingUpdater(db_path)
+        stats = updater.update_embeddings_for_tracks(
+            track_ids, final_batch_size, workers
+        )
+        updated_count = stats.get("updated", 0)
+        console.print(
+            f"[green]✅ Embeddings updated for {updated_count} tracks.[/green]"
+        )
+    except Exception as e:
+        console.print(f"[red]❌ Embedding update error: {e}[/red]")
+        raise typer.Exit(1)
 
 
 def main() -> None:

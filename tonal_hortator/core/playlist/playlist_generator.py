@@ -4,6 +4,7 @@ Generate music playlists using local Ollama embeddings
 This script creates playlists based on semantic search queries
 """
 
+import json
 import logging
 import os
 import random
@@ -12,12 +13,18 @@ import secrets
 import shutil
 import subprocess
 import time
+import urllib.parse
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from tonal_hortator.core.embeddings.embeddings import OllamaEmbeddingService
 from tonal_hortator.core.embeddings.track_embedder import LocalTrackEmbedder
 from tonal_hortator.core.feedback import FeedbackManager
+from tonal_hortator.core.llm.llm_client import (
+    LocalLLMClient,
+)
+
+from .feedback_service import FeedbackService, PlaylistFeedbackService
 
 # Configure logging
 logging.basicConfig(
@@ -30,10 +37,6 @@ logger = logging.getLogger(__name__)
 # --- LLMQueryParser for extracting structured intent from queries ---
 class LLMQueryParser:
     def __init__(self, model_name: str = "llama3:8b"):
-        from tonal_hortator.core.llm.llm_client import (  # You'll need to implement this or wrap Ollama
-            LocalLLMClient,
-        )
-
         self.model_name = model_name
         self.client = LocalLLMClient(model_name)
 
@@ -139,9 +142,6 @@ Query: "falling asleep in a trailer by the river"
 Now analyze the current query and respond with valid JSON:"""
 
     def _extract_json(self, response: str) -> dict[Any, Any]:
-        import json
-        import re
-
         match = re.search(r"\{.*\}", response, re.DOTALL)
         if match:
             return json.loads(match.group(0))  # type: ignore
@@ -149,12 +149,35 @@ Now analyze the current query and respond with valid JSON:"""
 
 
 class LocalPlaylistGenerator:
-    """Generate playlists using local Ollama embeddings"""
+    """Generate playlists using local Ollama embeddings
+
+    Example usage with dependency injection:
+
+    ```python
+    # Use default feedback service
+    generator = LocalPlaylistGenerator()
+
+    # Use custom feedback service
+    custom_feedback = PlaylistFeedbackService(db_path="custom_feedback.db")
+    generator = LocalPlaylistGenerator(feedback_service=custom_feedback)
+
+    # Use mock feedback service for testing
+    class MockFeedbackService:
+        def record_user_feedback(self, track_id, feedback, query_context=""):
+            print(f"Mock: Recorded {feedback} for track {track_id}")
+
+        def get_adjusted_score(self, track_id, track):
+            return 0.0
+
+    generator = LocalPlaylistGenerator(feedback_service=MockFeedbackService())
+    ```
+    """
 
     def __init__(
         self,
         db_path: str = "music_library.db",
         model_name: str = "nomic-embed-text:latest",
+        feedback_service: Optional[FeedbackService] = None,
     ):
         """
         Initialize the local playlist generator
@@ -162,6 +185,7 @@ class LocalPlaylistGenerator:
         Args:
             db_path: Path to SQLite database
             model_name: Name of the embedding model to use
+            feedback_service: Optional feedback service for user feedback
         """
         self.db_path = db_path
         self.embedding_service = OllamaEmbeddingService(model_name=model_name)
@@ -170,6 +194,9 @@ class LocalPlaylistGenerator:
         )
         self.query_parser = LLMQueryParser()
         self.feedback_manager = FeedbackManager()
+
+        # Use provided feedback service or default to PlaylistFeedbackService
+        self.feedback_service = feedback_service or PlaylistFeedbackService()
 
     def _determine_max_tracks(
         self, parsed_count: Optional[int], max_tracks: Optional[int]
@@ -337,7 +364,46 @@ class LocalPlaylistGenerator:
                 # For general queries, apply genre filtering and boosting
                 results = self._apply_genre_filtering(genres, results)
 
-            # 5. Filter by similarity threshold and deduplicate
+            # 5. Apply feedback + iTunes score adjustments
+            for track in results:
+                track_id = track.get("id")
+                if track_id is not None:
+                    adjustment = self.feedback_manager.get_adjusted_score(
+                        track_id, track
+                    )
+                    original_score = track.get("similarity_score", 0)
+                    adjusted_score = max(0.0, min(1.0, original_score + adjustment))
+                    track["similarity_score"] = adjusted_score
+                    track["feedback_adjusted"] = adjustment
+            # 🧮 Summarize adjustment impact
+            adjustments = [
+                track["feedback_adjusted"]
+                for track in results
+                if "feedback_adjusted" in track
+            ]
+            logger.info(f"🔄 Adjustments: {adjustments}")
+            if adjustments:
+                avg_adj = sum(adjustments) / len(adjustments)
+                pos_count = len([a for a in adjustments if a > 0])
+                neg_count = len([a for a in adjustments if a < 0])
+                max_adj = max(adjustments)
+                min_adj = min(adjustments)
+
+                logger.info(
+                    f"📈 Feedback summary: avg_adj={avg_adj:.3f}, +{pos_count}, -{neg_count}, max={max_adj:.3f}, min={min_adj:.3f}"
+                )
+
+                # Optional: log most boosted + penalized tracks
+                top_positive = max(results, key=lambda t: t.get("feedback_adjusted", 0))
+                top_negative = min(results, key=lambda t: t.get("feedback_adjusted", 0))
+
+                logger.info(
+                    f"🔺 Most boosted: {top_positive.get('title')} by {top_positive.get('artist')} (+{top_positive['feedback_adjusted']:.2f})"
+                )
+                logger.info(
+                    f"🔻 Most penalized: {top_negative.get('title')} by {top_negative.get('artist')} ({top_negative['feedback_adjusted']:.2f})"
+                )
+                # 6. Filter by similarity threshold and deduplicate
             filtered_results = self._filter_and_deduplicate_results(
                 results,
                 min_similarity,
@@ -346,7 +412,7 @@ class LocalPlaylistGenerator:
                 max_artist_ratio,
             )
 
-            # 6. Apply artist randomization
+            # 7. Apply artist randomization
             filtered_results = self._apply_artist_randomization(
                 filtered_results, max_tracks, is_vague
             )
@@ -908,8 +974,6 @@ class LocalPlaylistGenerator:
     def _extract_base_name(self, name: str) -> str:
         """Extract base name by removing common suffixes in parentheses"""
         # Remove common suffixes like (Remix), (Live), (Acoustic), etc.
-        import re
-
         return re.sub(r"\s*\([^)]*\)$", "", name).strip()
 
     def _normalize_file_location(self, location: str) -> str:
@@ -921,7 +985,6 @@ class LocalPlaylistGenerator:
         normalized = location.lower().replace("\\", "/")
 
         # Remove common OS-specific prefixes with username
-        import re
 
         # Match /users/<username>/, /home/<username>/, c:/users/<username>/, etc.
         match = re.match(
@@ -1000,8 +1063,6 @@ class LocalPlaylistGenerator:
                         # Convert file:// URLs to local paths for better Apple Music compatibility
                         if location.startswith("file://"):
                             # Remove file:// prefix and decode URL encoding
-                            import urllib.parse
-
                             local_path = urllib.parse.unquote(location[7:])
                             f.write(f"{local_path}\n")
                         else:
@@ -1542,6 +1603,23 @@ def _process_playlist_request(generator: LocalPlaylistGenerator, query: str) -> 
 
         # Print summary
         generator.print_playlist_summary(tracks, query)
+
+        # Ask for feedback on each track
+        for track in tracks:
+            artist = track.get("artist", "Unknown")
+            name = track.get("name", "Unknown")
+            track_id = track.get("id", "")
+            print(f"\nTrack: {artist} - {name}")
+            fb = (
+                input("Feedback? (l = like, d = dislike, b = block, enter to skip): ")
+                .strip()
+                .lower()
+            )
+            if fb in ["l", "d", "b"]:
+                fb_map = {"l": "like", "d": "dislike", "b": "block"}
+                generator.feedback_service.record_user_feedback(
+                    track_id, fb_map[fb], query
+                )
 
         # Ask if user wants to save
         save = input("\nSave playlist to file? (y/n): ").strip().lower()

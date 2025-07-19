@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS tracks (
 """
 
 CREATE_TRACK_EMBEDDINGS_TABLE = """
-CREATE TABLE track_embeddings (
+CREATE TABLE IF NOT EXISTS track_embeddings (
     track_id INTEGER PRIMARY KEY,
     embedding BLOB,
     embedding_text TEXT,
@@ -104,6 +104,19 @@ CREATE TABLE IF NOT EXISTS query_learning (
 )
 """
 
+CREATE_FEEDBACK_TABLE = """
+CREATE TABLE IF NOT EXISTS feedback (
+    id INTEGER PRIMARY KEY,
+    track_id TEXT NOT NULL,
+    feedback TEXT NOT NULL,
+    adjustment REAL NOT NULL,
+    timestamp TEXT NOT NULL,
+    query_context TEXT,
+    source TEXT DEFAULT 'user',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+"""
+
 # Common Queries
 GET_TRACKS_WITHOUT_EMBEDDINGS = """
 SELECT
@@ -113,10 +126,42 @@ SELECT
     t.bpm, t.musical_key, t.key_scale, t.mood, t.label,
     t.producer, t.arranger, t.lyricist, t.original_year,
     t.original_date, t.chord_changes_rate, t.script,
-    t.replay_gain, t.release_country
+    t.replay_gain, t.release_country,
+    COALESCE((
+        SELECT AVG(tr.rating)
+        FROM track_ratings tr
+        WHERE tr.track_id = t.id
+    ), 0) as avg_rating,
+    COALESCE((
+        SELECT COUNT(tr.id)
+        FROM track_ratings tr
+        WHERE tr.track_id = t.id
+    ), 0) as rating_count
 FROM tracks t
 LEFT JOIN track_embeddings te ON t.id = te.track_id
 WHERE te.track_id IS NULL
+"""
+
+GET_TRACKS_WITH_RATINGS = """
+SELECT
+    t.id, t.name, t.artist, t.album, t.genre, t.year,
+    t.play_count, t.album_artist, t.composer, t.total_time,
+    t.track_number, t.disc_number, t.date_added, t.location,
+    t.bpm, t.musical_key, t.key_scale, t.mood, t.label,
+    t.producer, t.arranger, t.lyricist, t.original_year,
+    t.original_date, t.chord_changes_rate, t.script,
+    t.replay_gain, t.release_country,
+    COALESCE((
+        SELECT AVG(tr.rating)
+        FROM track_ratings tr
+        WHERE tr.track_id = t.id
+    ), 0) as avg_rating,
+    COALESCE((
+        SELECT COUNT(tr.id)
+        FROM track_ratings tr
+        WHERE tr.track_id = t.id
+    ), 0) as rating_count
+FROM tracks t
 """
 
 INSERT_TRACK = """
@@ -227,6 +272,153 @@ GET_SAMPLE_MAPPINGS = """
 SELECT source_format, source_tag, normalized_tag FROM metadata_mappings LIMIT 10
 """
 
+# Table existence checks
+CHECK_TRACK_RATINGS_TABLE_EXISTS = """
+SELECT name FROM sqlite_master WHERE type='table' AND name='track_ratings'
+"""
+
+# Embedding queries
+GET_EMBEDDING_INFO = """
+SELECT embedding_text, created_at FROM track_embeddings WHERE track_id = ?
+"""
+
+GET_TRACKS_WITHOUT_EMBEDDINGS_SIMPLE = """
+SELECT
+    t.id, t.name, t.artist, t.album, t.genre, t.year,
+    t.play_count, t.album_artist, t.composer, t.total_time,
+    t.track_number, t.disc_number, t.date_added, t.location,
+    t.bpm, t.musical_key, t.key_scale, t.mood, t.label,
+    t.producer, t.arranger, t.lyricist, t.original_year,
+    t.original_date, t.chord_changes_rate, t.script,
+    t.replay_gain, t.release_country,
+    0 as avg_rating,
+    0 as rating_count
+FROM tracks t
+LEFT JOIN track_embeddings te ON t.id = te.track_id
+WHERE te.track_id IS NULL
+"""
+
+GET_ALL_EMBEDDINGS_WITH_RATINGS = """
+SELECT
+    te.embedding,
+    t.id,
+    t.name,
+    t.artist,
+    t.album_artist,
+    t.composer,
+    t.album,
+    t.genre,
+    t.year,
+    t.total_time,
+    t.track_number,
+    t.disc_number,
+    t.play_count,
+    t.location,
+    t.bpm,
+    t.musical_key,
+    t.key_scale,
+    t.mood,
+    t.label,
+    t.producer,
+    t.arranger,
+    t.lyricist,
+    t.original_year,
+    t.original_date,
+    t.chord_changes_rate,
+    t.script,
+    t.replay_gain,
+    t.release_country,
+    COALESCE((
+        SELECT AVG(tr.rating)
+        FROM track_ratings tr
+        WHERE tr.track_id = t.id
+    ), 0) as avg_rating,
+    COALESCE((
+        SELECT COUNT(tr.id)
+        FROM track_ratings tr
+        WHERE tr.track_id = t.id
+    ), 0) as rating_count
+FROM tracks t
+LEFT JOIN track_embeddings te ON t.id = te.track_id
+ORDER BY t.id
+"""
+
+GET_ALL_EMBEDDINGS_SIMPLE = """
+SELECT
+    te.embedding,
+    t.id,
+    t.name,
+    t.artist,
+    t.album_artist,
+    t.composer,
+    t.album,
+    t.genre,
+    t.year,
+    t.total_time,
+    t.track_number,
+    t.disc_number,
+    t.play_count,
+    t.location,
+    t.bpm,
+    t.musical_key,
+    t.key_scale,
+    t.mood,
+    t.label,
+    t.producer,
+    t.arranger,
+    t.lyricist,
+    t.original_year,
+    t.original_date,
+    t.chord_changes_rate,
+    t.script,
+    t.replay_gain,
+    t.release_country,
+    0 as avg_rating,
+    0 as rating_count
+FROM tracks t
+LEFT JOIN track_embeddings te ON t.id = te.track_id
+ORDER BY t.id
+"""
+
+GET_TRACKS_BY_ARTIST = """
+SELECT t.*, 1.0 as similarity_score
+FROM tracks t
+WHERE LOWER(t.artist) = LOWER(?)
+ORDER BY t.name
+"""
+
+# Feedback and preference queries
+GET_USER_PREFERENCE = """
+SELECT preference_value, preference_type FROM user_preferences WHERE preference_key = ?
+"""
+
+GET_TRACK_RATING = """
+SELECT rating FROM track_ratings WHERE track_id = ?
+"""
+
+GET_FEEDBACK_BY_TRACK_ID = """
+SELECT adjustment, timestamp FROM feedback WHERE track_id = ?
+"""
+
+GET_RECOMMENDED_SETTINGS = """
+SELECT
+    AVG(similarity_threshold) as avg_similarity,
+    AVG(search_breadth) as avg_breadth,
+    AVG(user_rating) as avg_rating,
+    COUNT(*) as feedback_count
+FROM user_feedback
+WHERE query_type = ? AND user_rating IS NOT NULL
+"""
+
+# Statistics queries
+GET_TRACK_COUNT = """
+SELECT COUNT(*) FROM tracks
+"""
+
+GET_EMBEDDING_COUNT = """
+SELECT COUNT(*) FROM track_embeddings
+"""
+
 # Test Queries (for unit tests)
 TEST_CREATE_TRACKS_TABLE = """
 CREATE TABLE tracks (
@@ -261,4 +453,37 @@ SELECT COUNT(*) FROM tracks
 
 TEST_GET_EMBEDDING_COUNT = """
 SELECT COUNT(*) FROM track_embeddings
+"""
+
+# CSV Ingester Queries
+CHECK_TRACK_BY_LOCATION = """
+SELECT id FROM tracks WHERE location = ?
+"""
+
+# Note: Dynamic queries are handled by helper functions that use templates
+UPDATE_TRACK_TEMPLATE = """
+UPDATE tracks SET {fields} WHERE id = ?
+"""
+
+INSERT_TRACK_TEMPLATE = """
+INSERT INTO tracks ({fields}) VALUES ({placeholders})
+"""
+
+# Embedding Updater Queries
+GET_TRACK_EMBEDDING = """
+SELECT embedding FROM track_embeddings WHERE track_id = ?
+"""
+
+INSERT_OR_REPLACE_TRACK_EMBEDDING = """
+INSERT OR REPLACE INTO track_embeddings (track_id, embedding, embedding_text)
+VALUES (?, ?, ?)
+"""
+
+# Note: Dynamic queries with placeholders are handled by helper functions
+GET_TRACKS_BY_IDS_TEMPLATE = """
+SELECT * FROM tracks WHERE id IN ({placeholders}) ORDER BY id
+"""
+
+DELETE_TRACK_EMBEDDINGS_BY_IDS_TEMPLATE = """
+DELETE FROM track_embeddings WHERE track_id IN ({placeholders})
 """

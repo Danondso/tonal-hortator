@@ -4,6 +4,7 @@ Library parser for iTunes XML library files.
 Parses iTunes XML library and stores track data in SQLite database.
 """
 
+import argparse
 import sqlite3
 import urllib.parse
 import warnings
@@ -295,8 +296,6 @@ class LibraryParser:
 
 def main() -> None:
     """Main function to run the parser from the command line."""
-    import argparse
-
     parser = argparse.ArgumentParser(description="Parse Apple Music XML library.")
     parser.add_argument("xml_path", help="Path to the Apple Music XML library file.")
     parser.add_argument(

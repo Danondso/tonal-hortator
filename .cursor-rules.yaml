@@ -1,0 +1,88 @@
+project:
+  name: Tonal Hortator
+
+settings:
+  defaultFile: tonal_hortator/cli/main.py
+  preferredShell: zsh
+  autoFormatOnSave: true
+  autoImportPython: true
+
+rules:
+
+  - match: "tonal_hortator/core/feedback/feedback_report.py"
+    title: "Feedback Analysis & Seeding"
+    description: >
+      Script for summarizing and injecting feedback. Handles user preferences, dislikes, and context notes.
+    tags: [feedback, analysis, CLI]
+
+  - match: "tonal_hortator/core/feedback/*"
+    title: "Feedback Core"
+    description: >
+      Core logic for managing track-level feedback, score adjustments, and decay effects.
+    tags: [feedback, scoring, decay]
+
+  - match: "tonal_hortator/core/embeddings/*"
+    title: "Embedding System"
+    description: >
+      Handles track embedding generation using Ollama models and similarity search.
+    tags: [embedding, ollama, similarity]
+
+  - match: "tonal_hortator/core/playlist/*"
+    title: "Playlist Generation Engine"
+    description: >
+      Entry point for playlist creation: pulls from vector DB, scores, filters, applies feedback.
+    tags: [generation, scoring, feedback]
+
+  - match: "tonal_hortator/cli/*"
+    title: "CLI Interface"
+    description: >
+      Command-line interface using Typer and Rich for user interaction.
+    tags: [cli, typer, rich]
+
+  - match: "tonal_hortator/core/llm/*"
+    title: "LLM Integration"
+    description: >
+      Uses LLM to parse user prompts into structured intent and filtering instructions.
+    tags: [query, NLP, LLM]
+
+  - match: "tonal_hortator/tests/**"
+    title: "Tests"
+    description: >
+      Tests for various parts of the tonal-hortator system. Consider extending with feedback scenarios.
+    tags: [testing, coverage]
+
+  - match: "tonal_hortator/utils/*"
+    title: "Utilities"
+    description: >
+      Utility modules for library parsing, metadata reading, and Apple Music integration.
+    tags: [utils, parsing, integration]
+
+  - match: "music_library.db"
+    ignore: true
+
+  - match: "*.m3u"
+    ignore: true
+
+  - match: "logs/*"
+    ignore: true
+
+  - match: "playlists/*"
+    ignore: true
+
+shortcuts:
+  - key: cmd+i
+    run: "open tonal_hortator/core/feedback/feedback_report.py"
+    when: "file includes feedback summary or notes"
+    description: "Open feedback report"
+
+  - key: cmd+u
+    run: "open tonal_hortator/cli/main.py"
+    description: "Jump to CLI main"
+
+  - key: cmd+shift+s
+    run: "python tonal_hortator/core/feedback/feedback_report.py seed"
+    description: "Run seeding script"
+
+  - key: cmd+shift+t
+    run: "python -m tonal_hortator.tests.run_tests"
+    description: "Run test suite"

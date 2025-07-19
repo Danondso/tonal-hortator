@@ -9,16 +9,21 @@ to improve playlist generation over time.
 import json
 import logging
 import sqlite3
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, cast
 
 from tonal_hortator.core.database import (
+    CREATE_FEEDBACK_TABLE,
     CREATE_QUERY_LEARNING_TABLE,
     CREATE_TRACK_RATINGS_TABLE,
     CREATE_USER_FEEDBACK_TABLE,
     CREATE_USER_PREFERENCES_TABLE,
     GET_QUERY_LEARNING_DATA,
+    GET_RECOMMENDED_SETTINGS,
+    GET_TRACK_RATING,
     GET_TRACK_RATINGS,
     GET_USER_FEEDBACK_STATS,
+    GET_USER_PREFERENCE,
     GET_USER_PREFERENCES,
     INSERT_QUERY_LEARNING,
     INSERT_TRACK_RATING,
@@ -51,9 +56,10 @@ class FeedbackManager:
 
                 # Create tables if they don't exist
                 cursor.execute(CREATE_USER_FEEDBACK_TABLE)
-                cursor.execute(CREATE_USER_PREFERENCES_TABLE)
                 cursor.execute(CREATE_TRACK_RATINGS_TABLE)
                 cursor.execute(CREATE_QUERY_LEARNING_TABLE)
+                cursor.execute(CREATE_USER_PREFERENCES_TABLE)
+                cursor.execute(CREATE_FEEDBACK_TABLE)
 
                 conn.commit()
                 logger.info("✅ Feedback tables ensured")
@@ -95,6 +101,54 @@ class FeedbackManager:
         Returns:
             True if feedback was recorded successfully
         """
+
+        valid_query_types = ["artist_specific", "similarity", "general"]
+        if query_type not in valid_query_types:
+            logger.error(
+                f"❌ Invalid query type: {query_type}. Must be one of {valid_query_types}"
+            )
+            return False
+
+        # Validate user rating if provided
+        if user_rating is not None:
+            if user_rating < 0 or user_rating > 5:
+                logger.error("❌ User rating must be between 0 and 5")
+                return False
+
+        # Validate user actions if provided
+        if user_actions is not None:
+            valid_actions = ["like", "dislike", "skip", "block", "favorite"]
+            for action in user_actions:
+                if not isinstance(action, str) or action not in valid_actions:
+                    logger.error(
+                        f"❌ Invalid user action: {action}. Must be one of {valid_actions}"
+                    )
+                    return False
+
+        # Validate playlist length if provided
+        if playlist_length is not None:
+            if playlist_length < 0:
+                logger.error("❌ Playlist length cannot be negative")
+                return False
+
+        # Validate requested length if provided
+        if requested_length is not None:
+            if requested_length < 0:
+                logger.error("❌ Requested length cannot be negative")
+                return False
+
+        # Validate similarity threshold if provided
+        if similarity_threshold is not None:
+            if similarity_threshold < 0.0 or similarity_threshold > 1.0:
+                logger.error("❌ Similarity threshold must be between 0.0 and 1.0")
+                return False
+
+        # Validate search breadth if provided
+        if search_breadth is not None:
+            if search_breadth < 1:
+                logger.error("❌ Search breadth must be at least 1")
+                return False
+
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
@@ -156,6 +210,15 @@ class FeedbackManager:
         Returns:
             True if rating was recorded successfully
         """
+
+        if track_id <= 0:
+            logger.error("❌ Track ID must be a positive integer")
+            return False
+
+        if rating < 0 or rating > 5:
+            logger.error("❌ Rating must be between 0 and 5")
+            return False
+
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
@@ -189,6 +252,35 @@ class FeedbackManager:
         Returns:
             True if preference was set successfully
         """
+
+        valid_types = ["string", "integer", "float", "boolean", "json"]
+        if preference_type not in valid_types:
+            logger.error(
+                f"❌ Invalid preference type: {preference_type}. Must be one of {valid_types}"
+            )
+            return False
+
+        # Validate value based on type
+        if preference_type == "integer":
+            if not isinstance(value, int):
+                logger.error("❌ Integer preference value must be an integer")
+                return False
+        elif preference_type == "float":
+            if not isinstance(value, (int, float)):
+                logger.error("❌ Float preference value must be a number")
+                return False
+        elif preference_type == "boolean":
+            if not isinstance(value, bool):
+                logger.error("❌ Boolean preference value must be a boolean")
+                return False
+        elif preference_type == "json":
+            # JSON values can be any serializable type, so we'll validate during serialization
+            pass
+        elif preference_type == "string":
+            if not isinstance(value, str):
+                logger.error("❌ String preference value must be a string")
+                return False
+
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
@@ -228,7 +320,7 @@ class FeedbackManager:
                 cursor = conn.cursor()
 
                 cursor.execute(
-                    "SELECT preference_value, preference_type FROM user_preferences WHERE preference_key = ?",
+                    GET_USER_PREFERENCE,
                     (key,),
                 )
                 result = cursor.fetchone()
@@ -468,15 +560,7 @@ class FeedbackManager:
 
                 # Get average ratings for different settings
                 cursor.execute(
-                    """
-                    SELECT
-                        AVG(similarity_threshold) as avg_similarity,
-                        AVG(search_breadth) as avg_breadth,
-                        AVG(user_rating) as avg_rating,
-                        COUNT(*) as feedback_count
-                    FROM user_feedback
-                    WHERE query_type = ? AND user_rating IS NOT NULL
-                    """,
+                    GET_RECOMMENDED_SETTINGS,
                     (query_type,),
                 )
 
@@ -498,3 +582,102 @@ class FeedbackManager:
         except sqlite3.Error as e:
             logger.error(f"❌ Error getting recommended settings: {e}")
             return {}
+
+    def get_adjusted_score(self, track_id: int, track_meta: dict) -> float:
+        """
+        Combine feedback ratings and iTunes play metadata to compute an adjusted score.
+        """
+        feedback_adj = self._get_feedback_rating_score(track_id)
+        itunes_adj = self._get_itunes_score(track_meta)
+        return max(-0.2, min(0.2, feedback_adj + itunes_adj))
+
+    def _get_feedback_rating_score(self, track_id: int) -> float:
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                cursor.execute(
+                    GET_TRACK_RATING,
+                    (track_id,),
+                )
+                ratings = [row[0] for row in cursor.fetchall()]
+
+                if not ratings:
+                    return 0.0
+
+                avg_rating = sum(ratings) / len(ratings)
+
+                if avg_rating >= 4.5:
+                    return 0.15
+                elif avg_rating >= 4.0:
+                    return 0.1
+                elif avg_rating >= 3.0:
+                    return 0.05
+                elif avg_rating <= 1.5:
+                    return -0.15
+                elif avg_rating <= 2.0:
+                    return -0.1
+                else:
+                    return 0.0
+
+        except sqlite3.Error as e:
+            logger.error(f"❌ Error getting feedback rating score: {e}")
+            return 0.0
+
+    def _get_itunes_score(self, track: dict) -> float:
+        score = 0.0
+        play_count = track.get("play_count", 0)
+        rating = track.get("rating", 0)
+        skip_count = track.get("skip_count", 0)
+
+        if play_count > 50:
+            score += 0.1
+        elif play_count > 20:
+            score += 0.05
+
+        if rating >= 80:
+            score += 0.1
+        elif rating >= 60:
+            score += 0.05
+
+        if skip_count > 25:
+            score -= 0.1
+        elif skip_count > 10:
+            score -= 0.05
+
+        return score
+
+    def record_user_feedback(
+        self, track_id: str, feedback: str, query_context: str = ""
+    ) -> None:
+        # Input validation
+
+        if not track_id.strip():
+            logger.error("❌ Track ID cannot be empty")
+            raise ValueError("Track ID cannot be empty")
+
+        valid_feedback_types = ["like", "dislike", "block"]
+        if feedback not in valid_feedback_types:
+            logger.error(
+                f"❌ Invalid feedback type: {feedback}. Must be one of {valid_feedback_types}"
+            )
+            raise ValueError(f"Invalid feedback type: {feedback}")
+
+        feedback_map = {"like": 0.2, "dislike": -0.2, "block": -1.0}
+        adjustment = feedback_map.get(feedback, 0.0)
+        timestamp = datetime.now().isoformat()
+
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    INSERT INTO feedback (track_id, feedback, adjustment, timestamp, query_context, source)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                    (track_id, feedback, adjustment, timestamp, query_context, "user"),
+                )
+                conn.commit()
+        except sqlite3.Error as e:
+            logger.error(f"❌ Error recording user feedback: {e}")
+            raise
