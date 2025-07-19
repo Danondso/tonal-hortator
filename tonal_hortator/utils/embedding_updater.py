@@ -12,6 +12,14 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 from loguru import logger
 
+from tonal_hortator.core.database import (
+    GET_TRACK_EMBEDDING,
+    INSERT_OR_REPLACE_TRACK_EMBEDDING,
+)
+from tonal_hortator.core.database.query_helpers import (
+    build_delete_embeddings_by_ids_query,
+    build_get_tracks_by_ids_query,
+)
 from tonal_hortator.core.embeddings.track_embedder import LocalTrackEmbedder
 
 # Configure logging
@@ -177,9 +185,7 @@ class EmbeddingUpdater:
         """Get existing embedding for a track."""
         try:
             cursor = self.embedder.conn.cursor()
-            cursor.execute(
-                "SELECT embedding FROM track_embeddings WHERE track_id = ?", (track_id,)
-            )
+            cursor.execute(GET_TRACK_EMBEDDING, (track_id,))
             result = cursor.fetchone()
             if result and result[0]:
                 return np.frombuffer(result[0], dtype=np.float32)
@@ -243,7 +249,7 @@ class EmbeddingUpdater:
         cursor = self.embedder.conn.cursor()
         embedding_blob = embedding.tobytes()
         cursor.execute(
-            "INSERT OR REPLACE INTO track_embeddings (track_id, embedding, embedding_text) VALUES (?, ?, ?)",
+            INSERT_OR_REPLACE_TRACK_EMBEDDING,
             (track_id, embedding_blob, embedding_text),
         )
         self.embedder.conn.commit()
@@ -252,10 +258,7 @@ class EmbeddingUpdater:
         if not track_ids:
             return []
         cursor = self.embedder.conn.cursor()
-        placeholders = ",".join(["?"] * len(track_ids))
-        query = f"""
-            SELECT * FROM tracks WHERE id IN ({placeholders}) ORDER BY id
-        """
+        query = build_get_tracks_by_ids_query(track_ids)
         cursor.execute(query, track_ids)
         return [dict(row) for row in cursor.fetchall()]
 
@@ -263,8 +266,7 @@ class EmbeddingUpdater:
         if not track_ids:
             return
         cursor = self.embedder.conn.cursor()
-        placeholders = ",".join(["?"] * len(track_ids))
-        query = f"DELETE FROM track_embeddings WHERE track_id IN ({placeholders})"
+        query = build_delete_embeddings_by_ids_query(track_ids)
         cursor.execute(query, track_ids)
         self.embedder.conn.commit()
         logger.info(f"🗑️  Cleared {cursor.rowcount} existing embeddings.")

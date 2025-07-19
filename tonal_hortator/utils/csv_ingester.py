@@ -9,11 +9,19 @@ import logging
 import sqlite3
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from loguru import logger
 
-from tonal_hortator.core.database import CHECK_TABLE_EXISTS, CREATE_TRACKS_TABLE
+from tonal_hortator.core.database import (
+    CHECK_TABLE_EXISTS,
+    CHECK_TRACK_BY_LOCATION,
+    CREATE_TRACKS_TABLE,
+)
+from tonal_hortator.core.database.query_helpers import (
+    build_insert_track_query,
+    build_update_track_query,
+)
 from tonal_hortator.utils.loader import create_progress_spinner
 
 # Configure logging
@@ -78,7 +86,7 @@ class MusicCSVIngester:
 
     def _check_track_exists(self, location: str) -> Optional[int]:
         cursor = self.conn.cursor()
-        cursor.execute("SELECT id FROM tracks WHERE location = ?", (location,))
+        cursor.execute(CHECK_TRACK_BY_LOCATION, (location,))
         result = cursor.fetchone()
         return result[0] if result else None
 
@@ -88,12 +96,12 @@ class MusicCSVIngester:
         values = []
         for field, value in track_data.items():
             if field != "location" and value is not None:
-                fields.append(f"{field} = ?")
+                fields.append(field)
                 values.append(value)
         if not fields:
             return True
         values.append(track_id)
-        query = f"UPDATE tracks SET {', '.join(fields)} WHERE id = ?"
+        query = build_update_track_query(fields)
         cursor.execute(query, values)
         self.conn.commit()
         return True
@@ -108,8 +116,7 @@ class MusicCSVIngester:
                 values.append(value)
         if not fields:
             return None
-        placeholders = ",".join(["?" for _ in fields])
-        query = f"INSERT INTO tracks ({', '.join(fields)}) VALUES ({placeholders})"
+        query = build_insert_track_query(fields)
         cursor.execute(query, values)
         self.conn.commit()
         return cursor.lastrowid

@@ -1,9 +1,8 @@
-import sqlite3
 import tempfile
-from unittest.mock import MagicMock, patch
 
 import pytest
 
+from tonal_hortator.core.database import GET_TRACK_COUNT, TEST_GET_TRACK
 from tonal_hortator.utils.csv_ingester import MusicCSVIngester
 
 
@@ -39,11 +38,11 @@ def test_insert_new_tracks() -> None:
 
         # Verify tracks were inserted
         cursor = ingester.conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM tracks")
+        cursor.execute(GET_TRACK_COUNT)
         count = cursor.fetchone()[0]
         assert count == 2
 
-        cursor.execute("SELECT name, artist FROM tracks WHERE name = 'Test Song 1'")
+        cursor.execute(TEST_GET_TRACK, (1,))
         result = cursor.fetchone()
         assert result is not None
         assert result["name"] == "Test Song 1"
@@ -135,7 +134,7 @@ def test_dry_run_mode() -> None:
 
         # Verify no tracks were actually inserted
         cursor = ingester.conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM tracks")
+        cursor.execute(GET_TRACK_COUNT)
         count = cursor.fetchone()[0]
         assert count == 0
 

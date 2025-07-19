@@ -2,8 +2,12 @@ import sqlite3
 import tempfile
 from unittest.mock import MagicMock, patch
 
-import pytest
-
+from tonal_hortator.core.database import (
+    GET_EMBEDDING_COUNT,
+    TEST_CREATE_TRACKS_TABLE,
+    TEST_INSERT_TRACK,
+    TEST_INSERT_TRACK_EMBEDDING,
+)
 from tonal_hortator.utils.embedding_updater import EmbeddingUpdater
 
 
@@ -13,18 +17,7 @@ def create_test_db(db_path: str) -> None:
     cur = conn.cursor()
 
     # Create tracks table
-    cur.execute(
-        """CREATE TABLE IF NOT EXISTS tracks (
-        id INTEGER PRIMARY KEY,
-        name TEXT,
-        artist TEXT,
-        album TEXT,
-        genre TEXT,
-        year INTEGER,
-        play_count INTEGER,
-        location TEXT
-    )"""
-    )
+    cur.execute(TEST_CREATE_TRACKS_TABLE)
 
     # Create track_embeddings table
     cur.execute(
@@ -38,16 +31,16 @@ def create_test_db(db_path: str) -> None:
 
     # Insert sample tracks
     cur.execute(
-        """INSERT INTO tracks (id, name, artist, album, genre, year, play_count, location)
-                   VALUES (1, 'Test Song 1', 'Test Artist 1', 'Test Album 1', 'Rock', 2020, 5, '/path/to/song1.mp3')"""
+        TEST_INSERT_TRACK,
+        (1, "Test Song 1", "Test Artist 1", "Test Album 1", "Rock", 2020, 5),
     )
     cur.execute(
-        """INSERT INTO tracks (id, name, artist, album, genre, year, play_count, location)
-                   VALUES (2, 'Test Song 2', 'Test Artist 2', 'Test Album 2', 'Jazz', 2021, 10, '/path/to/song2.mp3')"""
+        TEST_INSERT_TRACK,
+        (2, "Test Song 2", "Test Artist 2", "Test Album 2", "Jazz", 2021, 10),
     )
     cur.execute(
-        """INSERT INTO tracks (id, name, artist, album, genre, year, play_count, location)
-                   VALUES (3, 'Test Song 3', 'Test Artist 3', 'Test Album 3', 'Pop', 2022, 0, '/path/to/song3.mp3')"""
+        TEST_INSERT_TRACK,
+        (3, "Test Song 3", "Test Artist 3", "Test Album 3", "Pop", 2022, 0),
     )
 
     # Insert sample embeddings
@@ -56,16 +49,8 @@ def create_test_db(db_path: str) -> None:
     embedding1 = np.array([0.1, 0.2, 0.3], dtype=np.float32).tobytes()
     embedding2 = np.array([0.4, 0.5, 0.6], dtype=np.float32).tobytes()
 
-    cur.execute(
-        """INSERT INTO track_embeddings (track_id, embedding, embedding_text)
-                   VALUES (1, ?, 'Test embedding text 1')""",
-        (embedding1,),
-    )
-    cur.execute(
-        """INSERT INTO track_embeddings (track_id, embedding, embedding_text)
-                   VALUES (2, ?, 'Test embedding text 2')""",
-        (embedding2,),
-    )
+    cur.execute(TEST_INSERT_TRACK_EMBEDDING, (1, embedding1, "Test embedding text 1"))
+    cur.execute(TEST_INSERT_TRACK_EMBEDDING, (2, embedding2, "Test embedding text 2"))
 
     conn.commit()
     conn.close()
@@ -439,9 +424,7 @@ def test_clear_embeddings_for_tracks() -> None:
 
             # Verify embeddings were cleared
             cursor = mock_embedder.conn.cursor()
-            cursor.execute(
-                "SELECT COUNT(*) FROM track_embeddings WHERE track_id IN (1, 2)"
-            )
+            cursor.execute(GET_EMBEDDING_COUNT)
             count = cursor.fetchone()[0]
             assert count == 0
 

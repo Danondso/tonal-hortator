@@ -262,3 +262,45 @@ SELECT COUNT(*) FROM tracks
 TEST_GET_EMBEDDING_COUNT = """
 SELECT COUNT(*) FROM track_embeddings
 """
+
+# CSV Ingester Queries
+CHECK_TRACK_BY_LOCATION = """
+SELECT id FROM tracks WHERE location = ?
+"""
+
+# Note: Dynamic queries are handled by helper functions that use templates
+UPDATE_TRACK_TEMPLATE = """
+UPDATE tracks SET {fields} WHERE id = ?
+"""
+
+INSERT_TRACK_TEMPLATE = """
+INSERT INTO tracks ({fields}) VALUES ({placeholders})
+"""
+
+# Embedding Updater Queries
+GET_TRACK_EMBEDDING = """
+SELECT embedding FROM track_embeddings WHERE track_id = ?
+"""
+
+INSERT_OR_REPLACE_TRACK_EMBEDDING = """
+INSERT OR REPLACE INTO track_embeddings (track_id, embedding, embedding_text)
+VALUES (?, ?, ?)
+"""
+
+# Note: Dynamic queries with placeholders are handled by helper functions
+GET_TRACKS_BY_IDS_TEMPLATE = """
+SELECT * FROM tracks WHERE id IN ({placeholders}) ORDER BY id
+"""
+
+DELETE_TRACK_EMBEDDINGS_BY_IDS_TEMPLATE = """
+DELETE FROM track_embeddings WHERE track_id IN ({placeholders})
+"""
+
+# Utility Queries
+GET_TRACK_COUNT = """
+SELECT COUNT(*) FROM tracks
+"""
+
+GET_EMBEDDING_COUNT = """
+SELECT COUNT(*) FROM track_embeddings
+"""
