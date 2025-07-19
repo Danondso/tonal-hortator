@@ -23,6 +23,7 @@ from tonal_hortator.utils.apple_music import open_in_apple_music
 from tonal_hortator.utils.csv_ingester import MusicCSVIngester
 from tonal_hortator.utils.embedding_updater import EmbeddingUpdater, parse_ids_from_file
 from tonal_hortator.utils.library_parser import LibraryParser
+from tonal_hortator.utils.loader import get_batch_size_with_fallback
 
 # Create logs directory if it doesn't exist
 logs_dir = Path("logs")
@@ -234,18 +235,40 @@ def _generate_single_playlist(
 
 @app.command()
 def embed(
-    batch_size: int = typer.Option(
-        50, "--batch", "-b", help="Batch size for embeddings"
+    batch_size: Optional[int] = typer.Option(
+        None,
+        "--batch",
+        "-b",
+        help="Batch size for embeddings (auto-detected if not specified)",
     ),
     workers: int = typer.Option(
         4, "--workers", "-w", help="Number of worker processes"
     ),
 ) -> None:
-    """🧠 Generate embeddings for all tracks"""
+    """🧠 Generate embeddings for all tracks
+
+    The batch size is automatically optimized based on your system's available memory
+    and CPU cores. Larger batch sizes (500-1000) generally provide better performance
+    on systems with more resources, while smaller batches (50-200) are better for
+    systems with limited memory or for debugging.
+
+    Performance notes:
+    - Default auto-detection: 500 tracks per batch
+    - Memory usage: ~1KB per track embedding
+    - Recommended: Use auto-detection unless you experience memory issues
+    """
     show_banner()
 
+    # Use adaptive batch sizing if not specified
+    final_batch_size = get_batch_size_with_fallback(batch_size, base_size=500)
+
+    if batch_size is None:
+        console.print(f"[cyan]🔧 Auto-detected batch size: {final_batch_size}[/cyan]")
+    else:
+        console.print(f"[cyan]🔧 Using specified batch size: {final_batch_size}[/cyan]")
+
     with console.status("[bold green]Generating embeddings...", spinner="dots"):
-        if embed_tracks(batch_size, max_workers=workers):
+        if embed_tracks(final_batch_size, max_workers=workers):
             console.print("[bold green]✅ Embeddings complete![/bold green]")
         else:
             console.print("[red]❌ Embedding failed[/red]")
@@ -327,15 +350,37 @@ def update_embeddings(
         None, "--file", "-f", help="File containing track IDs (one per line)"
     ),
     db_path: str = typer.Option(DEFAULT_DB_PATH, "--db", "-d", help="Database path"),
-    batch_size: int = typer.Option(
-        50, "--batch", "-b", help="Batch size for embeddings"
+    batch_size: Optional[int] = typer.Option(
+        None,
+        "--batch",
+        "-b",
+        help="Batch size for embeddings (auto-detected if not specified)",
     ),
     workers: int = typer.Option(
         4, "--workers", "-w", help="Number of worker processes"
     ),
 ) -> None:
-    """🔄 Update embeddings for specific tracks"""
+    """🔄 Update embeddings for specific tracks
+
+    The batch size is automatically optimized based on your system's available memory
+    and CPU cores. For small updates (< 100 tracks), smaller batches may be more
+    responsive. For large updates, larger batches provide better throughput.
+
+    Performance notes:
+    - Default auto-detection: 500 tracks per batch
+    - Memory usage: ~1KB per track embedding
+    - For small updates: Consider using --batch 50-100
+    - For large updates: Let auto-detection choose optimal size
+    """
     show_banner()
+
+    # Use adaptive batch sizing if not specified
+    final_batch_size = get_batch_size_with_fallback(batch_size, base_size=500)
+
+    if batch_size is None:
+        console.print(f"[cyan]🔧 Auto-detected batch size: {final_batch_size}[/cyan]")
+    else:
+        console.print(f"[cyan]🔧 Using specified batch size: {final_batch_size}[/cyan]")
 
     try:
         # Parse track IDs
@@ -356,7 +401,7 @@ def update_embeddings(
             console.print("[red]❌ No track IDs provided. Use --help for usage.[/red]")
             raise typer.Exit(1)
 
-        _update_embeddings_for_tracks(track_id_list, db_path, batch_size, workers)
+        _update_embeddings_for_tracks(track_id_list, db_path, final_batch_size, workers)
 
     except Exception as e:
         console.print(f"[red]❌ Embedding update failed: {e}[/red]")
@@ -376,15 +421,43 @@ def workflow(
     batch_size: int = typer.Option(
         100, "--batch", "-b", help="CSV processing batch size"
     ),
-    embed_batch_size: int = typer.Option(
-        50, "--embed-batch", "-e", help="Embedding batch size"
+    embed_batch_size: Optional[int] = typer.Option(
+        None,
+        "--embed-batch",
+        "-e",
+        help="Embedding batch size (auto-detected if not specified)",
     ),
     workers: int = typer.Option(
         4, "--workers", "-w", help="Number of worker processes"
     ),
 ) -> None:
-    """Complete workflow: Ingest CSV and update embeddings"""
+    """Complete workflow: Ingest CSV and update embeddings
+
+    The embedding batch size is automatically optimized based on your system's available
+    memory and CPU cores. For the complete workflow, auto-detection is recommended
+    unless you experience memory issues.
+
+    Performance notes:
+    - CSV processing: 100 tracks per batch (good for most systems)
+    - Embedding: Auto-detected based on system resources
+    - Memory usage: ~1KB per track embedding
+    - Recommended: Use auto-detection for embeddings unless debugging
+    """
     show_banner()
+
+    # Use adaptive batch sizing for embeddings if not specified
+    final_embed_batch_size = get_batch_size_with_fallback(
+        embed_batch_size, base_size=500
+    )
+
+    if embed_batch_size is None:
+        console.print(
+            f"[cyan]🔧 Auto-detected embedding batch size: {final_embed_batch_size}[/cyan]"
+        )
+    else:
+        console.print(
+            f"[cyan]🔧 Using specified embedding batch size: {final_embed_batch_size}[/cyan]"
+        )
 
     console.print("[bold cyan]🔄 Starting Complete Workflow[/bold cyan]")
     console.print("This will:")
@@ -436,7 +509,10 @@ def workflow(
             f"🔄 Update embeddings for {len(stats['tracks_to_update_embeddings'])} modified tracks?"
         ):
             _update_embeddings_for_tracks(
-                stats["tracks_to_update_embeddings"], db_path, embed_batch_size, workers
+                stats["tracks_to_update_embeddings"],
+                db_path,
+                final_embed_batch_size,
+                workers,
             )
         elif skip_embeddings:
             console.print(
@@ -831,13 +907,30 @@ def _collect_playlist_feedback(
 def _update_embeddings_for_tracks(
     track_ids: list,
     db_path: str = DEFAULT_DB_PATH,
-    batch_size: int = 50,
+    batch_size: Optional[int] = None,
     workers: int = 4,
 ) -> None:
-    """Update embeddings for a list of track IDs."""
+    """Update embeddings for a list of track IDs.
+
+    Args:
+        track_ids: List of track IDs to update
+        db_path: Database path
+        batch_size: Batch size for processing (auto-detected if None)
+        workers: Number of worker processes
+    """
     try:
+        # Use adaptive batch sizing if not specified
+        final_batch_size = get_batch_size_with_fallback(batch_size, base_size=500)
+
+        if batch_size is None:
+            console.print(
+                f"[cyan]🔧 Auto-detected batch size: {final_batch_size}[/cyan]"
+            )
+
         updater = EmbeddingUpdater(db_path)
-        stats = updater.update_embeddings_for_tracks(track_ids, batch_size, workers)
+        stats = updater.update_embeddings_for_tracks(
+            track_ids, final_batch_size, workers
+        )
         updated_count = stats.get("updated", 0)
         console.print(
             f"[green]✅ Embeddings updated for {updated_count} tracks.[/green]"

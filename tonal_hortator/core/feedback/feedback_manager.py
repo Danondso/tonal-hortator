@@ -13,6 +13,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, cast
 
 from tonal_hortator.core.database import (
+    CREATE_FEEDBACK_TABLE,
     CREATE_QUERY_LEARNING_TABLE,
     CREATE_TRACK_RATINGS_TABLE,
     CREATE_USER_FEEDBACK_TABLE,
@@ -58,6 +59,7 @@ class FeedbackManager:
                 cursor.execute(CREATE_TRACK_RATINGS_TABLE)
                 cursor.execute(CREATE_QUERY_LEARNING_TABLE)
                 cursor.execute(CREATE_USER_PREFERENCES_TABLE)
+                cursor.execute(CREATE_FEEDBACK_TABLE)
 
                 conn.commit()
                 logger.info("✅ Feedback tables ensured")
@@ -568,18 +570,6 @@ class FeedbackManager:
 
         conn = sqlite3.connect(self.db_path)
         cur = conn.cursor()
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS feedback (
-                track_id TEXT,
-                feedback TEXT,
-                adjustment REAL,
-                timestamp TEXT,
-                query_context TEXT,
-                source TEXT DEFAULT 'user'
-            )
-        """
-        )
         cur.execute(
             """
             INSERT INTO feedback (track_id, feedback, adjustment, timestamp, query_context, source)

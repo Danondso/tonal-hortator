@@ -20,6 +20,7 @@ dependencies = [
     "defusedxml",
     "rich",
     "typer",
+    "psutil",
 ]
 
 [tool.setuptools.packages.find]

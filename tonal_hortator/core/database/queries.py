@@ -104,6 +104,19 @@ CREATE TABLE IF NOT EXISTS query_learning (
 )
 """
 
+CREATE_FEEDBACK_TABLE = """
+CREATE TABLE IF NOT EXISTS feedback (
+    id INTEGER PRIMARY KEY,
+    track_id TEXT NOT NULL,
+    feedback TEXT NOT NULL,
+    adjustment REAL NOT NULL,
+    timestamp TEXT NOT NULL,
+    query_context TEXT,
+    source TEXT DEFAULT 'user',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+"""
+
 # Common Queries
 GET_TRACKS_WITHOUT_EMBEDDINGS = """
 SELECT
