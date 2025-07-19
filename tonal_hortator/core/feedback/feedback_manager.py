@@ -9,6 +9,7 @@ to improve playlist generation over time.
 import json
 import logging
 import sqlite3
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, cast
 
 from tonal_hortator.core.database import (
@@ -50,10 +51,10 @@ class FeedbackManager:
                 cursor = conn.cursor()
 
                 # Create tables if they don't exist
-                cursor.execute(CREATE_USER_FEEDBACK_TABLE)
                 cursor.execute(CREATE_USER_PREFERENCES_TABLE)
                 cursor.execute(CREATE_TRACK_RATINGS_TABLE)
                 cursor.execute(CREATE_QUERY_LEARNING_TABLE)
+                cursor.execute(CREATE_USER_FEEDBACK_TABLE)
 
                 conn.commit()
                 logger.info("✅ Feedback tables ensured")
@@ -566,9 +567,6 @@ class FeedbackManager:
     def record_user_feedback(
         self, track_id: str, feedback: str, query_context: str = ""
     ) -> None:
-        import sqlite3
-        from datetime import datetime
-
         feedback_map = {"like": 0.2, "dislike": -0.2, "block": -1.0}
         adjustment = feedback_map.get(feedback, 0.0)
         timestamp = datetime.now().isoformat()

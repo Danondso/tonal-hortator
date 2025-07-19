@@ -3,6 +3,7 @@
 Script to regenerate embeddings with enhanced musical analysis data
 """
 
+import argparse
 import logging
 import sqlite3
 
@@ -105,8 +106,6 @@ def test_enhanced_embeddings(db_path: str = "music_library.db") -> None:
 
 def main() -> int:
     """Main function"""
-    import argparse
-
     parser = argparse.ArgumentParser(
         description="Regenerate embeddings with musical analysis"
     )

@@ -4,6 +4,7 @@
 Beautiful CLI interface with Typer and Rich
 """
 
+import json
 import os
 from pathlib import Path
 from typing import Optional
@@ -20,7 +21,7 @@ from tonal_hortator.core.feedback import FeedbackManager
 from tonal_hortator.core.playlist.playlist_generator import LocalPlaylistGenerator
 from tonal_hortator.utils.apple_music import open_in_apple_music
 from tonal_hortator.utils.csv_ingester import MusicCSVIngester
-from tonal_hortator.utils.embedding_updater import EmbeddingUpdater
+from tonal_hortator.utils.embedding_updater import EmbeddingUpdater, parse_ids_from_file
 from tonal_hortator.utils.library_parser import LibraryParser
 
 # Create logs directory if it doesn't exist
@@ -348,8 +349,6 @@ def update_embeddings(
             ]
 
         if file_path:
-            from tonal_hortator.utils.embedding_updater import parse_ids_from_file
-
             file_ids = parse_ids_from_file(file_path)
             track_id_list.extend(file_ids)
 
@@ -605,8 +604,6 @@ def _set_preference(feedback_manager: FeedbackManager) -> None:
     elif pref_type == "boolean":
         value = str(value.lower() == "true")
     elif pref_type == "json":
-        import json
-
         value = json.loads(value)
 
     if feedback_manager.set_preference(key, value, pref_type, description):

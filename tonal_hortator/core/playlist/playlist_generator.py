@@ -4,6 +4,7 @@ Generate music playlists using local Ollama embeddings
 This script creates playlists based on semantic search queries
 """
 
+import json
 import logging
 import os
 import random
@@ -12,12 +13,16 @@ import secrets
 import shutil
 import subprocess
 import time
+import urllib.parse
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from tonal_hortator.core.embeddings.embeddings import OllamaEmbeddingService
 from tonal_hortator.core.embeddings.track_embedder import LocalTrackEmbedder
 from tonal_hortator.core.feedback import FeedbackManager
+from tonal_hortator.core.llm.llm_client import (  # You'll need to implement this or wrap Ollama
+    LocalLLMClient,
+)
 
 from .feedback_service import FeedbackService, PlaylistFeedbackService
 
@@ -32,10 +37,6 @@ logger = logging.getLogger(__name__)
 # --- LLMQueryParser for extracting structured intent from queries ---
 class LLMQueryParser:
     def __init__(self, model_name: str = "llama3:8b"):
-        from tonal_hortator.core.llm.llm_client import (  # You'll need to implement this or wrap Ollama
-            LocalLLMClient,
-        )
-
         self.model_name = model_name
         self.client = LocalLLMClient(model_name)
 
@@ -141,9 +142,6 @@ Query: "falling asleep in a trailer by the river"
 Now analyze the current query and respond with valid JSON:"""
 
     def _extract_json(self, response: str) -> dict[Any, Any]:
-        import json
-        import re
-
         match = re.search(r"\{.*\}", response, re.DOTALL)
         if match:
             return json.loads(match.group(0))  # type: ignore
@@ -976,8 +974,6 @@ class LocalPlaylistGenerator:
     def _extract_base_name(self, name: str) -> str:
         """Extract base name by removing common suffixes in parentheses"""
         # Remove common suffixes like (Remix), (Live), (Acoustic), etc.
-        import re
-
         return re.sub(r"\s*\([^)]*\)$", "", name).strip()
 
     def _normalize_file_location(self, location: str) -> str:
@@ -989,7 +985,6 @@ class LocalPlaylistGenerator:
         normalized = location.lower().replace("\\", "/")
 
         # Remove common OS-specific prefixes with username
-        import re
 
         # Match /users/<username>/, /home/<username>/, c:/users/<username>/, etc.
         match = re.match(
@@ -1068,8 +1063,6 @@ class LocalPlaylistGenerator:
                         # Convert file:// URLs to local paths for better Apple Music compatibility
                         if location.startswith("file://"):
                             # Remove file:// prefix and decode URL encoding
-                            import urllib.parse
-
                             local_path = urllib.parse.unquote(location[7:])
                             f.write(f"{local_path}\n")
                         else:

@@ -5,6 +5,7 @@ Updates embeddings for tracks with new play count and rating data.
 Supports both preservation mode and hybrid mode for handling existing embeddings.
 """
 
+import argparse
 import logging
 import sys
 from typing import Any, Dict, List, Optional, Tuple
@@ -62,10 +63,12 @@ class EmbeddingUpdater:
             "errors": 0,
             "skipped": 0,
         }
+        tracks_to_update = None
         try:
             tracks_to_update = self._get_tracks_by_ids(track_ids)
             if not tracks_to_update:
                 logger.warning("No tracks found for the provided IDs.")
+                stats["errors"] = len(track_ids)  # All tracks failed if none found
                 return stats
             logger.info(f"Found {len(tracks_to_update)} tracks to process.")
             if mode == "preserve":
@@ -86,10 +89,19 @@ class EmbeddingUpdater:
             stats["updated"] = 0
             stats["preserved"] = 0
             stats["skipped"] = 0
-            stats["errors"] = self._calculate_error_count(
-                track_ids, locals().get("tracks_to_update")
-            )
+            stats["errors"] = self._calculate_error_count(track_ids, tracks_to_update)
         return stats
+
+    def _calculate_error_count(
+        self,
+        track_ids: List[int],
+        tracks_to_update: Optional[List[Dict[str, Any]]] = None,
+    ) -> int:
+        """Calculate the number of tracks that failed to update."""
+        if tracks_to_update is None:
+            return len(track_ids)  # If no tracks were processed, all failed
+        # If we have tracks to update but an exception occurred, all tracks failed
+        return len(track_ids)
 
     def _update_embeddings_preserve_mode(
         self,
@@ -284,8 +296,6 @@ def parse_ids_from_file(file_path: str) -> List[int]:
 
 
 def main() -> None:
-    import argparse
-
     parser = argparse.ArgumentParser(
         description="Update embeddings for given track IDs."
     )

@@ -4,6 +4,7 @@ Database migration script to add new metadata fields to the tracks table.
 This migration adds musical analysis fields from MusicBrainz Picard processing.
 """
 
+import argparse
 import logging
 import sqlite3
 from pathlib import Path
@@ -12,7 +13,6 @@ from typing import List, Tuple
 from tonal_hortator.core.database import (
     CREATE_METADATA_MAPPINGS_TABLE,
     INSERT_METADATA_MAPPING,
-    METADATA_COLUMNS,
     METADATA_MAPPINGS,
     validate_column_name,
     validate_column_type,
@@ -232,8 +232,6 @@ class DatabaseMigrator:
 
 def main() -> int:
     """Main function for running the migration"""
-    import argparse
-
     parser = argparse.ArgumentParser(
         description="Database migration for Tonal Hortator"
     )

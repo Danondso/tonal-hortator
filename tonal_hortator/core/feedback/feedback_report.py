@@ -1,4 +1,5 @@
 import sqlite3
+import sys
 from collections import Counter, defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -138,8 +139,6 @@ def summarize_feedback(rows: list[tuple[str, str, float, str, str, str]]) -> Non
 
 
 if __name__ == "__main__":
-    import sys
-
     if len(sys.argv) > 1 and sys.argv[1] == "seed":
         seed_feedback()
     else:
