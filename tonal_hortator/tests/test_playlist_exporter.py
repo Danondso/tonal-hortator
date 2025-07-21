@@ -74,14 +74,14 @@ class TestPlaylistExporter(unittest.TestCase):
             filename = os.path.basename(filepath)
             self.assertNotIn("playlist_", filename)
             self.assertNotIn("_", filename)
-            self.assertTrue(filename.startswith("Jazz for Studying"))
+            self.assertTrue(filename.startswith("Jazz Studying"))
             self.assertTrue(filename.endswith(".m3u"))
 
             # Check that file exists and has content
             self.assertTrue(os.path.exists(filepath))
             with open(filepath, "r") as f:
                 content = f.read()
-                self.assertIn("# Playlist: Jazz for Studying", content)
+                self.assertIn("# Playlist: Jazz Studying", content)
                 self.assertIn("# Query: jazz for studying", content)
 
     def test_save_playlist_m3u_handles_special_characters(self) -> None:

@@ -31,8 +31,7 @@ class PlaylistDeduplicator:
         logger: Optional[Any] = None,
     ) -> List[Dict[str, Any]]:
         """Filter results by similarity and remove duplicates using multiple strategies"""
-        # Import here to avoid circular import
-        from .playlist_generator import LocalPlaylistGenerator
+        from .playlist_utils import normalize_file_location_static
 
         # Filter by similarity threshold
         filtered = [
@@ -41,7 +40,7 @@ class PlaylistDeduplicator:
             if track.get("similarity_score", 0) >= min_similarity
         ]
 
-        logger and logger.info(
+        logger and logger and logger.info(
             f"🔍 Starting deduplication on {len(filtered)} tracks (similarity ≥ {min_similarity})"
         )
 
@@ -50,16 +49,14 @@ class PlaylistDeduplicator:
         location_deduplicated = []
 
         for track in filtered:
-            location = LocalPlaylistGenerator._normalize_file_location_static(
-                track.get("location", "")
-            )
+            location = normalize_file_location_static(track.get("location", ""))
             if location and location not in seen_locations:
                 seen_locations.add(location)
                 location_deduplicated.append(track)
             elif not location:  # Include tracks without location
                 location_deduplicated.append(track)
 
-        logger and logger.info(
+        logger and logger and logger.info(
             f"📍 Location deduplication: {len(filtered)} → {len(location_deduplicated)} tracks"
         )
 
@@ -119,7 +116,7 @@ class PlaylistDeduplicator:
             diverse_tracks = smart_deduplicated
         else:
             max_tracks_per_artist = max(2, int(max_tracks * max_artist_ratio))
-            logger and logger.info(
+            logger and logger and logger.info(
                 f"🎵 General query, allowing up to {max_tracks_per_artist} tracks per artist (ratio {max_artist_ratio})"
             )
             if enforce_artist_diversity is not None:
@@ -129,7 +126,7 @@ class PlaylistDeduplicator:
             else:
                 diverse_tracks = smart_deduplicated
 
-        logger and logger.info(
+        logger and logger and logger.info(
             f"✅ Final deduplication summary: {len(results)} → {len(diverse_tracks)} tracks"
         )
 
@@ -142,7 +139,7 @@ class PlaylistDeduplicator:
             candidates = diverse_tracks[:top_k]
 
         if len(candidates) < max_tracks:
-            logger and logger.warning(
+            logger and logger and logger.warning(
                 f"⚠️ Only {len(candidates)} tracks available, requested {max_tracks}"
             )
             return cast(List[Dict[str, Any]], candidates[:max_tracks])
@@ -178,7 +175,7 @@ class PlaylistDeduplicator:
             attempts += 1
 
         if len(final_tracks) < max_tracks:
-            logger and logger.info(
+            logger and logger and logger.info(
                 f"🎲 Weighted sampling gave {len(final_tracks)} tracks, filling with randomized remaining tracks"
             )
             remaining_candidates = [
@@ -196,7 +193,7 @@ class PlaylistDeduplicator:
                 if len(final_tracks) >= max_tracks:
                     break
         final_tracks = final_tracks[:max_tracks]
-        logger and logger.info(
+        logger and logger and logger.info(
             f"🎲 Final playlist: {len(final_tracks)} tracks (requested: {max_tracks})"
         )
         return final_tracks

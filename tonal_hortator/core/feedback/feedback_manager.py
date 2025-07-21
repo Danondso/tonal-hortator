@@ -6,14 +6,12 @@ Handles user feedback collection, preference management, and learning
 to improve playlist generation over time.
 """
 
-# hello
 import json
 import logging
 import sqlite3
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, cast
 
-# hello
 from tonal_hortator.core.database import (
     GET_QUERY_LEARNING_DATA,
     GET_RECOMMENDED_SETTINGS,

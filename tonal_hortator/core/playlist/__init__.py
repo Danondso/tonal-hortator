@@ -5,6 +5,7 @@ This package provides functionality for generating music playlists using local
 embeddings and LLM-based query parsing.
 """
 
+from . import playlist_utils
 from .feedback_service import FeedbackService, PlaylistFeedbackService
 from .llm_query_parser import LLMQueryParser
 from .playlist_deduplicator import PlaylistDeduplicator
@@ -20,4 +21,5 @@ __all__ = [
     "PlaylistDeduplicator",
     "PlaylistExporter",
     "PlaylistFilter",
+    "playlist_utils",
 ]

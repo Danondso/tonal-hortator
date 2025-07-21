@@ -25,10 +25,9 @@ class PlaylistExporter:
     ) -> str:
         try:
             os.makedirs(output_dir, exist_ok=True)
-            # Import here to avoid circular import
-            from .playlist_generator import LocalPlaylistGenerator
+            from .playlist_utils import create_playlist_name_static
 
-            playlist_name = LocalPlaylistGenerator._create_playlist_name_static(query)
+            playlist_name = create_playlist_name_static(query)
             safe_filename = re.sub(r"[^\w\s-]", "", playlist_name).strip()
             safe_filename = re.sub(r"[-\s]+", " ", safe_filename)
             safe_filename = safe_filename[:50]
