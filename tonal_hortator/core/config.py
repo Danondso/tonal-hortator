@@ -5,8 +5,10 @@ This module provides centralized configuration loading and access,
 supporting YAML files, environment variable overrides, and A/B testing.
 """
 
+import copy
 import logging
 import os
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional, Type, TypeVar, Union
@@ -47,7 +49,10 @@ class ConfigurationManager:
         """
         self.config_path = config_path or self._find_config_file()
         self.variant = variant
-        self._config: Dict[str, Any] = {}
+        self._base_config: Dict[str, Any] = {}  # Original configuration from file
+        self._config: Dict[str, Any] = (
+            {}
+        )  # Current configuration (with variants applied)
         self._load_config()
 
     def _find_config_file(self) -> str:
@@ -78,33 +83,45 @@ class ConfigurationManager:
         """Load configuration from YAML file."""
         try:
             with open(self.config_path, "r", encoding="utf-8") as f:
-                self._config = yaml.safe_load(f) or {}
+                self._base_config = yaml.safe_load(f) or {}
+
+            # Create a deep copy for working configuration
+            self._config = copy.deepcopy(self._base_config)
 
             # Apply A/B testing variant if specified
-            if self.variant and self._config.get("ab_testing", {}).get("enabled"):
+            if self.variant and self._base_config.get("ab_testing", {}).get("enabled"):
                 self._apply_variant(self.variant)
 
             # Apply environment variable overrides
-            if self._config.get("environment_overrides", {}).get("enabled"):
+            if self._base_config.get("environment_overrides", {}).get("enabled"):
                 self._apply_env_overrides()
 
             logger.info(f"✅ Loaded configuration from {self.config_path}")
 
         except FileNotFoundError:
             logger.warning(
-                f"⚠️  Config file not found: {self.config_path}. Using defaults."
+                f"⚠️  Config file not found: {self.config_path}. "
+                f"Using empty configuration - this may cause errors when accessing config values."
             )
+            self._base_config = {}
             self._config = {}
         except yaml.YAMLError as e:
-            logger.error(f"❌ Error parsing config YAML: {e}")
+            logger.error(
+                f"❌ Error parsing config YAML: {e}. "
+                f"Using empty configuration - this may cause errors when accessing config values."
+            )
+            self._base_config = {}
             self._config = {}
 
     def _apply_variant(self, variant: str) -> None:
-        """Apply A/B testing variant configuration."""
-        variants = self._config.get("ab_testing", {}).get("variants", {})
+        """Apply A/B testing variant configuration to a copy of base config."""
+        variants = self._base_config.get("ab_testing", {}).get("variants", {})
         if variant in variants:
             variant_config = variants[variant]
             logger.info(f"🧪 Applying A/B testing variant: {variant}")
+
+            # Reset to base config and apply variant to ensure clean state
+            self._config = copy.deepcopy(self._base_config)
             self._deep_update(self._config, variant_config)
         else:
             available = list(variants.keys())
@@ -112,7 +129,7 @@ class ConfigurationManager:
 
     def _apply_env_overrides(self) -> None:
         """Apply environment variable overrides."""
-        env_config = self._config.get("environment_overrides", {})
+        env_config = self._base_config.get("environment_overrides", {})
         prefix = env_config.get("prefix", "TH_")
         mappings = env_config.get("mappings", {})
 
@@ -226,9 +243,28 @@ class ConfigurationManager:
         self._load_config()
 
     def set_variant(self, variant: str) -> None:
-        """Switch to a different A/B testing variant."""
+        """Switch to a different A/B testing variant efficiently."""
         self.variant = variant
-        self.reload()
+
+        # Reset to base config
+        self._config = copy.deepcopy(self._base_config)
+
+        # Apply new variant if A/B testing is enabled
+        if self.variant and self._base_config.get("ab_testing", {}).get("enabled"):
+            self._apply_variant(self.variant)
+
+        # Reapply environment overrides
+        if self._base_config.get("environment_overrides", {}).get("enabled"):
+            self._apply_env_overrides()
+
+    def clear_variant(self) -> None:
+        """Clear the current variant and return to base configuration."""
+        self.variant = None
+        self._config = copy.deepcopy(self._base_config)
+
+        # Reapply environment overrides to base config
+        if self._base_config.get("environment_overrides", {}).get("enabled"):
+            self._apply_env_overrides()
 
     # Convenience methods for common configuration paths
 
@@ -283,15 +319,17 @@ class ConfigurationManager:
         }
 
 
-# Global configuration instance
+# Global configuration instance with thread-safe initialization
 _config_instance: Optional[ConfigurationManager] = None
+_default_config_instance: Optional[ConfigurationManager] = None
+_config_lock = threading.Lock()
 
 
 def get_config(
     config_path: Optional[str] = None, variant: Optional[str] = None
 ) -> ConfigurationManager:
     """
-    Get the global configuration instance.
+    Get the global configuration instance using thread-safe double-checked locking.
 
     Args:
         config_path: Path to config file (only used on first call)
@@ -302,20 +340,78 @@ def get_config(
     """
     global _config_instance
 
+    # First check (unlocked)
     if _config_instance is None:
-        _config_instance = ConfigurationManager(config_path, variant)
+        # Acquire lock for thread-safe initialization
+        with _config_lock:
+            # Second check (locked) - another thread might have created instance
+            if _config_instance is None:
+                _config_instance = ConfigurationManager(config_path, variant)
 
     return _config_instance
 
 
+def _get_default_config() -> ConfigurationManager:
+    """
+    Thread-safe default configuration instance using double-checked locking.
+
+    This provides an alternative singleton pattern for cases where
+    no custom parameters are needed.
+    """
+    global _default_config_instance
+
+    # First check (unlocked)
+    if _default_config_instance is None:
+        # Acquire lock for thread-safe initialization
+        with _config_lock:
+            # Second check (locked) - another thread might have created instance
+            if _default_config_instance is None:
+                _default_config_instance = ConfigurationManager()
+
+    return _default_config_instance
+
+
 def reload_config() -> None:
-    """Reload the global configuration."""
+    """Reload the global configuration in a thread-safe manner."""
     global _config_instance
-    if _config_instance:
-        _config_instance.reload()
-    else:
-        # If no instance exists, create a new one
-        _config_instance = ConfigurationManager()
+
+    with _config_lock:
+        if _config_instance:
+            _config_instance.reload()
+        else:
+            # If no instance exists, create a new one
+            _config_instance = ConfigurationManager()
+
+        # Also reload the default config instance if it exists
+        if _default_config_instance:
+            _default_config_instance.reload()
+
+
+def reset_config() -> None:
+    """
+    Reset the global configuration instances for testing purposes.
+
+    This is primarily intended for unit tests to ensure clean state.
+    """
+    global _config_instance, _default_config_instance
+
+    with _config_lock:
+        _config_instance = None
+        _default_config_instance = None
+
+
+def get_default_config() -> ConfigurationManager:
+    """
+    Get a default configuration instance using thread-safe double-checked locking.
+
+    This is an alternative to get_config() when you don't need custom
+    config_path or variant parameters. Uses the same thread-safe pattern
+    but maintains a separate instance for default configurations.
+
+    Returns:
+        Thread-safe ConfigurationManager instance with default settings
+    """
+    return _get_default_config()
 
 
 # Common configuration constants as module-level functions

@@ -88,19 +88,71 @@ Output JSON with these fields:
 Output pure JSON only, no additional text:"""
 
     def _extract_json(self, response: str) -> Dict[str, Any]:
-        """Extract JSON from LLM response"""
+        """Extract JSON from LLM response using robust bracket counting"""
         try:
-            # Try to find JSON in the response
-            json_pattern = r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}"
-            matches = re.findall(json_pattern, response, re.DOTALL)
-
-            if matches:
-                result = json.loads(matches[0])
+            # First try: parse the entire response as JSON
+            try:
+                result = json.loads(response.strip())
                 return result if isinstance(result, dict) else {}
-            else:
-                raise ValueError("No JSON found in LLM response")
+            except json.JSONDecodeError:
+                pass
+
+            # Second try: find JSON using bracket counting for nested structures
+            json_str = self._find_json_with_bracket_counting(response)
+            if json_str:
+                result = json.loads(json_str)
+                return result if isinstance(result, dict) else {}
+
+            # Third try: fallback to regex for simple JSON
+            json_pattern = r"\{[^{}]+\}"
+            matches = re.findall(json_pattern, response, re.DOTALL)
+            for match in matches:
+                try:
+                    result = json.loads(match)
+                    if isinstance(result, dict):
+                        return result
+                except json.JSONDecodeError:
+                    continue
+
+            raise ValueError("No valid JSON found in LLM response")
 
         except (json.JSONDecodeError, ValueError) as e:
             logger.error(f"Failed to parse LLM response: {e}")
             logger.error(f"Response was: {response}")
             raise ValueError(f"Failed to parse LLM response: {e}")
+
+    def _find_json_with_bracket_counting(self, text: str) -> Optional[str]:
+        """Find JSON object using bracket counting to handle nested structures"""
+        # Find the first opening brace
+        start_idx = text.find("{")
+        if start_idx == -1:
+            return None
+
+        # Count brackets to find the matching closing brace
+        bracket_count = 0
+        in_string = False
+        escape_next = False
+
+        for i, char in enumerate(text[start_idx:], start_idx):
+            if escape_next:
+                escape_next = False
+                continue
+
+            if char == "\\":
+                escape_next = True
+                continue
+
+            if char == '"' and not escape_next:
+                in_string = not in_string
+                continue
+
+            if not in_string:
+                if char == "{":
+                    bracket_count += 1
+                elif char == "}":
+                    bracket_count -= 1
+                    if bracket_count == 0:
+                        # Found the matching closing brace
+                        return text[start_idx : i + 1]
+
+        return None

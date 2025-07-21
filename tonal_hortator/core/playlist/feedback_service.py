@@ -77,10 +77,8 @@ class PlaylistFeedbackService:
         conn.close()
 
     def get_adjusted_score(self, track_id: str, track: dict) -> float:
-        """Calculate adjusted similarity score based on user feedback with time decay"""
-        original_score = track.get("similarity_score", 0)
-
-        # If no feedback DB, return original score
+        """Calculate feedback adjustment value based on user feedback with time decay"""
+        # If no feedback DB, return no adjustment
         if not os.path.exists(self.db_path):
             return 0.0
 
@@ -109,4 +107,4 @@ class PlaylistFeedbackService:
             decay = weekly_decay_factor**weeks_old
             total_adjustment += adjustment * decay
 
-        return float(original_score + total_adjustment)
+        return float(total_adjustment)

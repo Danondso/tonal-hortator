@@ -163,7 +163,55 @@ class TestLLMQueryParser(unittest.TestCase):
         with self.assertRaises(ValueError) as context:
             parser._extract_json(response)
 
-        self.assertIn("No JSON found in LLM response", str(context.exception))
+        self.assertIn("No valid JSON found in LLM response", str(context.exception))
+
+    def test_extract_json_nested_structures(self) -> None:
+        """Test that _extract_json can handle complex nested JSON structures"""
+        parser = LLMQueryParser()
+
+        # Test 1: Nested object with multiple levels
+        nested_json = {
+            "query_type": "general",
+            "artist": None,
+            "metadata": {
+                "genres": ["rock", "indie"],
+                "details": {"year": 2021, "rating": 4.5},
+            },
+            "vague": True,
+        }
+        response1 = f"Here's the analysis: {json.dumps(nested_json)} That's the result."
+        result1 = parser._extract_json(response1)
+        self.assertEqual(result1, nested_json)
+
+        # Test 2: Nested arrays and objects
+        complex_json = {
+            "query_type": "similarity",
+            "reference_artist": "test band",
+            "genres": ["rock", "alternative"],
+            "preferences": {
+                "similar_artists": ["band1", "band2"],
+                "exclude": {"genres": ["pop"], "years": [2020, 2021]},
+            },
+        }
+        response2 = f"Analysis result:\n{json.dumps(complex_json)}\nEnd of analysis."
+        result2 = parser._extract_json(response2)
+        self.assertEqual(result2, complex_json)
+
+        # Test 3: JSON with escaped quotes
+        json_with_escapes = {
+            "artist": 'Band "The Great" Smith',
+            "description": 'Music with "quotes" and backslashes\\',
+            "details": {"note": "Contains special chars: {}[]"},
+        }
+        response3 = f"Result: {json.dumps(json_with_escapes)}"
+        result3 = parser._extract_json(response3)
+        self.assertEqual(result3, json_with_escapes)
+
+        # Test 4: Clean JSON without surrounding text
+        clean_json = {"query_type": "artist_specific", "artist": "test"}
+        response4 = json.dumps(clean_json)
+        result4 = parser._extract_json(response4)
+        self.assertEqual(result4, clean_json)
 
     @patch("tonal_hortator.core.playlist.llm_query_parser.LocalLLMClient")
     def test_build_prompt_contains_query(self, mock_llm_client_class: Mock) -> None:

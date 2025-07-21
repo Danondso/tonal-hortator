@@ -23,44 +23,64 @@ class PlaylistFilter:
         self, genre_keywords: List[str], tracks: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """
-        Apply genre filtering and boosting to tracks.
+        Apply genre filtering and boosting to tracks while maintaining diversity.
+
+        Boosts similarity scores for tracks matching genre keywords, but also
+        includes non-matching tracks to maintain playlist diversity.
 
         Args:
             genre_keywords: List of genre keywords to filter/boost
             tracks: List of track dictionaries
 
         Returns:
-            Filtered and boosted track list
+            Combined list of boosted genre matches and other tracks for diversity
         """
         if not genre_keywords:
+            logger.info(
+                "🎵 No specific genre detected in query, using semantic similarity only"
+            )
             return tracks
 
         # Get genre boost score from configuration
         genre_boost_score: float = self.config.get("similarity.genre_boost_score", 0.1)
+        max_score: float = self.config.get("similarity.perfect_match_score", 1.0)
 
-        logger.info(f"🎸 Applying genre filtering for: {genre_keywords}")
+        logger.info(f"🎸 Detected genre keywords: {genre_keywords}")
 
-        # Filter tracks matching genre keywords and boost their scores
-        matching_tracks = []
+        genre_matches = []
+        other_tracks = []
+
+        # Separate tracks into genre matches and others
         for track in tracks:
-            track_genre = track.get("genre", "").lower()
+            track_genre = track.get("genre", "").lower() if track.get("genre") else ""
+            similarity_score = track.get("similarity_score", 0)
 
             # Check if track genre matches any of the specified keywords
-            for keyword in genre_keywords:
-                if keyword.lower() in track_genre:
-                    # Create a copy and boost the similarity score
-                    boosted_track = track.copy()
-                    similarity_score = track.get("similarity_score", 0)
-                    max_score: float = self.config.get(
-                        "similarity.perfect_match_score", 1.0
-                    )
-                    boosted_score = min(max_score, similarity_score + genre_boost_score)
-                    boosted_track["similarity_score"] = boosted_score
-                    boosted_track["genre_boosted"] = True
-                    matching_tracks.append(boosted_track)
-                    break
+            genre_match = any(
+                keyword.lower() in track_genre for keyword in genre_keywords
+            )
+
+            if genre_match:
+                # Create a copy and boost the similarity score
+                boosted_track = track.copy()
+                boosted_score = min(max_score, similarity_score + genre_boost_score)
+                boosted_track["similarity_score"] = boosted_score
+                boosted_track["genre_boosted"] = True
+                genre_matches.append(boosted_track)
+            else:
+                # Mark as not boosted but keep for diversity
+                track_copy = track.copy()
+                track_copy["genre_boosted"] = False
+                other_tracks.append(track_copy)
+
+        # Include genre matches plus some other tracks for diversity
+        # Use at least 5 other tracks or half the number of genre matches
+        max_other_tracks = max(5, len(genre_matches) // 2)
+        combined_results = genre_matches + other_tracks[:max_other_tracks]
 
         logger.info(
-            f"🎵 Genre filtering: {len(tracks)} → {len(matching_tracks)} tracks"
+            f"🎵 Genre filtering: {len(genre_matches)} genre matches, "
+            f"{len(other_tracks[:max_other_tracks])} other tracks for diversity"
         )
-        return matching_tracks
+
+        return combined_results

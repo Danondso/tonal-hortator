@@ -39,7 +39,7 @@ class LocalPlaylistGenerator:
     def __init__(
         self,
         db_path: str = "music_library.db",
-        model_name: str = "nomic-embed-text:latest",
+        model_name: Optional[str] = None,
         feedback_service: Optional[FeedbackService] = None,
         deduplicator: Optional[PlaylistDeduplicator] = None,
         filter_: Optional[PlaylistFilter] = None,
@@ -49,7 +49,7 @@ class LocalPlaylistGenerator:
         self.config = get_config()
 
         # Use configured model name if not provided
-        if model_name == "nomic-embed-text:latest":
+        if model_name is None:
             model_name = self.config.llm_config["embedding_model"]
 
         self.embedding_service = OllamaEmbeddingService(model_name=model_name)
