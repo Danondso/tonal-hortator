@@ -80,7 +80,7 @@ class LocalPlaylistGenerator:
         if max_tracks is not None:
             return max_tracks
         # If no user-provided max_tracks, use parsed count or fallback to config default
-        default_max_tracks: int = self.config.get("playlist.default_max_tracks", 20)
+        default_max_tracks: int = self.config["playlist_defaults"]["default_max_tracks"]
         return parsed_count if parsed_count is not None else default_max_tracks
 
     def generate_playlist(
