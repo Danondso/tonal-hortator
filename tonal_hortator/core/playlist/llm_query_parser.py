@@ -7,8 +7,9 @@ Handles parsing user queries using local LLM to extract structured intent.
 import json
 import logging
 import re
-from typing import Any
+from typing import Any, Dict, Optional
 
+from tonal_hortator.core.config import get_config
 from tonal_hortator.core.llm.llm_client import LocalLLMClient
 
 logger = logging.getLogger(__name__)
@@ -17,16 +18,29 @@ logger = logging.getLogger(__name__)
 class LLMQueryParser:
     """Extracts structured intent from user queries using local LLM."""
 
-    def __init__(self, model_name: str = "llama3:8b"):
+    def __init__(self, model_name: Optional[str] = None):
+        self.config = get_config()
+
+        # Use configured model if not provided
+        if model_name is None:
+            model_name = self.config.llm_config["query_parser_model"]
+
         self.model_name = model_name
         self.client = LocalLLMClient(model_name)
 
     def parse(self, query: str) -> dict:
         prompt = self._build_prompt(query)
-        response = self.client.generate(prompt)
+
+        # Get max tokens from configuration
+        max_tokens = self.config.llm_config["max_tokens"]
+        response = self.client.generate(prompt, max_tokens=max_tokens)
         return self._extract_json(response)
 
     def _build_prompt(self, query: str) -> str:
+        # Get query parsing configuration
+        parsing_config = self.config.get_section("llm").get("query_parsing", {})
+        min_artist_name_length = parsing_config.get("min_artist_name_length", 2)
+
         return f"""You are a music playlist assistant. Analyze the user's query and determine the query type and intent.
 
 IMPORTANT: Distinguish between these query types:
@@ -57,73 +71,36 @@ CRITICAL RULES:
 - For genre detection, preserve compound genres like "bedroom pop", "progressive metal"
 - Context clues like "falling asleep", "trailer", "river" suggest mood/genre, not artist names
 - Common music terms like "rock music", "jazz", "hip hop" are genres, not artists
+- Artist names must be at least {min_artist_name_length} characters long
 
 Query: "{query}"
 
 Output JSON with these fields:
 - query_type: "artist_specific" | "similarity" | "general"
-- artist: (string or null) - ONLY for artist_specific queries
-- reference_artist: (string or null) - ONLY for similarity queries
-- genres: (list of strings) - detected genres
-- mood: (string or null) - detected mood
-- count: (int or null) - requested track count
-- unplayed: (boolean) - whether user wants unplayed tracks
-- vague: (boolean) - whether query is vague/general
+- artist: string | null (only for artist_specific queries)
+- reference_artist: string | null (only for similarity queries)
+- genres: array of strings
+- mood: string | null
+- count: number | null (if user specified track count like "10 songs")
+- unplayed: boolean (if user wants only unplayed tracks)
+- vague: boolean (true if query is very general/vague)
 
-Examples:
+Output pure JSON only, no additional text:"""
 
-Query: "oso oso"
-{{
-  "query_type": "artist_specific",
-  "artist": "oso oso",
-  "reference_artist": null,
-  "genres": [],
-  "mood": null,
-  "count": null,
-  "unplayed": false,
-  "vague": false
-}}
+    def _extract_json(self, response: str) -> Dict[str, Any]:
+        """Extract JSON from LLM response"""
+        try:
+            # Try to find JSON in the response
+            json_pattern = r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}"
+            matches = re.findall(json_pattern, response, re.DOTALL)
 
-Query: "artists similar to oso oso"
-{{
-  "query_type": "similarity",
-  "artist": null,
-  "reference_artist": "oso oso",
-  "genres": ["indie rock", "emo"],
-  "mood": null,
-  "count": null,
-  "unplayed": false,
-  "vague": false
-}}
+            if matches:
+                result = json.loads(matches[0])
+                return result if isinstance(result, dict) else {}
+            else:
+                raise ValueError("No JSON found in LLM response")
 
-Query: "rock music"
-{{
-  "query_type": "general",
-  "artist": null,
-  "reference_artist": null,
-  "genres": ["rock"],
-  "mood": null,
-  "count": null,
-  "unplayed": false,
-  "vague": true
-}}
-
-Query: "falling asleep in a trailer by the river"
-{{
-  "query_type": "general",
-  "artist": null,
-  "reference_artist": null,
-  "genres": ["folk", "country"],
-  "mood": "melancholy",
-  "count": null,
-  "unplayed": false,
-  "vague": true
-}}
-
-Now analyze the current query and respond with valid JSON:"""
-
-    def _extract_json(self, response: str) -> dict[Any, Any]:
-        match = re.search(r"\{.*\}", response, re.DOTALL)
-        if match:
-            return json.loads(match.group(0))  # type: ignore
-        raise ValueError("No JSON found in LLM response")
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.error(f"Failed to parse LLM response: {e}")
+            logger.error(f"Response was: {response}")
+            raise ValueError(f"Failed to parse LLM response: {e}")

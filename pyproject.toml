@@ -21,6 +21,7 @@ dependencies = [
     "rich",
     "typer",
     "psutil",
+    "pyyaml",
 ]
 
 [tool.setuptools.packages.find]
