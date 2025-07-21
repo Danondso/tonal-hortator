@@ -4,7 +4,6 @@ Generate music playlists using local Ollama embeddings
 This script creates playlists based on semantic search queries
 """
 
-import json
 import logging
 import os
 import random
@@ -13,18 +12,17 @@ import secrets
 import shutil
 import subprocess
 import time
-import urllib.parse
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from tonal_hortator.core.embeddings.embeddings import OllamaEmbeddingService
 from tonal_hortator.core.embeddings.track_embedder import LocalTrackEmbedder
 from tonal_hortator.core.feedback import FeedbackManager
-from tonal_hortator.core.llm.llm_client import (
-    LocalLLMClient,
-)
 
 from .feedback_service import FeedbackService, PlaylistFeedbackService
+from .llm_query_parser import LLMQueryParser
+from .playlist_deduplicator import PlaylistDeduplicator
+from .playlist_exporter import PlaylistExporter
+from .playlist_filter import PlaylistFilter
 
 # Configure logging
 logging.basicConfig(
@@ -34,159 +32,18 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-# --- LLMQueryParser for extracting structured intent from queries ---
-class LLMQueryParser:
-    def __init__(self, model_name: str = "llama3:8b"):
-        self.model_name = model_name
-        self.client = LocalLLMClient(model_name)
-
-    def parse(self, query: str) -> dict:
-        prompt = self._build_prompt(query)
-        response = self.client.generate(prompt)
-        return self._extract_json(response)
-
-    def _build_prompt(self, query: str) -> str:
-        return f"""You are a music playlist assistant. Analyze the user's query and determine the query type and intent.
-
-IMPORTANT: Distinguish between these query types:
-
-1. ARTIST_SPECIFIC: User wants tracks by a specific artist
-    - "oso oso" → artist: "oso oso", query_type: "artist_specific"
-    - "The Beatles" → artist: "The Beatles", query_type: "artist_specific"
-    - "Taylor Swift songs" → artist: "Taylor Swift", query_type: "artist_specific"
-
-2. SIMILARITY: User wants artists/tracks similar to a reference artist
-    - "artists similar to oso oso" → artist: null, query_type: "similarity", reference_artist: "oso oso"
-    - "like oso oso" → artist: null, query_type: "similarity", reference_artist: "oso oso"
-    - "sounds like The Beatles" → artist: null, query_type: "similarity", reference_artist: "The Beatles"
-    - "recommendations for Taylor Swift" → artist: null, query_type: "similarity", reference_artist: "Taylor Swift"
-
-3. GENERAL: User wants music by genre, mood, or other criteria
-    - "rock music" → artist: null, query_type: "general", genres: ["rock"]
-    - "upbeat rock" → artist: null, query_type: "general", genres: ["rock"], mood: "upbeat"
-    - "jazz for studying" → artist: null, query_type: "general", genres: ["jazz"], mood: "studying"
-    - "party music" → artist: null, query_type: "general", mood: "party"
-    - "falling asleep in a trailer by the river" → artist: null, query_type: "general", mood: "melancholy", genres: ["folk", "country"]
-
-CRITICAL RULES:
-- For SIMILARITY queries, NEVER set artist to the reference artist
-- For SIMILARITY queries, set artist to null and use reference_artist field
-- For GENERAL queries, NEVER set artist - only set genres and mood
-- Preserve full artist names, don't shorten them
-- For genre detection, preserve compound genres like "bedroom pop", "progressive metal"
-- Context clues like "falling asleep", "trailer", "river" suggest mood/genre, not artist names
-- Common music terms like "rock music", "jazz", "hip hop" are genres, not artists
-
-Query: "{query}"
-
-Output JSON with these fields:
-- query_type: "artist_specific" | "similarity" | "general"
-- artist: (string or null) - ONLY for artist_specific queries
-- reference_artist: (string or null) - ONLY for similarity queries
-- genres: (list of strings) - detected genres
-- mood: (string or null) - detected mood
-- count: (int or null) - requested track count
-- unplayed: (boolean) - whether user wants unplayed tracks
-- vague: (boolean) - whether query is vague/general
-
-Examples:
-
-Query: "oso oso"
-{{
-  "query_type": "artist_specific",
-  "artist": "oso oso",
-  "reference_artist": null,
-  "genres": [],
-  "mood": null,
-  "count": null,
-  "unplayed": false,
-  "vague": false
-}}
-
-Query: "artists similar to oso oso"
-{{
-  "query_type": "similarity",
-  "artist": null,
-  "reference_artist": "oso oso",
-  "genres": ["indie rock", "emo"],
-  "mood": null,
-  "count": null,
-  "unplayed": false,
-  "vague": false
-}}
-
-Query: "rock music"
-{{
-  "query_type": "general",
-  "artist": null,
-  "reference_artist": null,
-  "genres": ["rock"],
-  "mood": null,
-  "count": null,
-  "unplayed": false,
-  "vague": true
-}}
-
-Query: "falling asleep in a trailer by the river"
-{{
-  "query_type": "general",
-  "artist": null,
-  "reference_artist": null,
-  "genres": ["folk", "country"],
-  "mood": "melancholy",
-  "count": null,
-  "unplayed": false,
-  "vague": true
-}}
-
-Now analyze the current query and respond with valid JSON:"""
-
-    def _extract_json(self, response: str) -> dict[Any, Any]:
-        match = re.search(r"\{.*\}", response, re.DOTALL)
-        if match:
-            return json.loads(match.group(0))  # type: ignore
-        raise ValueError("No JSON found in LLM response")
-
-
 class LocalPlaylistGenerator:
-    """Generate playlists using local Ollama embeddings
-
-    Example usage with dependency injection:
-
-    ```python
-    # Use default feedback service
-    generator = LocalPlaylistGenerator()
-
-    # Use custom feedback service
-    custom_feedback = PlaylistFeedbackService(db_path="custom_feedback.db")
-    generator = LocalPlaylistGenerator(feedback_service=custom_feedback)
-
-    # Use mock feedback service for testing
-    class MockFeedbackService:
-        def record_user_feedback(self, track_id, feedback, query_context=""):
-            print(f"Mock: Recorded {feedback} for track {track_id}")
-
-        def get_adjusted_score(self, track_id, track):
-            return 0.0
-
-    generator = LocalPlaylistGenerator(feedback_service=MockFeedbackService())
-    ```
-    """
+    """Generate playlists using local Ollama embeddings."""
 
     def __init__(
         self,
         db_path: str = "music_library.db",
         model_name: str = "nomic-embed-text:latest",
         feedback_service: Optional[FeedbackService] = None,
+        deduplicator: Optional[PlaylistDeduplicator] = None,
+        filter_: Optional[PlaylistFilter] = None,
+        exporter: Optional[PlaylistExporter] = None,
     ):
-        """
-        Initialize the local playlist generator
-
-        Args:
-            db_path: Path to SQLite database
-            model_name: Name of the embedding model to use
-            feedback_service: Optional feedback service for user feedback
-        """
         self.db_path = db_path
         self.embedding_service = OllamaEmbeddingService(model_name=model_name)
         self.track_embedder = LocalTrackEmbedder(
@@ -194,9 +51,10 @@ class LocalPlaylistGenerator:
         )
         self.query_parser = LLMQueryParser()
         self.feedback_manager = FeedbackManager()
-
-        # Use provided feedback service or default to PlaylistFeedbackService
         self.feedback_service = feedback_service or PlaylistFeedbackService()
+        self.deduplicator = deduplicator or PlaylistDeduplicator()
+        self.filter_ = filter_ or PlaylistFilter()
+        self.exporter = exporter or PlaylistExporter()
 
     def _determine_max_tracks(
         self, parsed_count: Optional[int], max_tracks: Optional[int]
@@ -354,15 +212,15 @@ class LocalPlaylistGenerator:
                 f"🔍 Similarity search took {search_time:.2f}s for {len(results)} results"
             )
 
-            # 4. Apply genre filtering and boosting
+            # 4. Apply genre filtering and boosting using PlaylistFilter
             if is_artist_specific:
-                # For artist-specific queries, skip genre filtering to get all tracks by the artist
                 logger.info(
                     "🎤 Artist-specific query detected, skipping genre filtering"
                 )
             else:
-                # For general queries, apply genre filtering and boosting
-                results = self._apply_genre_filtering(genres, results)
+                results = self.filter_.apply_genre_filtering(
+                    genres, results, logger=logger
+                )
 
             # 5. Apply feedback + iTunes score adjustments
             for track in results:
@@ -388,31 +246,32 @@ class LocalPlaylistGenerator:
                 neg_count = len([a for a in adjustments if a < 0])
                 max_adj = max(adjustments)
                 min_adj = min(adjustments)
-
                 logger.info(
                     f"📈 Feedback summary: avg_adj={avg_adj:.3f}, +{pos_count}, -{neg_count}, max={max_adj:.3f}, min={min_adj:.3f}"
                 )
-
-                # Optional: log most boosted + penalized tracks
                 top_positive = max(results, key=lambda t: t.get("feedback_adjusted", 0))
                 top_negative = min(results, key=lambda t: t.get("feedback_adjusted", 0))
-
                 logger.info(
                     f"🔺 Most boosted: {top_positive.get('title')} by {top_positive.get('artist')} (+{top_positive['feedback_adjusted']:.2f})"
                 )
                 logger.info(
                     f"🔻 Most penalized: {top_negative.get('title')} by {top_negative.get('artist')} ({top_negative['feedback_adjusted']:.2f})"
                 )
-                # 6. Filter by similarity threshold and deduplicate
-            filtered_results = self._filter_and_deduplicate_results(
+            # 6. Filter by similarity threshold and deduplicate using PlaylistDeduplicator
+            filtered_results = self.deduplicator.filter_and_deduplicate_results(
                 results,
                 min_similarity,
                 max_tracks,
                 is_artist_specific,
                 max_artist_ratio,
+                sample_with_randomization=self._sample_with_randomization,
+                smart_name_deduplication=self._smart_name_deduplication,
+                enforce_artist_diversity=self._enforce_artist_diversity,
+                distribute_artists=self._distribute_artists,
+                logger=logger,
             )
 
-            # 7. Apply artist randomization
+            # 7. Apply artist randomization (still in generator for now)
             filtered_results = self._apply_artist_randomization(
                 filtered_results, max_tracks, is_vague
             )
@@ -440,67 +299,74 @@ class LocalPlaylistGenerator:
             logger.error(f"❌ Error generating playlist: {e}")
             raise
 
-    def _apply_genre_filtering(
-        self, genres: List[str], results: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        """
-        Apply genre-aware filtering and boosting to search results
-
-        Args:
-            genres: List of genres to filter/boost (from parsed query)
-            results: List of track results from similarity search
-
-        Returns:
-            Filtered and boosted results
-        """
-        if not results:
-            return results
-
-        genre_keywords = [g.lower() for g in genres if isinstance(g, str)]
-
-        if not genre_keywords:
-            logger.info(
-                "🎵 No specific genre detected in query, using semantic similarity only"
-            )
-            return results
-
-        logger.info(f"🎵 Detected genre keywords: {genre_keywords}")
-
-        # Separate tracks by genre match
-        genre_matches = []
-        other_tracks = []
-
-        for track in results:
-            track_genre = track.get("genre", "").lower() if track.get("genre") else ""
-            similarity_score = track.get("similarity_score", 0)
-
-            # Check if track genre matches any of the detected genre keywords
-            genre_match = any(keyword in track_genre for keyword in genre_keywords)
-
-            if genre_match:
-                # Boost similarity score for genre matches
-                boosted_score = min(
-                    1.0, similarity_score + 0.1
-                )  # Boost by 0.1, cap at 1.0
-                track["similarity_score"] = boosted_score
-                track["genre_boosted"] = True
-                genre_matches.append(track)
-            else:
-                track["genre_boosted"] = False
-                other_tracks.append(track)
-
-        # Combine results: genre matches first, then others
-        # But only include a limited number of non-genre matches to maintain quality
-        max_other_tracks = max(
-            5, len(genre_matches) // 2
-        )  # At most half as many non-genre tracks
-        combined_results = genre_matches + other_tracks[:max_other_tracks]
-
-        logger.info(
-            f"🎵 Genre filtering: {len(genre_matches)} genre matches, {len(other_tracks[:max_other_tracks])} other tracks"
+    @staticmethod
+    def _normalize_file_location_static(location: str) -> str:
+        """Static version for use in deduplicator."""
+        if not location:
+            return ""
+        normalized = location.lower().replace("\\", "/")
+        match = re.match(
+            r"^(?:/users/|/home/|c:/users/|d:/users/|e:/users/)([^/]+)/(.+)$",
+            normalized,
         )
+        if match:
+            return match.group(2)
+        return normalized
 
-        return combined_results
+    @staticmethod
+    def _create_playlist_name_static(query: str) -> str:
+        """Static version for use in exporter."""
+        # Remove common prefixes and clean up the query
+        query_lower = query.lower().strip()
+        prefixes_to_remove = [
+            "generate",
+            "create",
+            "make",
+            "find",
+            "get",
+            "show",
+            "give",
+            "play",
+        ]
+        for prefix in prefixes_to_remove:
+            if query_lower.startswith(f"{prefix} "):
+                query_lower = query_lower[len(prefix) :].strip()
+        query_lower = query_lower.strip("\"'")
+        words = query_lower.split()
+        filtered_words = []
+        i = 0
+        while i < len(words):
+            word = words[i]
+            if word == "me" and i + 1 < len(words) and words[i + 1] == "some":
+                i += 2
+                continue
+            if word == "some" and i > 0 and words[i - 1] == "me":
+                i += 1
+                continue
+            if word in ["me", "some"]:
+                i += 1
+                continue
+            if word in ["a", "the"] and i + 1 < len(words):
+                next_word = words[i + 1]
+                if next_word in ["playlist", "mix", "collection", "set"]:
+                    i += 1
+                    continue
+            filtered_words.append(word)
+            i += 1
+        query_lower = " ".join(filtered_words).strip()
+        playlist_name = query_lower.title()
+        if "for" in playlist_name.lower():
+            playlist_name = re.sub(r"\bFor\b", "for", playlist_name)
+        playlist_name = re.sub(r"\bMusic\b", "Music", playlist_name)
+        playlist_name = re.sub(r"\bSongs\b", "Songs", playlist_name)
+        playlist_name = re.sub(r"\bTracks\b", "Tracks", playlist_name)
+        playlist_name = re.sub(r"\bPlaylist\b", "Playlist", playlist_name)
+        if len(playlist_name.split()) <= 1:
+            if playlist_name.strip() == "":
+                playlist_name = "Mix"
+            else:
+                playlist_name = f"{playlist_name} Mix"
+        return playlist_name.strip()
 
     def _extract_genre_keywords(self, query: str) -> List[str]:
         """
@@ -998,90 +864,8 @@ class LocalPlaylistGenerator:
     def save_playlist_m3u(
         self, tracks: List[Dict[str, Any]], query: str, output_dir: str = "playlists"
     ) -> str:
-        """
-        Save playlist as M3U file optimized for Apple Music
-
-        Args:
-            tracks: List of track dictionaries
-            query: Original search query
-            output_dir: Output directory for playlist files
-
-        Returns:
-            Path to saved playlist file
-        """
-        try:
-            # Create output directory if it doesn't exist
-            os.makedirs(output_dir, exist_ok=True)
-
-            # Create a clean, user-friendly filename
-            # Convert query to a nice playlist name
-            playlist_name = self._create_playlist_name(query)
-
-            # Ensure filename is safe for filesystem
-            safe_filename = re.sub(r"[^\w\s-]", "", playlist_name).strip()
-            safe_filename = re.sub(
-                r"[-\s]+", " ", safe_filename
-            )  # Replace multiple spaces/hyphens with single space
-            safe_filename = safe_filename[:50]  # Limit length
-
-            # Add .m3u extension
-            filename = f"{safe_filename}.m3u"
-            filepath = os.path.join(output_dir, filename)
-
-            # Write M3U file optimized for Apple Music
-            with open(filepath, "w", encoding="utf-8") as f:
-                # Write M3U header
-                f.write("#EXTM3U\n")
-
-                # Write playlist metadata
-                f.write("# Generated by Tonal Hortator (Local)\n")
-                f.write(f"# Query: {query}\n")
-                f.write(f"# Playlist: {playlist_name}\n")
-                f.write(
-                    f"# Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-                )
-                f.write(f"# Tracks: {len(tracks)}\n")
-                f.write("# Format: M3U Extended\n")
-                f.write("# Target: Apple Music\n\n")
-
-                # Write tracks
-                for i, track in enumerate(tracks, 1):
-                    # Get track info
-                    artist = track.get("artist", "Unknown")
-                    name = track.get("name", "Unknown")
-                    album = track.get("album", "Unknown")
-                    duration = track.get("duration_ms", 0) // 1000  # Convert to seconds
-                    similarity = track.get("similarity_score", 0)
-                    location = track.get("location", "")
-
-                    # Write extended info line
-                    # Format: #EXTINF:duration,artist - title
-                    f.write(f"#EXTINF:{duration},{artist} - {name}\n")
-
-                    # Write file path
-                    if location:
-                        # Convert file:// URLs to local paths for better Apple Music compatibility
-                        if location.startswith("file://"):
-                            # Remove file:// prefix and decode URL encoding
-                            local_path = urllib.parse.unquote(location[7:])
-                            f.write(f"{local_path}\n")
-                        else:
-                            f.write(f"{location}\n")
-                    else:
-                        # If no location, write a comment
-                        f.write(f"# Missing file location for: {artist} - {name}\n")
-
-                    # Write additional metadata as comments
-                    f.write(f"# Album: {album}\n")
-                    f.write(f"# Similarity: {similarity:.3f}\n")
-                    f.write(f"# Track: {i}/{len(tracks)}\n\n")
-
-            logger.info(f"💾 Saved Apple Music playlist to: {filepath}")
-            return filepath
-
-        except Exception as e:
-            logger.error(f"❌ Error saving playlist: {e}")
-            raise
+        """Delegate to PlaylistExporter."""
+        return self.exporter.save_playlist_m3u(tracks, query, output_dir)
 
     def _create_playlist_name(self, query: str) -> str:
         """

@@ -198,6 +198,11 @@ INSERT OR REPLACE INTO user_preferences (
 ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
 """
 
+INSERT_FEEDBACK = """
+INSERT INTO feedback (track_id, feedback, adjustment, timestamp, query_context, source)
+VALUES (?, ?, ?, ?, ?, ?)
+"""
+
 INSERT_TRACK_RATING = """
 INSERT INTO track_ratings (track_id, rating, context)
 VALUES (?, ?, ?)

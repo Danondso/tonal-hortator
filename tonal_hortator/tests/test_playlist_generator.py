@@ -4,7 +4,6 @@ Tests for tonal_hortator.core.playlist.playlist_generator
 """
 
 import os
-import tempfile
 import unittest
 from typing import List, cast
 from unittest.mock import Mock, patch
@@ -260,72 +259,6 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         self.assertEqual(song_track["similarity_score"], 0.9)
         # The "Different Song" track should be kept
         self.assertTrue(any(track["name"] == "Different Song" for track in result))
-
-    @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
-    @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
-    def test_filter_and_deduplicate_results(
-        self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
-    ) -> None:
-        """Test filtering and deduplication of results"""
-        generator = LocalPlaylistGenerator()
-
-        tracks = [
-            {"id": 1, "name": "Song1", "artist": "Artist1", "similarity_score": 0.8},
-            {"id": 2, "name": "Song1", "artist": "Artist1", "similarity_score": 0.7},
-            {"id": 3, "name": "Song2", "artist": "Artist2", "similarity_score": 0.6},
-            {"id": 4, "name": "Song3", "artist": "Artist3", "similarity_score": 0.5},
-        ]
-
-        result = generator._filter_and_deduplicate_results(
-            tracks, min_similarity=0.5, max_tracks=3, is_artist_specific=False
-        )
-
-        # Should deduplicate and limit to max_tracks (only unique name/artist combos)
-        # After deduplication: Song1 by Artist1 (best score), Song2 by Artist2, Song3 by Artist3 = 3 tracks
-        self.assertEqual(len(result), 3)
-
-    @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
-    @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
-    def test_apply_genre_filtering(
-        self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
-    ) -> None:
-        """Test genre filtering"""
-        generator = LocalPlaylistGenerator()
-
-        tracks = [
-            {"name": "Song1", "genre": "Rock", "similarity_score": 0.8},
-            {"name": "Song2", "genre": "Jazz", "similarity_score": 0.7},
-            {"name": "Song3", "genre": "Rock", "similarity_score": 0.6},
-        ]
-
-        result = generator._apply_genre_filtering(["rock"], tracks)
-
-        # Should filter to only rock tracks (with boosting)
-        self.assertTrue(any(track["genre"].lower() == "rock" for track in result))
-
-    @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
-    @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
-    def test_save_playlist_m3u(
-        self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
-    ) -> None:
-        """Test saving playlist as M3U file"""
-        generator = LocalPlaylistGenerator()
-
-        tracks = [
-            {"name": "Song1", "file_location": "/path/to/song1.mp3"},
-            {"name": "Song2", "file_location": "/path/to/song2.mp3"},
-        ]
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".m3u", delete=False) as f:
-            temp_path = f.name
-
-        try:
-            generator.save_playlist_m3u(
-                tracks, "test query", output_dir=os.path.dirname(temp_path)
-            )
-            self.assertTrue(os.path.exists(temp_path))
-        finally:
-            os.unlink(temp_path)
 
     @pytest.mark.skipif(
         os.environ.get("CI") == "true",
@@ -641,80 +574,6 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
             "Electronic Playlist",
         )
 
-    @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
-    @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
-    def test_save_playlist_m3u_creates_clean_filename(
-        self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
-    ) -> None:
-        """Test that save_playlist_m3u creates clean filenames"""
-        generator = LocalPlaylistGenerator()
 
-        # Mock track data
-        tracks = [
-            {
-                "artist": "Test Artist",
-                "name": "Test Song",
-                "album": "Test Album",
-                "duration_ms": 180000,
-                "similarity_score": 0.8,
-                "location": "/path/to/song.mp3",
-            }
-        ]
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Test saving playlist
-            filepath = generator.save_playlist_m3u(
-                tracks, "jazz for studying", temp_dir
-            )
-
-            # Check that filename is clean (no timestamps or underscores)
-            filename = os.path.basename(filepath)
-            self.assertNotIn("playlist_", filename)
-            self.assertNotIn("_", filename)
-            self.assertTrue(filename.startswith("Jazz for Studying"))
-            self.assertTrue(filename.endswith(".m3u"))
-
-            # Check that file exists and has content
-            self.assertTrue(os.path.exists(filepath))
-            with open(filepath, "r") as f:
-                content = f.read()
-                self.assertIn("# Playlist: Jazz for Studying", content)
-                self.assertIn("# Query: jazz for studying", content)
-
-    @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
-    @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
-    def test_save_playlist_m3u_handles_special_characters(
-        self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
-    ) -> None:
-        """Test that save_playlist_m3u handles special characters in filenames"""
-        generator = LocalPlaylistGenerator()
-
-        tracks = [
-            {
-                "artist": "Test Artist",
-                "name": "Test Song",
-                "album": "Test Album",
-                "duration_ms": 180000,
-                "similarity_score": 0.8,
-                "location": "/path/to/song.mp3",
-            }
-        ]
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Test with special characters that should be removed
-            filepath = generator.save_playlist_m3u(
-                tracks, "rock & roll! @#$%", temp_dir
-            )
-
-            filename = os.path.basename(filepath)
-            # Should not contain special characters
-            self.assertNotIn("&", filename)
-            self.assertNotIn("!", filename)
-            self.assertNotIn("@", filename)
-            self.assertNotIn("#", filename)
-            self.assertNotIn("$", filename)
-            self.assertNotIn("%", filename)
-
-            # Should contain cleaned name
-            self.assertIn("Rock", filename)
-            self.assertIn("Roll", filename)
+if __name__ == "__main__":
+    unittest.main()

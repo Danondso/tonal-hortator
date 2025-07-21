@@ -1,0 +1,182 @@
+#!/usr/bin/env python3
+"""
+Tests for tonal_hortator.core.playlist.llm_query_parser
+"""
+
+import json
+import unittest
+from typing import Any
+from unittest.mock import Mock, patch
+
+from tonal_hortator.core.playlist.llm_query_parser import LLMQueryParser
+
+
+class TestLLMQueryParser(unittest.TestCase):
+    """Test LLMQueryParser"""
+
+    @patch("tonal_hortator.core.playlist.llm_query_parser.LocalLLMClient")
+    def test_init(self, mock_llm_client_class: Mock) -> None:
+        """Test initialization"""
+        mock_client = Mock()
+        mock_llm_client_class.return_value = mock_client
+
+        parser = LLMQueryParser()
+
+        self.assertEqual(parser.model_name, "llama3:8b")
+        self.assertEqual(parser.client, mock_client)
+        mock_llm_client_class.assert_called_once_with("llama3:8b")
+
+    @patch("tonal_hortator.core.playlist.llm_query_parser.LocalLLMClient")
+    def test_init_custom_model(self, mock_llm_client_class: Mock) -> None:
+        """Test initialization with custom model"""
+        mock_client = Mock()
+        mock_llm_client_class.return_value = mock_client
+
+        parser = LLMQueryParser("custom-model")
+
+        self.assertEqual(parser.model_name, "custom-model")
+        mock_llm_client_class.assert_called_once_with("custom-model")
+
+    @patch("tonal_hortator.core.playlist.llm_query_parser.LocalLLMClient")
+    def test_parse_artist_specific_query(self, mock_llm_client_class: Mock) -> None:
+        """Test parsing artist-specific query"""
+        mock_client = Mock()
+        mock_llm_client_class.return_value = mock_client
+
+        # Mock response for artist-specific query
+        mock_response: dict[str, Any] = {
+            "query_type": "artist_specific",
+            "artist": "The Beatles",
+            "reference_artist": None,
+            "genres": [],
+            "mood": None,
+            "count": None,
+            "unplayed": False,
+            "vague": False,
+        }
+        mock_client.generate.return_value = json.dumps(mock_response)
+
+        parser = LLMQueryParser()
+        result = parser.parse("The Beatles")
+
+        self.assertEqual(result["query_type"], "artist_specific")
+        self.assertEqual(result["artist"], "The Beatles")
+        self.assertIsNone(result["reference_artist"])
+
+    @patch("tonal_hortator.core.playlist.llm_query_parser.LocalLLMClient")
+    def test_parse_similarity_query(self, mock_llm_client_class: Mock) -> None:
+        """Test parsing similarity query"""
+        mock_client = Mock()
+        mock_llm_client_class.return_value = mock_client
+
+        # Mock response for similarity query
+        mock_response = {
+            "query_type": "similarity",
+            "artist": None,
+            "reference_artist": "Radiohead",
+            "genres": ["alternative", "rock"],
+            "mood": None,
+            "count": None,
+            "unplayed": False,
+            "vague": False,
+        }
+        mock_client.generate.return_value = json.dumps(mock_response)
+
+        parser = LLMQueryParser()
+        result = parser.parse("artists similar to Radiohead")
+
+        self.assertEqual(result["query_type"], "similarity")
+        self.assertIsNone(result["artist"])
+        self.assertEqual(result["reference_artist"], "Radiohead")
+
+    @patch("tonal_hortator.core.playlist.llm_query_parser.LocalLLMClient")
+    def test_parse_general_query(self, mock_llm_client_class: Mock) -> None:
+        """Test parsing general query"""
+        mock_client = Mock()
+        mock_llm_client_class.return_value = mock_client
+
+        # Mock response for general query
+        mock_response = {
+            "query_type": "general",
+            "artist": None,
+            "reference_artist": None,
+            "genres": ["rock"],
+            "mood": "upbeat",
+            "count": None,
+            "unplayed": False,
+            "vague": True,
+        }
+        mock_client.generate.return_value = json.dumps(mock_response)
+
+        parser = LLMQueryParser()
+        result = parser.parse("upbeat rock music")
+
+        self.assertEqual(result["query_type"], "general")
+        self.assertIsNone(result["artist"])
+        self.assertIsNone(result["reference_artist"])
+        self.assertEqual(result["genres"], ["rock"])
+        self.assertEqual(result["mood"], "upbeat")
+
+    @patch("tonal_hortator.core.playlist.llm_query_parser.LocalLLMClient")
+    def test_parse_with_track_count(self, mock_llm_client_class: Mock) -> None:
+        """Test parsing query with track count"""
+        mock_client = Mock()
+        mock_llm_client_class.return_value = mock_client
+
+        # Mock response with count
+        mock_response = {
+            "query_type": "general",
+            "artist": None,
+            "reference_artist": None,
+            "genres": ["jazz"],
+            "mood": None,
+            "count": 15,
+            "unplayed": False,
+            "vague": False,
+        }
+        mock_client.generate.return_value = json.dumps(mock_response)
+
+        parser = LLMQueryParser()
+        result = parser.parse("15 jazz tracks")
+
+        self.assertEqual(result["count"], 15)
+        self.assertEqual(result["genres"], ["jazz"])
+
+    @patch("tonal_hortator.core.playlist.llm_query_parser.LocalLLMClient")
+    def test_extract_json_valid(self, mock_llm_client_class: Mock) -> None:
+        """Test JSON extraction from valid response"""
+        parser = LLMQueryParser()
+
+        response = 'Here is the analysis: {"query_type": "general", "artist": null}'
+        result = parser._extract_json(response)
+
+        self.assertEqual(result["query_type"], "general")
+        self.assertIsNone(result["artist"])
+
+    @patch("tonal_hortator.core.playlist.llm_query_parser.LocalLLMClient")
+    def test_extract_json_invalid(self, mock_llm_client_class: Mock) -> None:
+        """Test JSON extraction from invalid response"""
+        parser = LLMQueryParser()
+
+        response = "This response has no JSON"
+
+        with self.assertRaises(ValueError) as context:
+            parser._extract_json(response)
+
+        self.assertIn("No JSON found in LLM response", str(context.exception))
+
+    @patch("tonal_hortator.core.playlist.llm_query_parser.LocalLLMClient")
+    def test_build_prompt_contains_query(self, mock_llm_client_class: Mock) -> None:
+        """Test that build_prompt includes the query"""
+        parser = LLMQueryParser()
+
+        query = "test query"
+        prompt = parser._build_prompt(query)
+
+        self.assertIn(query, prompt)
+        self.assertIn("Query:", prompt)
+        self.assertIn("Output JSON", prompt)
+
+
+if __name__ == "__main__":
+    unittest.main()
