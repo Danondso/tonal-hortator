@@ -101,7 +101,8 @@ class ConfigurationManager:
         except FileNotFoundError:
             logger.warning(
                 f"⚠️  Config file not found: {self.config_path}. "
-                f"Using empty configuration - this may cause errors when accessing config values."
+                f"Using empty configuration - this may cause errors when accessing config values. "
+                f"To resolve this, create a default config file at the specified path or provide the correct path to an existing config file."
             )
             self._base_config = {}
             self._config = {}
