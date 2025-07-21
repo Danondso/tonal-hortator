@@ -6,18 +6,15 @@ Handles user feedback collection, preference management, and learning
 to improve playlist generation over time.
 """
 
+# hello
 import json
 import logging
 import sqlite3
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, cast
 
+# hello
 from tonal_hortator.core.database import (
-    CREATE_FEEDBACK_TABLE,
-    CREATE_QUERY_LEARNING_TABLE,
-    CREATE_TRACK_RATINGS_TABLE,
-    CREATE_USER_FEEDBACK_TABLE,
-    CREATE_USER_PREFERENCES_TABLE,
     GET_QUERY_LEARNING_DATA,
     GET_RECOMMENDED_SETTINGS,
     GET_TRACK_RATING,
@@ -30,6 +27,7 @@ from tonal_hortator.core.database import (
     INSERT_USER_FEEDBACK,
     INSERT_USER_PREFERENCE,
     UPDATE_QUERY_LEARNING_APPLIED,
+    DatabaseManager,
 )
 
 logger = logging.getLogger(__name__)
@@ -41,32 +39,11 @@ class FeedbackManager:
     def __init__(self, db_path: str = "music_library.db"):
         """
         Initialize the feedback manager
-
         Args:
             db_path: Path to SQLite database
         """
         self.db_path = db_path
-        self._ensure_tables_exist()
-
-    def _ensure_tables_exist(self) -> None:
-        """Ensure all feedback-related tables exist"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-
-                # Create tables if they don't exist
-                cursor.execute(CREATE_USER_FEEDBACK_TABLE)
-                cursor.execute(CREATE_TRACK_RATINGS_TABLE)
-                cursor.execute(CREATE_QUERY_LEARNING_TABLE)
-                cursor.execute(CREATE_USER_PREFERENCES_TABLE)
-                cursor.execute(CREATE_FEEDBACK_TABLE)
-
-                conn.commit()
-                logger.info("✅ Feedback tables ensured")
-
-        except sqlite3.Error as e:
-            logger.error(f"❌ Error creating feedback tables: {e}")
-            raise
+        self.db = DatabaseManager(db_path)
 
     def record_playlist_feedback(
         self,
@@ -150,48 +127,42 @@ class FeedbackManager:
                 return False
 
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
+            # Extract parsed data
+            parsed_artist = parsed_data.get("artist")
+            parsed_reference_artist = parsed_data.get("reference_artist")
+            parsed_genres = json.dumps(parsed_data.get("genres", []))
+            parsed_mood = parsed_data.get("mood")
 
-                # Extract parsed data
-                parsed_artist = parsed_data.get("artist")
-                parsed_reference_artist = parsed_data.get("reference_artist")
-                parsed_genres = json.dumps(parsed_data.get("genres", []))
-                parsed_mood = parsed_data.get("mood")
+            # Extract track IDs
+            track_ids = [
+                track.get("id") for track in generated_tracks if track.get("id")
+            ]
+            generated_tracks_json = json.dumps(track_ids)
 
-                # Extract track IDs
-                track_ids = [
-                    track.get("id") for track in generated_tracks if track.get("id")
-                ]
-                generated_tracks_json = json.dumps(track_ids)
+            # Prepare user actions
+            user_actions_json = json.dumps(user_actions or [])
 
-                # Prepare user actions
-                user_actions_json = json.dumps(user_actions or [])
-
-                cursor.execute(
-                    INSERT_USER_FEEDBACK,
-                    (
-                        query,
-                        query_type,
-                        parsed_artist,
-                        parsed_reference_artist,
-                        parsed_genres,
-                        parsed_mood,
-                        generated_tracks_json,
-                        user_rating,
-                        user_comments,
-                        user_actions_json,
-                        playlist_length,
-                        requested_length,
-                        similarity_threshold,
-                        search_breadth,
-                    ),
-                )
-
-                conn.commit()
-                logger.info(f"✅ Recorded feedback for query: {query}")
-                return True
-
+            self.db.execute_commit(
+                INSERT_USER_FEEDBACK,
+                (
+                    query,
+                    query_type,
+                    parsed_artist,
+                    parsed_reference_artist,
+                    parsed_genres,
+                    parsed_mood,
+                    generated_tracks_json,
+                    user_rating,
+                    user_comments,
+                    user_actions_json,
+                    playlist_length,
+                    requested_length,
+                    similarity_threshold,
+                    search_breadth,
+                ),
+            )
+            logger.info(f"✅ Recorded feedback for query: {query}")
+            return True
         except sqlite3.Error as e:
             logger.error(f"❌ Error recording feedback: {e}")
             return False
@@ -220,15 +191,9 @@ class FeedbackManager:
             return False
 
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-
-                cursor.execute(INSERT_TRACK_RATING, (track_id, rating, context))
-                conn.commit()
-
-                logger.info(f"✅ Recorded rating {rating} for track {track_id}")
-                return True
-
+            self.db.execute_commit(INSERT_TRACK_RATING, (track_id, rating, context))
+            logger.info(f"✅ Recorded rating {rating} for track {track_id}")
+            return True
         except sqlite3.Error as e:
             logger.error(f"❌ Error recording track rating: {e}")
             return False
@@ -282,24 +247,18 @@ class FeedbackManager:
                 return False
 
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
+            # Convert value to string based on type
+            if preference_type == "json" and not isinstance(value, str):
+                value_str = json.dumps(value)
+            else:
+                value_str = str(value)
 
-                # Convert value to string based on type
-                if preference_type == "json" and not isinstance(value, str):
-                    value_str = json.dumps(value)
-                else:
-                    value_str = str(value)
-
-                cursor.execute(
-                    INSERT_USER_PREFERENCE,
-                    (key, value_str, preference_type, description),
-                )
-                conn.commit()
-
-                logger.info(f"✅ Set preference {key} = {value}")
-                return True
-
+            self.db.execute_commit(
+                INSERT_USER_PREFERENCE,
+                (key, value_str, preference_type, description),
+            )
+            logger.info(f"✅ Set preference {key} = {value}")
+            return True
         except sqlite3.Error as e:
             logger.error(f"❌ Error setting preference: {e}")
             return False
@@ -316,32 +275,25 @@ class FeedbackManager:
             Preference value or default
         """
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
+            result = self.db.execute_fetchone(
+                GET_USER_PREFERENCE,
+                (key,),
+            )
+            if not result:
+                return default
 
-                cursor.execute(
-                    GET_USER_PREFERENCE,
-                    (key,),
-                )
-                result = cursor.fetchone()
-
-                if not result:
-                    return default
-
-                value_str, preference_type = result
-
-                # Convert back to original type
-                if preference_type == "integer":
-                    return int(value_str)
-                elif preference_type == "float":
-                    return float(value_str)
-                elif preference_type == "boolean":
-                    return value_str.lower() == "true"
-                elif preference_type == "json":
-                    return json.loads(value_str)
-                else:
-                    return value_str
-
+            value_str, preference_type = result
+            # Convert back to original type
+            if preference_type == "integer":
+                return int(value_str)
+            elif preference_type == "float":
+                return float(value_str)
+            elif preference_type == "boolean":
+                return value_str.lower() == "true"
+            elif preference_type == "json":
+                return json.loads(value_str)
+            else:
+                return value_str
         except sqlite3.Error as e:
             logger.error(f"❌ Error getting preference: {e}")
             return default
@@ -366,23 +318,17 @@ class FeedbackManager:
             True if learning data was recorded successfully
         """
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-
-                cursor.execute(
-                    INSERT_QUERY_LEARNING,
-                    (
-                        original_query,
-                        json.dumps(llm_parsed_result),
-                        json.dumps(user_correction) if user_correction else None,
-                        feedback_score,
-                    ),
-                )
-                conn.commit()
-
-                logger.info(f"✅ Recorded query learning for: {original_query}")
-                return True
-
+            self.db.execute_commit(
+                INSERT_QUERY_LEARNING,
+                (
+                    original_query,
+                    json.dumps(llm_parsed_result),
+                    json.dumps(user_correction) if user_correction else None,
+                    feedback_score,
+                ),
+            )
+            logger.info(f"✅ Recorded query learning for: {original_query}")
+            return True
         except sqlite3.Error as e:
             logger.error(f"❌ Error recording query learning: {e}")
             return False
@@ -395,33 +341,21 @@ class FeedbackManager:
             Dictionary with feedback statistics
         """
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-
-                stats: Dict[str, Any] = {}
-
-                # Get basic stats
-                for stat_name, query in GET_USER_FEEDBACK_STATS.items():
-                    if stat_name == "feedback_by_type":
-                        cursor.execute(query)
-                        stats[stat_name] = cast(Any, dict(cursor.fetchall()))
-                    elif stat_name == "recent_feedback":
-                        cursor.execute(query)
-                        stats[stat_name] = cast(Any, cursor.fetchall())
-                    else:
-                        cursor.execute(query)
-                        result = cursor.fetchone()
-                        stats[stat_name] = cast(
-                            Any,
-                            (
-                                float(result[0])
-                                if result and result[0] is not None
-                                else 0.0
-                            ),
-                        )
-
-                return stats
-
+            stats: Dict[str, Any] = {}
+            for stat_name, query in GET_USER_FEEDBACK_STATS.items():
+                if stat_name == "feedback_by_type":
+                    rows = self.db.execute_fetchall(query)
+                    stats[stat_name] = cast(Any, dict(rows))
+                elif stat_name == "recent_feedback":
+                    rows = self.db.execute_fetchall(query)
+                    stats[stat_name] = cast(Any, rows)
+                else:
+                    result = self.db.execute_fetchone(query)
+                    stats[stat_name] = cast(
+                        Any,
+                        (float(result[0]) if result and result[0] is not None else 0.0),
+                    )
+            return stats
         except sqlite3.Error as e:
             logger.error(f"❌ Error getting feedback stats: {e}")
             return {}
@@ -434,30 +368,22 @@ class FeedbackManager:
             List of (key, value, type, description) tuples
         """
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-
-                cursor.execute(GET_USER_PREFERENCES)
-                results = cursor.fetchall()
-
-                preferences: List[Tuple[str, Any, str, str]] = []
-                for key, value_str, preference_type, description in results:
-                    # Convert value back to original type
-                    if preference_type == "integer":
-                        value = int(value_str)
-                    elif preference_type == "float":
-                        value = int(float(value_str))
-                    elif preference_type == "boolean":
-                        value = value_str.lower() == "true"
-                    elif preference_type == "json":
-                        value = json.loads(value_str)
-                    else:
-                        value = value_str
-
-                    preferences.append((key, value, preference_type, description))
-
-                return preferences
-
+            results = self.db.execute_fetchall(GET_USER_PREFERENCES)
+            preferences: List[Tuple[str, Any, str, str]] = []
+            for key, value_str, preference_type, description in results:
+                # Convert value back to original type
+                if preference_type == "integer":
+                    value = int(value_str)
+                elif preference_type == "float":
+                    value = int(float(value_str))
+                elif preference_type == "boolean":
+                    value = value_str.lower() == "true"
+                elif preference_type == "json":
+                    value = json.loads(value_str)
+                else:
+                    value = value_str
+                preferences.append((key, value, preference_type, description))
+            return preferences
         except sqlite3.Error as e:
             logger.error(f"❌ Error getting user preferences: {e}")
             return []
@@ -470,12 +396,7 @@ class FeedbackManager:
             List of (rating, context, track_name, artist) tuples
         """
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-
-                cursor.execute(GET_TRACK_RATINGS)
-                return cursor.fetchall()
-
+            return self.db.execute_fetchall(GET_TRACK_RATINGS)
         except sqlite3.Error as e:
             logger.error(f"❌ Error getting track ratings: {e}")
             return []
@@ -490,32 +411,22 @@ class FeedbackManager:
             List of (query, llm_result, user_correction, feedback_score) tuples
         """
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-
-                cursor.execute(GET_QUERY_LEARNING_DATA)
-                results = cursor.fetchall()
-
-                learning_data = []
-                for (
-                    query,
-                    llm_result_json,
-                    user_correction_json,
-                    feedback_score,
-                ) in results:
-                    llm_result = json.loads(llm_result_json)
-                    user_correction = (
-                        json.loads(user_correction_json)
-                        if user_correction_json
-                        else None
-                    )
-
-                    learning_data.append(
-                        (query, llm_result, user_correction, feedback_score)
-                    )
-
-                return learning_data
-
+            results = self.db.execute_fetchall(GET_QUERY_LEARNING_DATA)
+            learning_data = []
+            for (
+                query,
+                llm_result_json,
+                user_correction_json,
+                feedback_score,
+            ) in results:
+                llm_result = json.loads(llm_result_json)
+                user_correction = (
+                    json.loads(user_correction_json) if user_correction_json else None
+                )
+                learning_data.append(
+                    (query, llm_result, user_correction, feedback_score)
+                )
+            return learning_data
         except sqlite3.Error as e:
             logger.error(f"❌ Error getting learning data: {e}")
             return []
@@ -531,15 +442,9 @@ class FeedbackManager:
             True if marked successfully
         """
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-
-                cursor.execute(UPDATE_QUERY_LEARNING_APPLIED, (learning_id,))
-                conn.commit()
-
-                logger.info(f"✅ Marked learning {learning_id} as applied")
-                return True
-
+            self.db.execute_commit(UPDATE_QUERY_LEARNING_APPLIED, (learning_id,))
+            logger.info(f"✅ Marked learning {learning_id} as applied")
+            return True
         except sqlite3.Error as e:
             logger.error(f"❌ Error marking learning as applied: {e}")
             return False
@@ -555,30 +460,21 @@ class FeedbackManager:
             Dictionary with recommended settings
         """
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-
-                # Get average ratings for different settings
-                cursor.execute(
-                    GET_RECOMMENDED_SETTINGS,
-                    (query_type,),
-                )
-
-                result = cursor.fetchone()
-                if not result or result[3] == 0:  # No feedback
-                    return {}
-
-                avg_similarity, avg_breadth, avg_rating, feedback_count = result
-
-                return {
-                    "similarity_threshold": (
-                        round(avg_similarity, 2) if avg_similarity else 0.3
-                    ),
-                    "search_breadth": round(avg_breadth) if avg_breadth else 15,
-                    "average_rating": round(avg_rating, 1) if avg_rating else 0,
-                    "feedback_count": feedback_count,
-                }
-
+            result = self.db.execute_fetchone(
+                GET_RECOMMENDED_SETTINGS,
+                (query_type,),
+            )
+            if not result or result[3] == 0:  # No feedback
+                return {}
+            avg_similarity, avg_breadth, avg_rating, feedback_count = result
+            return {
+                "similarity_threshold": (
+                    round(avg_similarity, 2) if avg_similarity else 0.3
+                ),
+                "search_breadth": round(avg_breadth) if avg_breadth else 15,
+                "average_rating": round(avg_rating, 1) if avg_rating else 0,
+                "feedback_count": feedback_count,
+            }
         except sqlite3.Error as e:
             logger.error(f"❌ Error getting recommended settings: {e}")
             return {}
@@ -593,33 +489,25 @@ class FeedbackManager:
 
     def _get_feedback_rating_score(self, track_id: int) -> float:
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-
-                cursor.execute(
-                    GET_TRACK_RATING,
-                    (track_id,),
-                )
-                ratings = [row[0] for row in cursor.fetchall()]
-
-                if not ratings:
-                    return 0.0
-
-                avg_rating = sum(ratings) / len(ratings)
-
-                if avg_rating >= 4.5:
-                    return 0.15
-                elif avg_rating >= 4.0:
-                    return 0.1
-                elif avg_rating >= 3.0:
-                    return 0.05
-                elif avg_rating <= 1.5:
-                    return -0.15
-                elif avg_rating <= 2.0:
-                    return -0.1
-                else:
-                    return 0.0
-
+            ratings = [
+                row[0]
+                for row in self.db.execute_fetchall(GET_TRACK_RATING, (track_id,))
+            ]
+            if not ratings:
+                return 0.0
+            avg_rating = sum(ratings) / len(ratings)
+            if avg_rating >= 4.5:
+                return 0.15
+            elif avg_rating >= 4.0:
+                return 0.1
+            elif avg_rating >= 3.0:
+                return 0.05
+            elif avg_rating <= 1.5:
+                return -0.15
+            elif avg_rating <= 2.0:
+                return -0.1
+            else:
+                return 0.0
         except sqlite3.Error as e:
             logger.error(f"❌ Error getting feedback rating score: {e}")
             return 0.0
@@ -668,16 +556,13 @@ class FeedbackManager:
         timestamp = datetime.now().isoformat()
 
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                cursor.execute(
-                    """
-                    INSERT INTO feedback (track_id, feedback, adjustment, timestamp, query_context, source)
-                    VALUES (?, ?, ?, ?, ?, ?)
+            self.db.execute_commit(
+                """
+                INSERT INTO feedback (track_id, feedback, adjustment, timestamp, query_context, source)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                    (track_id, feedback, adjustment, timestamp, query_context, "user"),
-                )
-                conn.commit()
+                (track_id, feedback, adjustment, timestamp, query_context, "user"),
+            )
         except sqlite3.Error as e:
             logger.error(f"❌ Error recording user feedback: {e}")
             raise

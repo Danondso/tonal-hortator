@@ -5,6 +5,7 @@ This package contains centralized database queries, schema definitions,
 and metadata mappings to keep the codebase clean and maintainable.
 """
 
+from .database_manager import DatabaseManager
 from .metadata_mappings import MAPPING_CATEGORIES, METADATA_MAPPINGS
 from .queries import (
     CHECK_TABLE_EXISTS,
@@ -66,6 +67,8 @@ from .schema import (
 )
 
 __all__ = [
+    # Database Manager
+    "DatabaseManager",
     # Queries
     "CREATE_TRACKS_TABLE",
     "CREATE_TRACK_EMBEDDINGS_TABLE",
