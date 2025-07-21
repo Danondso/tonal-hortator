@@ -12,6 +12,7 @@ import sqlite3
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, cast
 
+from tonal_hortator.core.config import get_config
 from tonal_hortator.core.database import (
     GET_QUERY_LEARNING_DATA,
     GET_RECOMMENDED_SETTINGS,
@@ -44,6 +45,7 @@ class FeedbackManager:
         """
         self.db_path = db_path
         self.db = DatabaseManager(db_path)
+        self.config = get_config()
 
     def record_playlist_feedback(
         self,
@@ -85,36 +87,39 @@ class FeedbackManager:
             )
             return False
 
-        # Validate user rating if provided
-        if not FeedbackValidator.validate_user_rating(user_rating):
-            logger.error("❌ User rating must be between 0 and 5")
-            return False
-
-        # Validate user actions if provided
-        if not FeedbackValidator.validate_user_actions(user_actions):
+        # Validate user rating with config values
+        validation_ranges = self.config.validation_ranges
+        rating_range = validation_ranges["user_rating"]
+        if user_rating is not None and not (
+            rating_range["min"] <= user_rating <= rating_range["max"]
+        ):
             logger.error(
-                f"❌ Invalid user actions. Must be one of {FeedbackValidator.VALID_ACTIONS}"
+                f"❌ User rating must be between {rating_range['min']} and {rating_range['max']}"
             )
             return False
 
-        # Validate playlist length if provided
         if not FeedbackValidator.validate_playlist_length(playlist_length):
-            logger.error("❌ Playlist length cannot be negative")
+            logger.error("❌ Invalid playlist length")
             return False
 
-        # Validate requested length if provided
         if not FeedbackValidator.validate_playlist_length(requested_length):
-            logger.error("❌ Requested length cannot be negative")
+            logger.error("❌ Invalid requested length")
             return False
 
-        # Validate similarity threshold if provided
-        if not FeedbackValidator.validate_similarity_threshold(similarity_threshold):
-            logger.error("❌ Similarity threshold must be between 0.0 and 1.0")
+        # Validate similarity threshold with config values
+        similarity_range = validation_ranges["similarity_threshold"]
+        if similarity_threshold is not None and not (
+            similarity_range["min"] <= similarity_threshold <= similarity_range["max"]
+        ):
+            logger.error(
+                f"❌ Similarity threshold must be between {similarity_range['min']} and {similarity_range['max']}"
+            )
             return False
 
-        # Validate search breadth if provided
-        if not FeedbackValidator.validate_search_breadth(search_breadth):
-            logger.error("❌ Search breadth must be at least 1")
+        # Validate search breadth with config values
+        breadth_range = validation_ranges["search_breadth"]
+        if search_breadth is not None and search_breadth < breadth_range["min"]:
+            logger.error(f"❌ Search breadth must be at least {breadth_range['min']}")
             return False
 
         try:

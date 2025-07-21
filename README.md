@@ -86,6 +86,208 @@ th generate "upbeat rock songs" --tracks 20 --open
 th interactive
 ```
 
+## Configuration System
+
+Tonal Hortator uses a centralized configuration system with `config.yml` for easy customization without code changes.
+
+### Configuration File
+
+The main configuration file `config.yml` in the project root contains all customizable parameters:
+
+```yaml
+# === PLAYLIST GENERATION PARAMETERS ===
+playlist:
+  default_max_tracks: 20
+  default_min_similarity: 0.2
+  default_max_artist_ratio: 0.5
+  default_search_breadth_factor: 15
+
+# === SIMILARITY AND SCORING ===
+similarity:
+  genre_boost_score: 0.1
+  perfect_match_score: 1.0
+
+# === FEEDBACK SYSTEM ===
+feedback:
+  adjustments:
+    like: 0.2
+    dislike: -0.2
+    block: -1.0
+    note: 0.0
+  
+  # iTunes rating thresholds
+  itunes_rating:
+    thresholds:
+      excellent: 4.5
+      very_good: 4.0
+      good: 3.0
+    adjustments:
+      excellent: 0.15
+      very_good: 0.1
+      good: 0.05
+
+# === LLM CONFIGURATION ===
+llm:
+  models:
+    embedding: "nomic-embed-text:latest"
+    query_parser: "llama3:8b"
+  max_tokens: 512
+```
+
+### Environment Variable Overrides
+
+Override any configuration value using environment variables with the `TH_` prefix:
+
+```bash
+# Override playlist defaults
+export TH_PLAYLIST_DEFAULT_MAX_TRACKS=30
+export TH_PLAYLIST_DEFAULT_MIN_SIMILARITY=0.3
+
+# Override similarity scoring
+export TH_SIMILARITY_GENRE_BOOST_SCORE=0.15
+
+# Override feedback adjustments
+export TH_FEEDBACK_LIKE_ADJUSTMENT=0.25
+export TH_FEEDBACK_DISLIKE_ADJUSTMENT=-0.25
+
+# Run with overrides
+th generate "rock songs"
+```
+
+### A/B Testing Variants
+
+Enable different parameter sets for experimentation:
+
+```bash
+# Enable A/B testing in config.yml
+ab_testing:
+  enabled: true
+  variants:
+    conservative:
+      min_similarity: 0.3
+      max_artist_ratio: 0.3
+      genre_boost_score: 0.05
+    
+    aggressive:
+      min_similarity: 0.1
+      max_artist_ratio: 0.7
+      genre_boost_score: 0.2
+```
+
+Use variants programmatically:
+
+```python
+from tonal_hortator.core.config import get_config
+
+# Load specific variant
+config = get_config(variant='conservative')
+generator = LocalPlaylistGenerator()
+
+# Or switch variants dynamically
+config.set_variant('aggressive')
+```
+
+### Configuration Categories
+
+**Playlist Generation:**
+- `default_max_tracks`: Default playlist size (20)
+- `default_min_similarity`: Minimum similarity threshold (0.2)
+- `default_max_artist_ratio`: Maximum tracks per artist (0.5)
+- `default_search_breadth_factor`: Search breadth multiplier (15)
+
+**Similarity Scoring:**
+- `genre_boost_score`: Bonus for genre matches (0.1)
+- `perfect_match_score`: Maximum similarity score (1.0)
+
+**Feedback System:**
+- `adjustments`: User feedback impact values
+- `itunes_rating`: Rating-based adjustments
+- `time_decay`: Feedback aging parameters
+
+**LLM Models:**
+- `embedding`: Embedding model name
+- `query_parser`: Query parsing model name
+- `max_tokens`: Maximum LLM response tokens
+
+**Validation:**
+- `user_rating`: Rating range (0-5)
+- `similarity_threshold`: Valid similarity range (0.0-1.0)
+- `search_breadth`: Minimum search breadth (1)
+
+### Using Configuration in Code
+
+```python
+from tonal_hortator.core.config import get_config
+
+# Get configuration instance
+config = get_config()
+
+# Access configuration values
+max_tracks = config.get("playlist.default_max_tracks", 20)
+min_similarity = config.get("playlist.default_min_similarity", 0.2)
+
+# Use convenience properties
+defaults = config.playlist_defaults
+feedback_adjustments = config.feedback_adjustments
+llm_config = config.llm_config
+
+# Get entire sections
+playlist_config = config.get_section("playlist")
+```
+
+### Custom Configuration
+
+Create environment-specific configurations:
+
+```bash
+# Development configuration
+cp config.yml config-dev.yml
+# Edit config-dev.yml with dev-specific values
+
+# Use custom config file
+python -c "
+from tonal_hortator.core.config import ConfigurationManager
+config = ConfigurationManager('config-dev.yml')
+"
+```
+
+### Configuration Tips
+
+**Performance Tuning:**
+```yaml
+batch_processing:
+  embedding_batch_size: 1000  # Larger batches for powerful systems
+  max_workers: 8              # More workers for multi-core systems
+
+algorithm:
+  diversity:
+    distribution_attempts: 2000  # More attempts for better diversity
+```
+
+**Quality Tuning:**
+```yaml
+playlist:
+  default_min_similarity: 0.3   # Higher similarity for cohesive playlists
+  default_max_artist_ratio: 0.2  # Lower ratio for more artist diversity
+
+similarity:
+  genre_boost_score: 0.2        # Stronger genre preference
+```
+
+**Experimentation:**
+```yaml
+ab_testing:
+  enabled: true
+  variants:
+    discovery:
+      min_similarity: 0.1       # Lower threshold for discovery
+      genre_boost_score: 0.05   # Less genre bias
+    
+    focused:
+      min_similarity: 0.4       # Higher threshold for focus
+      genre_boost_score: 0.3    # Strong genre preference
+```
+
 ## CLI Commands
 
 ```bash
@@ -132,10 +334,28 @@ th feedback-stats
 
 ```python
 from tonal_hortator import LocalPlaylistGenerator
+from tonal_hortator.core.config import get_config
 
+# Basic usage
 generator = LocalPlaylistGenerator()
 tracks = generator.generate_playlist("workout songs", max_tracks=20)
 filepath = generator.save_playlist_m3u(tracks, "workout")
+
+# Using configuration system
+config = get_config()
+defaults = config.playlist_defaults
+
+# Generate playlist with config defaults
+tracks = generator.generate_playlist(
+    "chill electronic",
+    max_tracks=defaults['max_tracks'],
+    min_similarity=defaults['min_similarity']
+)
+
+# Use custom configuration
+from tonal_hortator.core.config import ConfigurationManager
+custom_config = ConfigurationManager('config-production.yml')
+generator = LocalPlaylistGenerator()
 ```
 
 ## Technical Implementation
@@ -256,6 +476,44 @@ th embed --batch 200 --workers 4
 - Minimal batch size: `th embed --batch 50 --workers 1`
 - Easier to track progress and identify issues
 
+### Configuration Issues
+
+**Config file not found:**
+```bash
+# Verify config.yml exists in project root
+ls -la config.yml
+
+# Create default config if missing
+python -c "
+from tonal_hortator.core.config import get_config
+config = get_config()  # Will create default config
+"
+```
+
+**Environment variables not working:**
+```bash
+# Check environment variable format
+echo $TH_PLAYLIST_DEFAULT_MAX_TRACKS
+
+# Verify mapping in config.yml
+grep -A 5 "environment_overrides:" config.yml
+
+# Test override
+TH_PLAYLIST_DEFAULT_MAX_TRACKS=25 th generate "test query"
+```
+
+**A/B testing variants not applying:**
+```python
+# Check variant configuration
+from tonal_hortator.core.config import get_config
+config = get_config()
+variants = config.get_section('ab_testing').get('variants', {})
+print("Available variants:", list(variants.keys()))
+
+# Manually set variant
+config.set_variant('conservative')
+```
+
 ## Development
 
 ```bash
@@ -276,7 +534,9 @@ mypy tonal_hortator/
 
 ```
 tonal_hortator/
+├── config.yml              # Main configuration file
 ├── core/                    # Core functionality
+│   ├── config.py           # Configuration management
 │   ├── embeddings.py       # Ollama embedding service
 │   ├── playlist_generator.py # Playlist generation
 │   └── feedback/           # Feedback system

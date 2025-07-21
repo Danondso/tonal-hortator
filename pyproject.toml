@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tonal-hortator"
-version = "2.6.1"
+version = "2.7.0"
 description = "AI-powered local music playlist generator"
 authors = [
     { name = "Danondso", email = "7014871+Danondso@users.noreply.github.com " },
@@ -21,6 +21,7 @@ dependencies = [
     "rich",
     "typer",
     "psutil",
+    "pyyaml",
 ]
 
 [tool.setuptools.packages.find]
@@ -37,6 +38,7 @@ dev = [
     "flake8",
     "pre-commit",
     "bandit",
+    "types-PyYAML",
 ]
 
 [project.scripts]

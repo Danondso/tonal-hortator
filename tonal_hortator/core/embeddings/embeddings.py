@@ -10,15 +10,22 @@ import numpy as np
 import ollama
 from loguru import logger
 
+from tonal_hortator.core.config import get_config
 from tonal_hortator.utils.loader import create_progress_spinner
+
+# Fallback constant if config is not available
+DEFAULT_EMBEDDING_MODEL = "nomic-embed-text:latest"
 
 
 class OllamaEmbeddingService:
     """Service for generating embeddings using Ollama."""
 
-    def __init__(
-        self, model_name: str = "nomic-embed-text:latest", host: Optional[str] = None
-    ):
+    def __init__(self, model_name: Optional[str] = None, host: Optional[str] = None):
+        # Use configured model if not provided
+        if model_name is None:
+            config = get_config()
+            model_name = config.get("llm.embedding_model", DEFAULT_EMBEDDING_MODEL)
+
         self.model_name = model_name
         self.host = host
         self.client: Optional[ollama.Client] = None

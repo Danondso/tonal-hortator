@@ -1,0 +1,242 @@
+# Tonal Hortator Configuration
+# This file contains all configurable parameters for the music playlist generator.
+# Modify these values to adjust behavior without changing source code.
+
+# === PLAYLIST GENERATION PARAMETERS ===
+playlist:
+  # Default number of tracks in generated playlists
+  default_max_tracks: 20
+  
+  # Minimum similarity score threshold (0.0 - 1.0)
+  default_min_similarity: 0.2
+  
+  # Maximum ratio of tracks per artist in playlist (0.0 - 1.0)
+  default_max_artist_ratio: 0.5
+  
+  # Search breadth multiplier for similarity search
+  default_search_breadth_factor: 15
+  
+  # Ratio of top similarity tracks for randomization (0.0 - 1.0)
+  top_similarity_ratio: 0.3
+  
+  # Maximum filename length for playlists
+  max_filename_length: 50
+  
+  # Maximum tracks per artist for diversity enforcement
+  max_tracks_per_artist_ratio: 0.3
+
+# === SIMILARITY AND SCORING ===
+similarity:
+  # Genre boost score when matching genre keywords
+  genre_boost_score: 0.1
+  
+  # Minimum similarity score offset for weighted sampling
+  min_similarity_offset: 0.000001
+  
+  # Default similarity score for perfect matches
+  perfect_match_score: 1.0
+
+# === FEEDBACK SYSTEM ===
+feedback:
+  # Feedback type adjustments
+  adjustments:
+    like: 0.2
+    dislike: -0.2
+    block: -1.0
+    note: 0.0
+  
+  # Maximum adjustment range
+  max_adjustment: 0.2
+  min_adjustment: -0.2
+  
+  # iTunes rating thresholds and adjustments
+  itunes_rating:
+    thresholds:
+      excellent: 4.5      # >= 4.5 stars
+      very_good: 4.0      # >= 4.0 stars  
+      good: 3.0           # >= 3.0 stars
+      poor: 2.0           # <= 2.0 stars
+      terrible: 1.5       # <= 1.5 stars
+    adjustments:
+      excellent: 0.15
+      very_good: 0.1
+      good: 0.05
+      poor: -0.1
+      terrible: -0.15
+  
+  # Play count scoring
+  play_count:
+    high_threshold: 50
+    medium_threshold: 20
+    high_bonus: 0.1
+    medium_bonus: 0.05
+  
+  # iTunes rating scoring (0-100 scale)
+  rating:
+    high_threshold: 80
+    medium_threshold: 60
+    high_bonus: 0.1
+    medium_bonus: 0.05
+  
+  # Skip count penalties
+  skip_count:
+    high_threshold: 25
+    medium_threshold: 10
+    high_penalty: -0.1
+    medium_penalty: -0.05
+  
+  # Time decay for feedback
+  time_decay:
+    weekly_decay_factor: 0.95
+    days_per_week: 7
+
+# === VALIDATION RANGES ===
+validation:
+  # User rating range (stars)
+  user_rating:
+    min: 0
+    max: 5
+  
+  # Similarity threshold range
+  similarity_threshold:
+    min: 0.0
+    max: 1.0
+  
+  # Search breadth minimum
+  search_breadth:
+    min: 1
+  
+  # Track length validation
+  track_length:
+    min: 0  # seconds
+
+# === ALGORITHM PARAMETERS ===
+algorithm:
+  # Randomization and sampling
+  sampling:
+    max_attempts_multiplier: 3  # multiply by top_k for max attempts
+    weight_epsilon: 0.000001    # minimum weight for sampling
+  
+  # Artist diversity
+  diversity:
+    min_tracks_per_artist: 2
+    distribution_attempts: 1000
+  
+  # Deduplication
+  deduplication:
+    similarity_grouping_threshold: 0.9
+    location_normalization: true
+    title_similarity_threshold: 0.8
+
+# === LLM CONFIGURATION ===
+llm:
+  # Default model names
+  models:
+    embedding: "nomic-embed-text:latest"
+    query_parser: "llama3:8b"
+  
+  # Token limits
+  max_tokens: 512
+  
+  # Query parsing parameters
+  query_parsing:
+    min_artist_name_length: 2
+    max_word_context: 2
+
+# === BATCH PROCESSING ===
+batch_processing:
+  # Default batch sizes for various operations
+  embedding_batch_size: 10000
+  csv_import_batch_size: 100
+  update_batch_size: 500
+  
+  # Worker configuration
+  max_workers: 4
+  
+  # Memory optimization
+  memory_limit_mb: 1024
+
+# === DATABASE CONFIGURATION ===
+database:
+  # Query limits
+  recent_feedback_limit: 10
+  top_results_limit: 5
+  metadata_sample_limit: 10
+  
+  # Default database paths
+  default_music_db: "music_library.db"
+  default_feedback_db: "feedback.db"
+
+# === EMBEDDING PARAMETERS ===
+embeddings:
+  # Dimension detection
+  dimension_detection_retries: 3
+  
+  # Batch processing
+  optimal_batch_size: 500
+  fallback_batch_size: 100
+  
+  # Update strategies
+  update:
+    age_weight_days: 365
+    confidence_weight_days: 180
+    metadata_weight: 0.1
+    confidence_threshold: 0.8
+
+# === TIME WINDOWS ===
+time_windows:
+  # Feedback analysis
+  feedback_decay_weeks: 52  # 1 year
+  recent_activity_days: 30
+  
+  # Learning periods
+  learning_window_days: 90
+  adaptation_period_days: 14
+
+# === UI AND DISPLAY ===
+display:
+  # Console output formatting
+  separator_length: 60
+  
+  # Progress indicators
+  show_progress: true
+  progress_update_interval: 100
+  
+  # Playlist display
+  show_similarity_scores: true
+  decimal_places: 2
+
+# === A/B TESTING CONFIGURATION ===
+# Enable different parameter sets for experimentation
+ab_testing:
+  enabled: false
+  
+  # Test configurations
+  variants:
+    conservative:
+      min_similarity: 0.3
+      max_artist_ratio: 0.3
+      genre_boost_score: 0.05
+    
+    aggressive:
+      min_similarity: 0.1
+      max_artist_ratio: 0.7
+      genre_boost_score: 0.2
+    
+    balanced:
+      min_similarity: 0.2
+      max_artist_ratio: 0.5
+      genre_boost_score: 0.1
+
+# === ENVIRONMENT OVERRIDES ===
+# Allow environment variables to override specific config values
+environment_overrides:
+  enabled: true
+  prefix: "TH_"  # Environment variables like TH_PLAYLIST_DEFAULT_MAX_TRACKS
+  
+  # Mapping of config paths to environment variable suffixes
+  mappings:
+    "playlist.default_max_tracks": "PLAYLIST_DEFAULT_MAX_TRACKS"
+    "similarity.genre_boost_score": "SIMILARITY_GENRE_BOOST_SCORE"
+    "feedback.adjustments.like": "FEEDBACK_LIKE_ADJUSTMENT"
+    "feedback.adjustments.dislike": "FEEDBACK_DISLIKE_ADJUSTMENT" 

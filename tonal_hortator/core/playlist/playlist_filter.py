@@ -1,58 +1,86 @@
 """
 Playlist filtering functionality for Tonal Hortator.
 
-Handles genre filtering, boosting, and other filtering logic for playlists.
+Handles genre filtering, boosting, and track filtering logic.
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
+
+from tonal_hortator.core.config import get_config
 
 logger = logging.getLogger(__name__)
 
 
 class PlaylistFilter:
-    """Handles filtering logic for playlists (genre, similarity, etc.)."""
+    """Handles playlist filtering and genre boosting operations."""
 
     def __init__(self) -> None:
-        pass
+        """Initialize the PlaylistFilter."""
+        self.config = get_config()
 
     def apply_genre_filtering(
-        self,
-        genres: List[str],
-        results: List[Dict[str, Any]],
-        logger: Optional[Any] = None,
+        self, genre_keywords: List[str], tracks: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        if not results:
-            return results
+        """
+        Apply genre filtering and boosting to tracks while maintaining diversity.
 
-        genre_keywords = [g.lower() for g in genres if isinstance(g, str)]
+        Boosts similarity scores for tracks matching genre keywords, but also
+        includes non-matching tracks to maintain playlist diversity.
 
+        Args:
+            genre_keywords: List of genre keywords to filter/boost
+            tracks: List of track dictionaries
+
+        Returns:
+            Combined list of boosted genre matches and other tracks for diversity
+        """
         if not genre_keywords:
-            logger and logger.info(
+            logger.info(
                 "🎵 No specific genre detected in query, using semantic similarity only"
             )
-            return results
+            return tracks
 
-        logger and logger.info(f"🎵 Detected genre keywords: {genre_keywords}")
+        # Get genre boost score from configuration
+        genre_boost_score: float = self.config.get("similarity.genre_boost_score", 0.1)
+        max_score: float = self.config.get("similarity.perfect_match_score", 1.0)
+
+        logger.info(f"🎸 Detected genre keywords: {genre_keywords}")
 
         genre_matches = []
         other_tracks = []
 
-        for track in results:
+        # Separate tracks into genre matches and others
+        for track in tracks:
             track_genre = track.get("genre", "").lower() if track.get("genre") else ""
             similarity_score = track.get("similarity_score", 0)
-            genre_match = any(keyword in track_genre for keyword in genre_keywords)
+
+            # Check if track genre matches any of the specified keywords
+            genre_match = any(
+                keyword.lower() in track_genre for keyword in genre_keywords
+            )
+
             if genre_match:
-                boosted_score = min(1.0, similarity_score + 0.1)
-                track["similarity_score"] = boosted_score
-                track["genre_boosted"] = True
-                genre_matches.append(track)
+                # Create a copy and boost the similarity score
+                boosted_track = track.copy()
+                boosted_score = min(max_score, similarity_score + genre_boost_score)
+                boosted_track["similarity_score"] = boosted_score
+                boosted_track["genre_boosted"] = True
+                genre_matches.append(boosted_track)
             else:
-                track["genre_boosted"] = False
-                other_tracks.append(track)
+                # Mark as not boosted but keep for diversity
+                track_copy = track.copy()
+                track_copy["genre_boosted"] = False
+                other_tracks.append(track_copy)
+
+        # Include genre matches plus some other tracks for diversity
+        # Use at least 5 other tracks or half the number of genre matches
         max_other_tracks = max(5, len(genre_matches) // 2)
         combined_results = genre_matches + other_tracks[:max_other_tracks]
-        logger and logger.info(
-            f"🎵 Genre filtering: {len(genre_matches)} genre matches, {len(other_tracks[:max_other_tracks])} other tracks"
+
+        logger.info(
+            f"🎵 Genre filtering: {len(genre_matches)} genre matches, "
+            f"{len(other_tracks[:max_other_tracks])} other tracks for diversity"
         )
+
         return combined_results

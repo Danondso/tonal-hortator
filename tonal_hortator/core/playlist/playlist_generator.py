@@ -14,6 +14,7 @@ import subprocess
 import time
 from typing import Any, Dict, List, Optional
 
+from tonal_hortator.core.config import get_config
 from tonal_hortator.core.embeddings.embeddings import OllamaEmbeddingService
 from tonal_hortator.core.embeddings.track_embedder import LocalTrackEmbedder
 from tonal_hortator.core.feedback import FeedbackManager
@@ -38,13 +39,21 @@ class LocalPlaylistGenerator:
     def __init__(
         self,
         db_path: str = "music_library.db",
-        model_name: str = "nomic-embed-text:latest",
+        model_name: Optional[str] = None,
         feedback_service: Optional[FeedbackService] = None,
         deduplicator: Optional[PlaylistDeduplicator] = None,
         filter_: Optional[PlaylistFilter] = None,
         exporter: Optional[PlaylistExporter] = None,
     ):
         self.db_path = db_path
+        self.config = get_config()
+
+        # Use configured model name if not provided
+        if model_name is None:
+            model_name = self.config.get(
+                "llm.embedding_model", "nomic-embed-text:latest"
+            )
+
         self.embedding_service = OllamaEmbeddingService(model_name=model_name)
         self.track_embedder = LocalTrackEmbedder(
             db_path, embedding_service=self.embedding_service
@@ -72,50 +81,69 @@ class LocalPlaylistGenerator:
         # Prioritize user-provided max_tracks over parsed count
         if max_tracks is not None:
             return max_tracks
-        # If no user-provided max_tracks, use parsed count or fallback to default (20)
-        return parsed_count if parsed_count is not None else 20
+        # If no user-provided max_tracks, use parsed count or fallback to config default
+        default_max_tracks: int = self.config.get(
+            "playlist_defaults.default_max_tracks", 20
+        )
+        return parsed_count if parsed_count is not None else default_max_tracks
 
     def generate_playlist(
         self,
         query: str,
-        max_tracks: Optional[int] = 20,
-        min_similarity: float = 0.2,
-        max_artist_ratio: float = 0.5,
-        search_breadth_factor: int = 15,
+        max_tracks: Optional[int] = None,
+        min_similarity: Optional[float] = None,
+        max_artist_ratio: Optional[float] = None,
+        search_breadth_factor: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Generate a playlist based on a semantic query
+        Generate a music playlist based on a user query using local embeddings
 
         Args:
-            query: Search query (e.g., "upbeat rock songs")
-            max_tracks: Maximum number of tracks in playlist
-            min_similarity: Minimum similarity score threshold
-            max_artist_ratio: Maximum ratio of tracks per artist (default 0.5)
-            search_breadth_factor: Factor to multiply max_tracks by for search breadth (default 10)
+            query: Natural language query describing the desired music
+            max_tracks: Maximum number of tracks to include (uses config default if None)
+            min_similarity: Minimum similarity score (0.0-1.0) (uses config default if None)
+            max_artist_ratio: Maximum ratio of tracks per artist (uses config default if None)
+            search_breadth_factor: Factor to multiply max_tracks by for search breadth (uses config default if None)
 
         Returns:
-            List of track dictionaries with similarity scores
+            List of track dictionaries with metadata and similarity scores
         """
         try:
+            # Use configuration defaults when parameters are None
+            defaults = self.config.playlist_defaults
+            if max_tracks is None:
+                max_tracks = defaults["max_tracks"]
+            if min_similarity is None:
+                min_similarity = defaults["min_similarity"]
+            if max_artist_ratio is None:
+                max_artist_ratio = defaults["max_artist_ratio"]
+            if search_breadth_factor is None:
+                search_breadth_factor = defaults["search_breadth_factor"]
+
             logger.info(f"🎵 Generating playlist for query: '{query}'")
-            start_time = time.time()
-
-            # Check if query exactly matches an artist in the database before LLM parsing
-            query_lower = query.lower().strip()
-            similarity_phrases = [
-                "artists similar to",
-                "similar to",
-                "like",
-                "sounds like",
-                "recommendations for",
-                "recommendations like",
-                "similar artists to",
-            ]
-
-            # Check if query contains any similarity phrase
-            is_similarity_query = any(
-                phrase in query_lower for phrase in similarity_phrases
+            logger.info(
+                f"📊 Parameters: max_tracks={max_tracks}, min_similarity={min_similarity}"
             )
+
+            # 1. Parse the query to understand intent
+            query_lower = query.lower().strip()
+
+            # Check for similarity queries (e.g., "like radiohead", "artists similar to...")
+            is_similarity_query = any(
+                [
+                    "like " in query_lower,
+                    "similar" in query_lower,
+                    "reminds me of" in query_lower,
+                    "sounds like" in query_lower,
+                    "in the style of" in query_lower,
+                ]
+            )
+
+            parsed: Dict[str, Any] = {}
+            artist = ""
+            genres: List[str] = []
+            is_artist_specific = False
+            is_vague = False
 
             if not is_similarity_query and self._check_artist_in_database(query_lower):
                 # Query exactly matches an artist - treat as artist-specific without LLM parsing
@@ -218,9 +246,7 @@ class LocalPlaylistGenerator:
                     "🎤 Artist-specific query detected, skipping genre filtering"
                 )
             else:
-                results = self.filter_.apply_genre_filtering(
-                    genres, results, logger=logger
-                )
+                results = self.filter_.apply_genre_filtering(genres, results)
 
             # 5. Apply feedback + iTunes score adjustments
             for track in results:

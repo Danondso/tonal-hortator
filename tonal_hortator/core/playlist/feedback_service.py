@@ -11,6 +11,7 @@ import sqlite3
 from datetime import datetime
 from typing import Protocol
 
+from tonal_hortator.core.config import get_config
 from tonal_hortator.core.database import GET_FEEDBACK_BY_TRACK_ID
 
 
@@ -33,6 +34,7 @@ class PlaylistFeedbackService:
 
     def __init__(self, db_path: str = "feedback.db"):
         self.db_path = db_path
+        self.config = get_config()
         self._ensure_feedback_table()
 
     def _ensure_feedback_table(self) -> None:
@@ -57,8 +59,9 @@ class PlaylistFeedbackService:
         self, track_id: str, feedback: str, query_context: str = ""
     ) -> None:
         """Record user feedback for a track with persistent storage"""
-        feedback_map = {"like": 0.2, "dislike": -0.2, "block": -1.0}
-        adjustment = feedback_map.get(feedback, 0.0)
+        # Get feedback adjustments from configuration
+        feedback_adjustments = self.config.feedback_adjustments
+        adjustment = feedback_adjustments.get(feedback, 0.0)
         timestamp = datetime.now().isoformat()
 
         conn = sqlite3.connect(self.db_path)
@@ -74,22 +77,34 @@ class PlaylistFeedbackService:
         conn.close()
 
     def get_adjusted_score(self, track_id: str, track: dict) -> float:
-        """Get adjusted score for a track based on feedback with decay"""
+        """Calculate feedback adjustment value based on user feedback with time decay"""
+        # If no feedback DB, return no adjustment
         if not os.path.exists(self.db_path):
             return 0.0
 
+        # Get time decay configuration
+        time_decay_config = self.config.get_section("feedback").get("time_decay", {})
+        weekly_decay_factor = time_decay_config.get("weekly_decay_factor", 0.95)
+        days_per_week = time_decay_config.get("days_per_week", 7)
+
+        # Query feedback for this track
         conn = sqlite3.connect(self.db_path)
         cur = conn.cursor()
         cur.execute(GET_FEEDBACK_BY_TRACK_ID, (track_id,))
-        rows = cur.fetchall()
+        feedback_rows = cur.fetchall()
         conn.close()
 
+        if not feedback_rows:
+            return 0.0
+
+        # Calculate cumulative adjustment with time decay
         total_adjustment = 0.0
-        for adjustment, ts in rows:
-            try:
-                weeks_old = (datetime.now() - datetime.fromisoformat(ts)).days / 7.0
-                decay = 0.95**weeks_old
-                total_adjustment += adjustment * decay
-            except Exception:
-                total_adjustment += adjustment
-        return total_adjustment
+        for adjustment, timestamp in feedback_rows:
+            # Apply time decay
+            weeks_old = (
+                datetime.now() - datetime.fromisoformat(timestamp)
+            ).days / days_per_week
+            decay = weekly_decay_factor**weeks_old
+            total_adjustment += adjustment * decay
+
+        return float(total_adjustment)
