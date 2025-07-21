@@ -38,6 +38,7 @@ dev = [
     "flake8",
     "pre-commit",
     "bandit",
+    "types-PyYAML",
 ]
 
 [project.scripts]
