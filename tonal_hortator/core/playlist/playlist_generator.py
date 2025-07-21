@@ -50,7 +50,9 @@ class LocalPlaylistGenerator:
 
         # Use configured model name if not provided
         if model_name is None:
-            model_name = self.config.llm_config["embedding_model"]
+            model_name = self.config.get(
+                "llm.embedding_model", "nomic-embed-text:latest"
+            )
 
         self.embedding_service = OllamaEmbeddingService(model_name=model_name)
         self.track_embedder = LocalTrackEmbedder(
@@ -80,7 +82,9 @@ class LocalPlaylistGenerator:
         if max_tracks is not None:
             return max_tracks
         # If no user-provided max_tracks, use parsed count or fallback to config default
-        default_max_tracks: int = self.config["playlist_defaults"]["default_max_tracks"]
+        default_max_tracks: int = self.config.get(
+            "playlist_defaults.default_max_tracks", 20
+        )
         return parsed_count if parsed_count is not None else default_max_tracks
 
     def generate_playlist(

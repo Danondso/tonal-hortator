@@ -23,7 +23,7 @@ class LLMQueryParser:
 
         # Use configured model if not provided
         if model_name is None:
-            model_name = self.config.llm_config["query_parser_model"]
+            model_name = self.config.get("llm.query_parser_model", "llama3:8b")
 
         self.model_name = model_name
         self.client = LocalLLMClient(model_name)
@@ -32,7 +32,7 @@ class LLMQueryParser:
         prompt = self._build_prompt(query)
 
         # Get max tokens from configuration
-        max_tokens = self.config.llm_config["max_tokens"]
+        max_tokens = self.config.get("llm.max_tokens", 1000)
         response = self.client.generate(prompt, max_tokens=max_tokens)
         return self._extract_json(response)
 
@@ -114,12 +114,16 @@ Output pure JSON only, no additional text:"""
                 except json.JSONDecodeError as e:
                     logger.error(f"Regex JSON parsing failed for match '{match}': {e}")
 
-            raise ValueError("No valid JSON found in LLM response after all parsing attempts")
+            raise ValueError(
+                "No valid JSON found in LLM response after all parsing attempts"
+            )
 
         except (json.JSONDecodeError, ValueError) as e:
             logger.error(f"Failed to parse LLM response after multiple attempts: {e}")
             logger.error(f"Response was: {response}")
-            raise ValueError(f"Failed to parse LLM response after multiple attempts: {e}")
+            raise ValueError(
+                f"Failed to parse LLM response after multiple attempts: {e}"
+            )
 
     def _find_json_with_bracket_counting(self, text: str) -> Optional[str]:
         """Find JSON object using bracket counting to handle nested structures"""

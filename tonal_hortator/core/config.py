@@ -152,7 +152,44 @@ class ConfigurationManager:
             logger.info(f"✅ Applied {overrides_applied} environment overrides")
 
     def _convert_env_value(self, value: str) -> Union[str, int, float, bool]:
-        """Convert environment variable string to appropriate type."""
+        """
+        Convert environment variable string to appropriate Python type.
+
+        Performs type conversion in the following order of precedence:
+        1. Boolean conversion (case-insensitive) - takes priority over numeric
+        2. Integer conversion
+        3. Float conversion
+        4. String fallback (no conversion)
+
+        Boolean Formats (case-insensitive):
+            True values: "true", "yes", "1", "on"
+            False values: "false", "no", "0", "off"
+
+        Note: "1" and "0" are treated as boolean values, not integers.
+        This prioritizes common environment variable flag usage.
+
+        Numeric Formats:
+            Integers: "42", "-123", "100" (but not "1" or "0")
+            Floats: "3.14", "-2.5", "1.0", "0.001"
+
+        Args:
+            value: The environment variable string value to convert
+
+        Returns:
+            Converted value as bool, int, float, or str depending on the format
+
+        Examples:
+            >>> config._convert_env_value("true")
+            True
+            >>> config._convert_env_value("1")    # Boolean, not int!
+            True
+            >>> config._convert_env_value("42")   # Integer
+            42
+            >>> config._convert_env_value("3.14") # Float
+            3.14
+            >>> config._convert_env_value("hello") # String
+            "hello"
+        """
         # Try boolean
         if value.lower() in ("true", "yes", "1", "on"):
             return True
