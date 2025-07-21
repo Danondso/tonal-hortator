@@ -111,15 +111,15 @@ Output pure JSON only, no additional text:"""
                     result = json.loads(match)
                     if isinstance(result, dict):
                         return result
-                except json.JSONDecodeError:
-                    continue
+                except json.JSONDecodeError as e:
+                    logger.error(f"Regex JSON parsing failed for match '{match}': {e}")
 
-            raise ValueError("No valid JSON found in LLM response")
+            raise ValueError("No valid JSON found in LLM response after all parsing attempts")
 
         except (json.JSONDecodeError, ValueError) as e:
-            logger.error(f"Failed to parse LLM response: {e}")
+            logger.error(f"Failed to parse LLM response after multiple attempts: {e}")
             logger.error(f"Response was: {response}")
-            raise ValueError(f"Failed to parse LLM response: {e}")
+            raise ValueError(f"Failed to parse LLM response after multiple attempts: {e}")
 
     def _find_json_with_bracket_counting(self, text: str) -> Optional[str]:
         """Find JSON object using bracket counting to handle nested structures"""
