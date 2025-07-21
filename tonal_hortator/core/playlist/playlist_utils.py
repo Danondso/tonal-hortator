@@ -8,7 +8,6 @@ that can be imported by multiple playlist modules.
 
 import re
 import urllib.parse
-from typing import Any, Dict
 
 
 def create_playlist_name_static(query: str) -> str:
@@ -103,7 +102,7 @@ def normalize_file_location_static(location: str) -> str:
         (r"/Users/[^/]+/", "/Users/[user]/"),
         (r"/home/[^/]+/", "/home/[user]/"),
         (r"C:/Users/[^/]+/", "C:/Users/[user]/"),
-        (r"C:\\Users\\[^\\]+\\", "C:\\Users/[user]/"),
+        (r"C:\\Users\\[^\\]+\\", r"C:\\Users\\[user]\\"),
     ]
 
     for pattern, replacement in patterns:
