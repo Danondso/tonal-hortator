@@ -22,6 +22,7 @@ from tonal_hortator.core.database import (
     GET_USER_FEEDBACK_STATS,
     GET_USER_PREFERENCE,
     GET_USER_PREFERENCES,
+    INSERT_FEEDBACK,
     INSERT_QUERY_LEARNING,
     INSERT_TRACK_RATING,
     INSERT_USER_FEEDBACK,
@@ -29,6 +30,7 @@ from tonal_hortator.core.database import (
     UPDATE_QUERY_LEARNING_APPLIED,
     DatabaseManager,
 )
+from tonal_hortator.core.feedback.feedback_validator import FeedbackValidator
 
 logger = logging.getLogger(__name__)
 
@@ -79,52 +81,43 @@ class FeedbackManager:
             True if feedback was recorded successfully
         """
 
-        valid_query_types = ["artist_specific", "similarity", "general"]
-        if query_type not in valid_query_types:
+        if not FeedbackValidator.validate_query_type(query_type):
             logger.error(
-                f"❌ Invalid query type: {query_type}. Must be one of {valid_query_types}"
+                f"❌ Invalid query type: {query_type}. Must be one of {FeedbackValidator.VALID_QUERY_TYPES}"
             )
             return False
 
         # Validate user rating if provided
-        if user_rating is not None:
-            if user_rating < 0 or user_rating > 5:
-                logger.error("❌ User rating must be between 0 and 5")
-                return False
+        if not FeedbackValidator.validate_user_rating(user_rating):
+            logger.error("❌ User rating must be between 0 and 5")
+            return False
 
         # Validate user actions if provided
-        if user_actions is not None:
-            valid_actions = ["like", "dislike", "skip", "block", "favorite"]
-            for action in user_actions:
-                if not isinstance(action, str) or action not in valid_actions:
-                    logger.error(
-                        f"❌ Invalid user action: {action}. Must be one of {valid_actions}"
-                    )
-                    return False
+        if not FeedbackValidator.validate_user_actions(user_actions):
+            logger.error(
+                f"❌ Invalid user actions. Must be one of {FeedbackValidator.VALID_ACTIONS}"
+            )
+            return False
 
         # Validate playlist length if provided
-        if playlist_length is not None:
-            if playlist_length < 0:
-                logger.error("❌ Playlist length cannot be negative")
-                return False
+        if not FeedbackValidator.validate_playlist_length(playlist_length):
+            logger.error("❌ Playlist length cannot be negative")
+            return False
 
         # Validate requested length if provided
-        if requested_length is not None:
-            if requested_length < 0:
-                logger.error("❌ Requested length cannot be negative")
-                return False
+        if not FeedbackValidator.validate_playlist_length(requested_length):
+            logger.error("❌ Requested length cannot be negative")
+            return False
 
         # Validate similarity threshold if provided
-        if similarity_threshold is not None:
-            if similarity_threshold < 0.0 or similarity_threshold > 1.0:
-                logger.error("❌ Similarity threshold must be between 0.0 and 1.0")
-                return False
+        if not FeedbackValidator.validate_similarity_threshold(similarity_threshold):
+            logger.error("❌ Similarity threshold must be between 0.0 and 1.0")
+            return False
 
         # Validate search breadth if provided
-        if search_breadth is not None:
-            if search_breadth < 1:
-                logger.error("❌ Search breadth must be at least 1")
-                return False
+        if not FeedbackValidator.validate_search_breadth(search_breadth):
+            logger.error("❌ Search breadth must be at least 1")
+            return False
 
         try:
             # Extract parsed data
@@ -218,33 +211,18 @@ class FeedbackManager:
             True if preference was set successfully
         """
 
-        valid_types = ["string", "integer", "float", "boolean", "json"]
-        if preference_type not in valid_types:
+        if not FeedbackValidator.validate_preference_type(preference_type):
             logger.error(
-                f"❌ Invalid preference type: {preference_type}. Must be one of {valid_types}"
+                f"❌ Invalid preference type: {preference_type}. Must be one of {FeedbackValidator.VALID_PREFERENCE_TYPES}"
             )
             return False
 
         # Validate value based on type
-        if preference_type == "integer":
-            if not isinstance(value, int):
-                logger.error("❌ Integer preference value must be an integer")
-                return False
-        elif preference_type == "float":
-            if not isinstance(value, (int, float)):
-                logger.error("❌ Float preference value must be a number")
-                return False
-        elif preference_type == "boolean":
-            if not isinstance(value, bool):
-                logger.error("❌ Boolean preference value must be a boolean")
-                return False
-        elif preference_type == "json":
-            # JSON values can be any serializable type, so we'll validate during serialization
-            pass
-        elif preference_type == "string":
-            if not isinstance(value, str):
-                logger.error("❌ String preference value must be a string")
-                return False
+        if not FeedbackValidator.validate_preference_value(value, preference_type):
+            logger.error(
+                f"❌ {preference_type.capitalize()} preference value must be a valid {preference_type}"
+            )
+            return False
 
         try:
             # Convert value to string based on type
@@ -410,6 +388,7 @@ class FeedbackManager:
         Returns:
             List of (query, llm_result, user_correction, feedback_score) tuples
         """
+
         try:
             results = self.db.execute_fetchall(GET_QUERY_LEARNING_DATA)
             learning_data = []
@@ -540,14 +519,13 @@ class FeedbackManager:
     ) -> None:
         # Input validation
 
-        if not track_id.strip():
+        if not FeedbackValidator.validate_track_id(track_id):
             logger.error("❌ Track ID cannot be empty")
             raise ValueError("Track ID cannot be empty")
 
-        valid_feedback_types = ["like", "dislike", "block"]
-        if feedback not in valid_feedback_types:
+        if not FeedbackValidator.validate_feedback_type(feedback):
             logger.error(
-                f"❌ Invalid feedback type: {feedback}. Must be one of {valid_feedback_types}"
+                f"❌ Invalid feedback type: {feedback}. Must be one of {FeedbackValidator.VALID_FEEDBACK_TYPES}"
             )
             raise ValueError(f"Invalid feedback type: {feedback}")
 
@@ -557,10 +535,7 @@ class FeedbackManager:
 
         try:
             self.db.execute_commit(
-                """
-                INSERT INTO feedback (track_id, feedback, adjustment, timestamp, query_context, source)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """,
+                INSERT_FEEDBACK,
                 (track_id, feedback, adjustment, timestamp, query_context, "user"),
             )
         except sqlite3.Error as e:
