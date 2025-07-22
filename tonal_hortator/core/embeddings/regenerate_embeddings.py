@@ -7,6 +7,10 @@ import argparse
 import logging
 import sqlite3
 
+from tonal_hortator.core.database.queries import (
+    DELETE_ALL_TRACK_EMBEDDINGS,
+    GET_TRACKS_WITH_MUSICAL_ANALYSIS,
+)
 from tonal_hortator.core.embeddings.track_embedder import LocalTrackEmbedder
 
 # Configure logging
@@ -31,7 +35,7 @@ def regenerate_embeddings(db_path: str = "music_library.db") -> bool:
         # Clear existing embeddings to force regeneration
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute("DELETE FROM track_embeddings")
+            cursor.execute(DELETE_ALL_TRACK_EMBEDDINGS)
             deleted_count = cursor.rowcount
             conn.commit()
             logger.info(f"🗑️  Cleared {deleted_count} existing embeddings")
@@ -61,14 +65,7 @@ def test_enhanced_embeddings(db_path: str = "music_library.db") -> None:
         # Get a sample track with musical analysis data
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute(
-                """
-                SELECT id, name, artist, album, genre, bpm, musical_key, key_scale, mood
-                FROM tracks
-                WHERE bpm IS NOT NULL OR musical_key IS NOT NULL OR mood IS NOT NULL
-                LIMIT 1
-            """
-            )
+            cursor.execute(GET_TRACKS_WITH_MUSICAL_ANALYSIS)
 
             track = cursor.fetchone()
             if track:

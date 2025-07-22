@@ -4,6 +4,8 @@ import ollama
 
 logger = logging.getLogger(__name__)
 
+LLM_PROMPT_PATH = "llm_prompt.txt"
+
 
 class LocalLLMClient:
     """
@@ -11,7 +13,7 @@ class LocalLLMClient:
     """
 
     def __init__(
-        self, model_name: str = "llama3:8b", prompt_path: str = "llm_prompt.txt"
+        self, model_name: str = "llama3:8b", prompt_path: str = LLM_PROMPT_PATH
     ):
         self.model_name = model_name
         self.prompt_path = prompt_path

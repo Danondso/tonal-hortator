@@ -1,6 +1,8 @@
 import json
 from typing import Any
 
+from tonal_hortator.core.database.queries import GET_USER_FEEDBACK_FOR_TRAINING
+
 
 class TrainingDataAggregator:
     """
@@ -8,13 +10,13 @@ class TrainingDataAggregator:
     for LLM prompt-tuning or supervised fine-tuning.
     """
 
+    RATING_THRESHOLD = 4
+
     def __init__(self, db: Any) -> None:
         self.db = db
 
     def aggregate(self, output_path: str = "playlist_training_data.jsonl") -> None:
-        feedback_rows = self.db.execute_fetchall(
-            "SELECT query, query_type, parsed_genres, parsed_mood, generated_tracks, user_rating, user_actions FROM user_feedback"
-        )
+        feedback_rows = self.db.execute_fetchall(GET_USER_FEEDBACK_FOR_TRAINING)
         examples = []
         for row in feedback_rows:
             (
@@ -26,7 +28,7 @@ class TrainingDataAggregator:
                 user_rating,
                 user_actions_json,
             ) = row
-            label = 1 if user_rating and user_rating >= 4 else 0
+            label = 1 if user_rating and user_rating >= self.RATING_THRESHOLD else 0
             example = {
                 "input": query,
                 "system_parsed": {
