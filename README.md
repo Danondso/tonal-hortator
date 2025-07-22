@@ -732,6 +732,44 @@ fm.record_query_learning(
 )
 ```
 
+### Configuration Issues
+
+**Config file not found:**
+```bash
+# Verify config.yml exists in project root
+ls -la config.yml
+
+# Create default config if missing
+python -c "
+from tonal_hortator.core.config import get_config
+config = get_config()  # Will create default config
+"
+```
+
+**Environment variables not working:**
+```bash
+# Check environment variable format
+echo $TH_PLAYLIST_DEFAULT_MAX_TRACKS
+
+# Verify mapping in config.yml
+grep -A 5 "environment_overrides:" config.yml
+
+# Test override
+TH_PLAYLIST_DEFAULT_MAX_TRACKS=25 th generate "test query"
+```
+
+**A/B testing variants not applying:**
+```python
+# Check variant configuration
+from tonal_hortator.core.config import get_config
+config = get_config()
+variants = config.get_section('ab_testing').get('variants', {})
+print("Available variants:", list(variants.keys()))
+
+# Manually set variant
+config.set_variant('conservative')
+```
+
 ## Development
 
 ```bash
