@@ -1,4 +1,8 @@
+import logging
+
 import ollama
+
+logger = logging.getLogger(__name__)
 
 
 class LocalLLMClient:
@@ -38,8 +42,16 @@ class LocalLLMClient:
             raise RuntimeError(f"Failed to generate response from LLM: {e}")
 
     def load_prompt(self) -> None:
-        with open(self.prompt_path, "r") as f:
-            self.prompt = f.read()
+        """Load prompt from file, handling case where file doesn't exist."""
+        try:
+            with open(self.prompt_path, "r") as f:
+                self.prompt = f.read()
+                logger.debug(f"Loaded prompt from {self.prompt_path}")
+        except FileNotFoundError:
+            self.prompt = ""
+            logger.warning(
+                f"Prompt file not found: {self.prompt_path}. Using empty prompt."
+            )
 
     def reload_prompt(self) -> None:
         self.load_prompt()
