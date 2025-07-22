@@ -6,8 +6,12 @@ class LocalLLMClient:
     Lightweight wrapper around local Ollama for generating structured responses
     """
 
-    def __init__(self, model_name: str = "llama3:8b"):
+    def __init__(
+        self, model_name: str = "llama3:8b", prompt_path: str = "llm_prompt.txt"
+    ):
         self.model_name = model_name
+        self.prompt_path = prompt_path
+        self.load_prompt()
 
     def generate(self, prompt: str, max_tokens: int = 512) -> str:
         """
@@ -32,3 +36,11 @@ class LocalLLMClient:
             return response["message"]["content"]  # type: ignore
         except Exception as e:
             raise RuntimeError(f"Failed to generate response from LLM: {e}")
+
+    def load_prompt(self) -> None:
+        with open(self.prompt_path, "r") as f:
+            self.prompt = f.read()
+
+    def reload_prompt(self) -> None:
+        self.load_prompt()
+        print("Prompt reloaded!")

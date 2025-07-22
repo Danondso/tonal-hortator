@@ -1,46 +1,45 @@
 # Tonal Hortator
 
-AI-powered local music playlist generator using Ollama embeddings.
+AI-powered local music playlist generator using Ollama embeddings with intelligent learning from user feedback.
 
 ## Features
 
 - **Local AI**: Uses Ollama with `nomic-embed-text` for offline operation
 - **Semantic Search**: Generate playlists from natural language queries
-- **Apple Music Integration**: One-click playlist opening
+- **Smart Learning**: Self-improving query parsing from user feedback
+- **Apple Music Integration**: Listen-first workflow with one-click playlist opening
 - **Smart Deduplication**: Multi-strategy duplicate removal
 - **Feedback System**: Learn from user ratings and preferences
 - **Adaptive Performance**: Intelligent batch sizing based on system resources
+- **Configuration System**: Centralized YAML configuration with environment overrides
 
-## Adaptive Threading & Batch Sizing
+## 🧠 Intelligent Learning System
 
-Tonal Hortator automatically optimizes performance based on your system's capabilities:
+Tonal Hortator continuously improves its understanding of your music preferences through a sophisticated feedback learning system:
 
-### 🧠 **Smart Batch Size Detection**
-- **Auto-detection**: Automatically determines optimal batch sizes (50-1000 tracks) based on:
-  - Available system memory
-  - CPU core count
-  - Current system load
-- **Memory-aware**: Adjusts batch size to prevent memory exhaustion
-- **CPU-optimized**: Scales with your processor's capabilities
-- **Fallback protection**: Gracefully handles resource detection failures
+### **Self-Improving Query Parsing**
+- **Training Data Generation**: Automatically aggregates positive feedback (4+ stars) into training examples
+- **Few-Shot Learning**: Uses your best-rated playlists to teach the LLM better query parsing
+- **Real-Time Updates**: Run `th tune-prompt` to instantly improve parsing accuracy
+- **Quality Tracking**: Monitors and displays training example quality metrics
 
-### ⚡ **Performance Optimization**
-- **Default behavior**: Uses 500 tracks per batch for most systems
-- **Resource scaling**: Larger batches (500-1000) for high-end systems
-- **Conservative mode**: Smaller batches (50-200) for limited resources
-- **Manual override**: Specify custom batch sizes when needed
+### **Listen-First Workflow**
+1. **Generate playlist** from your natural language query
+2. **Auto-open in Apple Music** to listen before rating
+3. **Provide informed feedback** after actually hearing the results
+4. **System learns** from your ratings to improve future playlists
 
-### 🔧 **CLI Integration**
-All embedding and processing commands now use adaptive batch sizing:
+### **Example Learning Process**
 ```bash
-# Auto-detected optimal batch size
-th embed
+# Generate a playlist
+th generate "dusty desert rock" --open
 
-# Manual batch size override
-th embed --batch 200
+# After listening and rating 4+ stars, the system learns:
+# Input: "dusty desert rock"
+# Output: {"query_type": "general", "genres": ["rock", "desert rock"], "mood": "melancholy"}
 
-# Workflow with adaptive embedding
-th workflow music.csv --embed-batch 300
+# Future similar queries become more accurate!
+th tune-prompt  # Apply learning to improve parsing
 ```
 
 ## Quick Start
@@ -48,7 +47,7 @@ th workflow music.csv --embed-batch 300
 ### Prerequisites
 
 - Python 3.11+
-- Ollama with `nomic-embed-text:latest`
+- Ollama with `nomic-embed-text:latest` and `llama3:8b`
 - iTunes XML library export
 - macOS (for Apple Music integration)
 
@@ -64,26 +63,103 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Install Ollama and model
+# Install Ollama and models
 curl -fsSL https://ollama.ai/install.sh | sh
 ollama pull nomic-embed-text
+ollama pull llama3:8b
 
 # Install package (enables `th` command)
 pip install -e .
 ```
 
-### Usage
+### Basic Workflow
 
 ```bash
-# Parse iTunes library
+# 1. Parse iTunes library
 python parse_library.py
 
-# Generate embeddings
+# 2. Generate embeddings
 th embed
 
-# Generate playlists
-th generate "upbeat rock songs" --tracks 20 --open
+# 3. Generate playlists with learning workflow
+th generate "moody indie folk" --tracks 15 --open
+# - Playlist opens in Apple Music automatically
+# - Listen and enjoy!
+# - Return to terminal to rate playlist
+# - System learns from your feedback
+
+# 4. Improve the system with your feedback
+th tune-prompt
+# - Aggregates your positive ratings
+# - Generates training examples
+# - Improves future query parsing
+
+# 5. Interactive mode for multiple playlists
 th interactive
+```
+
+## Learning & Feedback System
+
+### **Prompt Tuning Workflow**
+
+The system learns from your feedback to continuously improve:
+
+```bash
+# Check current training data quality
+th tune-prompt
+# Output shows:
+# ✅ Aggregated feedback to playlist_training_data.jsonl
+# ✅ Wrote prompt to llm_prompt.txt  
+# 🎉 LLM prompt tuning complete!
+
+# View training examples generated from your feedback
+cat llm_prompt.txt
+```
+
+### **Training Example Generation**
+
+When you rate playlists 4+ stars, the system creates training examples:
+
+```
+User: smelling her hair after a long time apart
+LLM: {"query_type": "general", "genres": ["acoustic", "folk"], "mood": "sentimental"}
+
+User: aggressively grinding out weights because you're angry  
+LLM: {"query_type": "general", "genres": ["rock", "hard rock"], "mood": "angry"}
+```
+
+### **Feedback Collection**
+
+Enhanced feedback collection with informed ratings:
+
+```bash
+# Generate playlist with auto-open
+th generate "chill electronic beats" --open
+
+# Workflow:
+# 1. Playlist generated and saved
+# 2. Opens automatically in Apple Music  
+# 3. Listen to evaluate quality
+# 4. Return to terminal for rating
+# 5. Provide overall rating (1-5 stars)
+# 6. Optionally rate individual tracks
+# 7. Comments help fine-tune recommendations
+```
+
+### **Quality Metrics**
+
+Track the quality of your training data:
+
+```python
+# Check training example quality
+from tonal_hortator.core.feedback.training_data_aggregator import TrainingDataAggregator
+from tonal_hortator.core.database import DatabaseManager
+
+db = DatabaseManager("music_library.db")
+aggregator = TrainingDataAggregator(db)
+aggregator.aggregate("training_data.jsonl")
+
+# View positive examples with rich parsing data
 ```
 
 ## Configuration System
@@ -131,7 +207,23 @@ llm:
   models:
     embedding: "nomic-embed-text:latest"
     query_parser: "llama3:8b"
-  max_tokens: 512
+  max_tokens: 1000
+  
+  # Query parsing improvements
+  query_parsing:
+    min_artist_name_length: 2
+    training_examples_path: "llm_prompt.txt"
+    
+# === FEEDBACK LEARNING ===
+feedback:
+  # Minimum rating for positive training examples
+  positive_rating_threshold: 4
+  
+  # Training data quality requirements
+  training:
+    require_genres: true
+    require_mood: false
+    min_examples: 3
 ```
 
 ### Environment Variable Overrides
@@ -291,29 +383,23 @@ ab_testing:
 ## CLI Commands
 
 ```bash
-# Generate playlists
-th generate "moody electronic" --open
-th generate "jazz for studying" --tracks 15 --similarity 0.4
+# Playlist generation with learning
+th generate "upbeat indie rock" --open              # Auto-open in Apple Music
+th generate "jazz for studying" --tracks 15         # Custom track count
+th generate "workout music" --similarity 0.4        # Adjust similarity threshold
 
-# Interactive mode
-th interactive
+# Learning and improvement
+th tune-prompt                                       # Update training from feedback
+th tune-prompt --auto-reload                        # Auto-reload LLM prompt
 
-# Embed tracks with adaptive batch sizing
-th embed                    # Auto-detected optimal batch size
-th embed --batch 200        # Manual batch size override
-th embed --workers 8        # Adjust worker processes
+# Interactive workflows
+th interactive                                       # Interactive playlist generation
+th feedback                                         # Manage feedback and preferences
 
-# Update specific track embeddings
-th update-embeddings "1,2,3" --batch 100
-th update-embeddings --file track_ids.txt
-
-# Complete workflow with adaptive performance
-th workflow music.csv --embed-batch 300 --workers 6
-
-# Feedback system
-th feedback --query "rock songs" --rating 5
-th set-preference max_playlist_length 25
-th feedback-stats
+# System management
+th embed                                            # Generate embeddings (auto-batch)
+th embed --batch 200                               # Manual batch size
+th yeet ~/Music/iTunes/iTunes\ Music\ Library.xml  # Complete rebuild
 ```
 
 ### Performance Tuning
@@ -332,77 +418,107 @@ th feedback-stats
 
 ## Python API
 
+### **Basic Usage with Learning**
+
 ```python
 from tonal_hortator import LocalPlaylistGenerator
-from tonal_hortator.core.config import get_config
+from tonal_hortator.core.feedback import FeedbackManager
 
-# Basic usage
+# Generate playlist
 generator = LocalPlaylistGenerator()
-tracks = generator.generate_playlist("workout songs", max_tracks=20)
-filepath = generator.save_playlist_m3u(tracks, "workout")
+tracks = generator.generate_playlist("melancholic indie", max_tracks=20)
 
-# Using configuration system
-config = get_config()
-defaults = config.playlist_defaults
+# Save and get feedback
+filepath = generator.save_playlist_m3u(tracks, "melancholic indie")
 
-# Generate playlist with config defaults
-tracks = generator.generate_playlist(
-    "chill electronic",
-    max_tracks=defaults['max_tracks'],
-    min_similarity=defaults['min_similarity']
+# Record feedback for learning
+feedback_manager = FeedbackManager()
+feedback_manager.record_playlist_feedback(
+    query="melancholic indie",
+    query_type="general", 
+    parsed_data={"genres": ["indie"], "mood": "melancholic"},
+    generated_tracks=tracks,
+    user_rating=5,
+    user_comments="Perfect vibe for rainy day coding"
 )
+```
 
-# Use custom configuration
-from tonal_hortator.core.config import ConfigurationManager
-custom_config = ConfigurationManager('config-production.yml')
-generator = LocalPlaylistGenerator()
+### **Training System Integration**
+
+```python
+from tonal_hortator.core.feedback.training_data_aggregator import TrainingDataAggregator
+from tonal_hortator.core.database import DatabaseManager
+
+# Aggregate feedback into training data
+db = DatabaseManager("music_library.db")
+aggregator = TrainingDataAggregator(db)
+aggregator.aggregate("custom_training.jsonl")
+
+# Generate improved prompt
+from tonal_hortator.core.llm.update_llm_prompt import generate_prompt_from_jsonl
+generate_prompt_from_jsonl("custom_training.jsonl", "improved_prompt.txt")
 ```
 
 ## Technical Implementation
 
-### Adaptive Batch Sizing Algorithm
+### **Learning System Architecture**
 
-The adaptive batch sizing system uses a multi-factor approach:
+The learning system consists of several interconnected components:
 
-```python
-from tonal_hortator.utils.loader import get_optimal_batch_size
-
-# Auto-detect optimal batch size
-optimal_size = get_optimal_batch_size(
-    base_size=500,      # Default batch size
-    memory_factor=0.1,  # Memory utilization factor
-    cpu_factor=0.5,     # CPU scaling factor
-    min_size=50,        # Minimum batch size
-    max_size=1000       # Maximum batch size
-)
+```
+User Feedback → Training Data → Prompt Tuning → Improved Parsing
+     ↑                                              ↓
+User Rating ← Playlist Generation ← Better Results ←┘
 ```
 
-**Resource Detection:**
-- **Memory**: Analyzes available RAM and adjusts batch size to prevent memory exhaustion
-- **CPU**: Scales batch size based on logical CPU cores for parallel processing
-- **Fallback**: Gracefully handles resource detection failures with sensible defaults
+**Components:**
+- **TrainingDataAggregator**: Converts feedback into training examples
+- **LLMQueryParser**: Uses training examples for few-shot learning  
+- **FeedbackManager**: Collects and validates user feedback
+- **ConfigurationManager**: Manages learning parameters
 
-**Performance Characteristics:**
-- **Memory usage**: ~1KB per track embedding
-- **Processing time**: Scales linearly with batch size
-- **Parallel efficiency**: Optimal with 4-8 worker processes
+### **Training Data Quality**
 
-### System Requirements
+The system tracks training example quality:
 
-**Minimum:**
-- 4GB RAM, 2 CPU cores
-- Batch size: 50-100 tracks
-- Workers: 2 processes
+```python
+# Quality metrics for training examples
+quality_factors = {
+    'has_genres': 2 points,      # Examples with genres are valuable
+    'has_mood': 1 point,         # Mood detection improves specificity  
+    'high_rating': 1 point,      # 5-star ratings indicate excellent results
+    'detailed_comments': 1 point # User comments provide context
+}
 
-**Recommended:**
-- 8GB RAM, 4-6 CPU cores  
-- Batch size: 500 tracks (auto-detected)
-- Workers: 4 processes
+# High-quality example (5 points):
+{
+    "input": "dusty desert rock",
+    "system_parsed": {
+        "query_type": "general",
+        "genres": ["rock", "desert rock"],  # +2 points
+        "mood": "melancholy"                # +1 point
+    },
+    "user_feedback": {
+        "rating": 5,                        # +1 point
+        "comments": "Perfect stoner rock vibe!"  # +1 point
+    },
+    "label": 1
+}
+```
 
-**High Performance:**
-- 16GB+ RAM, 8+ CPU cores
-- Batch size: 800-1000 tracks
-- Workers: 8-12 processes
+### **Adaptive Performance**
+
+Tonal Hortator automatically optimizes performance:
+
+**Batch Size Detection:**
+- Auto-detects optimal batch sizes (50-1000 tracks)
+- Adapts to available system memory and CPU cores
+- Graceful fallback for resource detection failures
+
+**System Requirements:**
+- **Minimum**: 4GB RAM, 2 cores, batch size 50-100
+- **Recommended**: 8GB RAM, 4-6 cores, batch size 500 (auto)
+- **High Performance**: 16GB+ RAM, 8+ cores, batch size 800-1000
 
 ## Feedback System
 
@@ -429,7 +545,51 @@ settings = fm.get_recommended_settings("similarity")
 
 ## Troubleshooting
 
-### Performance Issues
+### **Learning System Issues**
+
+**Empty training prompts:**
+```bash
+# Check feedback data
+python -c "
+import sqlite3
+conn = sqlite3.connect('music_library.db')
+cursor = conn.cursor()
+cursor.execute('SELECT COUNT(*) FROM user_feedback WHERE user_rating >= 4')
+print(f'Positive feedback examples: {cursor.fetchone()[0]}')
+conn.close()
+"
+
+# Generate more feedback by rating playlists
+th generate "your favorite genre" --open
+# Rate 4+ stars to create training data
+```
+
+**Poor parsing quality:**
+```bash
+# Check training example quality
+th tune-prompt
+cat llm_prompt.txt  # Review generated examples
+
+# Add more diverse, high-quality ratings
+th generate "jazz for focus" --open
+th generate "upbeat workout songs" --open
+th generate "melancholic indie folk" --open
+# Rate each 4+ stars with detailed comments
+```
+
+**Apple Music not opening:**
+```bash
+# Check macOS requirements
+which open  # Should return /usr/bin/open
+
+# Test manual opening
+open -a Music "playlists/Your_Playlist.m3u"
+
+# Check file permissions
+ls -la playlists/
+```
+
+### **Performance Issues**
 
 **Slow embedding generation:**
 ```bash
@@ -452,31 +612,19 @@ th embed --batch 50 --workers 1
 python -c "import psutil; print(f'Available RAM: {psutil.virtual_memory().available / 1024**3:.1f}GB')"
 ```
 
-**High CPU usage:**
+### **Configuration Issues**
+
+**Training examples not loading:**
 ```bash
-# Reduce worker processes
-th embed --workers 2
+# Verify prompt file exists
+ls -la llm_prompt.txt
 
-# Use smaller batches with more workers
-th embed --batch 200 --workers 4
+# Check file content
+head -10 llm_prompt.txt
+
+# Manually regenerate if needed
+th tune-prompt
 ```
-
-### Batch Size Optimization
-
-**For large libraries (10,000+ tracks):**
-- Use auto-detection: `th embed`
-- Monitor progress and adjust if needed
-- Consider running during off-peak hours
-
-**For small libraries (< 1,000 tracks):**
-- Manual batch size: `th embed --batch 200`
-- Faster completion with smaller batches
-
-**For debugging:**
-- Minimal batch size: `th embed --batch 50 --workers 1`
-- Easier to track progress and identify issues
-
-### Configuration Issues
 
 **Config file not found:**
 ```bash
@@ -502,16 +650,86 @@ grep -A 5 "environment_overrides:" config.yml
 TH_PLAYLIST_DEFAULT_MAX_TRACKS=25 th generate "test query"
 ```
 
-**A/B testing variants not applying:**
-```python
-# Check variant configuration
-from tonal_hortator.core.config import get_config
-config = get_config()
-variants = config.get_section('ab_testing').get('variants', {})
-print("Available variants:", list(variants.keys()))
+### **Advanced Learning Commands**
 
-# Manually set variant
-config.set_variant('conservative')
+```bash
+# Training data management
+th tune-prompt --out custom_training.jsonl         # Custom training data file
+th tune-prompt --prompt custom_prompt.txt          # Custom prompt file
+
+# Feedback analysis
+th feedback                                         # Interactive feedback management
+python -m tonal_hortator.core.feedback.feedback_report  # Detailed feedback analysis
+```
+
+## Examples
+
+### **Learning Workflow Example**
+
+```bash
+# Start with a vague query
+$ th generate "music for coding" --open
+
+# System generates playlist, opens in Apple Music
+# After listening, you rate it 2 stars with comment:
+# "Too upbeat, I prefer ambient/focus music"
+
+# Try again with more specific query
+$ th generate "ambient focus music for programming" --open  
+
+# This time it's perfect! Rate 5 stars:
+# "Exactly what I wanted - calm, atmospheric, helps concentration"
+
+# Update the system with your feedback
+$ th tune-prompt
+✅ Aggregated feedback to playlist_training_data.jsonl
+📚 Loaded 1 new training example for query parsing
+🎉 LLM prompt tuning complete!
+
+# Now similar queries work much better:
+$ th generate "music for deep work"
+🧠 Parsed intent: {'query_type': 'general', 'genres': ['ambient'], 'mood': 'focused'}
+```
+
+### **Advanced Usage**
+
+```python
+# Custom learning pipeline
+from tonal_hortator.core.config import get_config
+from tonal_hortator.core.playlist.playlist_generator import LocalPlaylistGenerator
+from tonal_hortator.core.feedback import FeedbackManager
+
+# Configure for learning
+config = get_config()
+config.set("feedback.positive_rating_threshold", 4)
+
+# Generate with A/B testing
+generator = LocalPlaylistGenerator()
+config.set_variant("discovery")  # Lower similarity, more exploration
+
+# Generate experimental playlist
+tracks = generator.generate_playlist("experimental electronic", max_tracks=10)
+
+# Collect detailed feedback
+fm = FeedbackManager()
+fm.record_playlist_feedback(
+    query="experimental electronic",
+    query_type="general",
+    parsed_data={"genres": ["electronic", "experimental"], "mood": "adventurous"},
+    generated_tracks=tracks,
+    user_rating=4,
+    user_comments="Great discoveries, but some tracks too harsh",
+    similarity_threshold=0.2,
+    search_breadth=20
+)
+
+# Apply learning
+fm.record_query_learning(
+    original_query="experimental electronic",
+    llm_parsed_result={"genres": ["electronic", "experimental"], "mood": "adventurous"},
+    user_correction={"genres": ["electronic", "ambient"], "mood": "exploratory"},
+    feedback_score=0.8
+)
 ```
 
 ## Development
@@ -520,8 +738,20 @@ config.set_variant('conservative')
 # Install dev dependencies
 pip install -r requirements-dev.txt
 
-# Run tests
+# Run tests including learning system
 python -m tonal_hortator.tests.run_tests
+python -m tonal_hortator.tests.test_feedback_manager
+python -m tonal_hortator.tests.test_llm_query_parser
+
+# Test training data generation
+python -c "
+from tonal_hortator.core.feedback.training_data_aggregator import TrainingDataAggregator
+from tonal_hortator.core.database import DatabaseManager
+db = DatabaseManager('music_library.db')
+agg = TrainingDataAggregator(db)
+agg.aggregate('test_training.jsonl')
+print('Training data generated successfully')
+"
 
 # Quality checks
 black .
@@ -534,15 +764,23 @@ mypy tonal_hortator/
 
 ```
 tonal_hortator/
-├── config.yml              # Main configuration file
-├── core/                    # Core functionality
-│   ├── config.py           # Configuration management
-│   ├── embeddings.py       # Ollama embedding service
-│   ├── playlist_generator.py # Playlist generation
-│   └── feedback/           # Feedback system
-├── cli/                    # Command-line interface
-├── utils/                  # Utilities (Apple Music, etc.)
-└── tests/                  # Unit tests
+├── config.yml                    # Main configuration file
+├── llm_prompt.txt                # Auto-generated training examples
+├── playlist_training_data.jsonl  # Feedback aggregation output
+├── core/
+│   ├── config.py                # Configuration management
+│   ├── embeddings/              # Ollama embedding service
+│   ├── playlist/                # Playlist generation & filtering
+│   ├── feedback/                # Learning & feedback system
+│   │   ├── feedback_manager.py  # Feedback collection
+│   │   ├── training_data_aggregator.py  # Learning data generation
+│   │   └── feedback_validator.py       # Input validation
+│   └── llm/                     # LLM integration
+│       ├── llm_client.py        # Ollama client
+│       └── llm_query_parser.py  # Intelligent query parsing
+├── cli/                         # Command-line interface
+├── utils/                       # Utilities (Apple Music, etc.)
+└── tests/                       # Unit tests
 ```
 
 ## License
