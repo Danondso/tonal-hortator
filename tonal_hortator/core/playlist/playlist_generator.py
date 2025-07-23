@@ -264,19 +264,14 @@ class LocalPlaylistGenerator:
                     )
                     original_score = track.similarity_score or 0
                     adjusted_score = max(0.0, min(1.0, original_score + adjustment))
-                    # Create updated track with new similarity score
-                    track_dict["similarity_score"] = adjusted_score
-                    track_dict["feedback_adjusted"] = adjustment
-                    track = Track.from_dict(track_dict)
+                    # Update track in-place for better performance
+                    track.similarity_score = adjusted_score
+                    track.feedback_adjusted = adjustment
             # 🧮 Summarize adjustment impact
             adjustments = [
-                (
-                    getattr(track, "feedback_adjusted", 0)
-                    if hasattr(track, "feedback_adjusted")
-                    else 0
-                )
+                track.feedback_adjusted
                 for track in results
-                if hasattr(track, "feedback_adjusted")
+                if track.feedback_adjusted is not None
             ]
             logger.info(f"🔄 Adjustments: {adjustments}")
             if adjustments:
@@ -288,17 +283,13 @@ class LocalPlaylistGenerator:
                 logger.info(
                     f"📈 Feedback summary: avg_adj={avg_adj:.3f}, +{pos_count}, -{neg_count}, max={max_adj:.3f}, min={min_adj:.3f}"
                 )
-                top_positive = max(
-                    results, key=lambda t: getattr(t, "feedback_adjusted", 0)
-                )
-                top_negative = min(
-                    results, key=lambda t: getattr(t, "feedback_adjusted", 0)
+                top_positive = max(results, key=lambda t: t.feedback_adjusted or 0)
+                top_negative = min(results, key=lambda t: t.feedback_adjusted or 0)
+                logger.info(
+                    f"🔺 Most boosted: {top_positive.name} by {top_positive.artist} (+{top_positive.feedback_adjusted or 0:.2f})"
                 )
                 logger.info(
-                    f"🔺 Most boosted: {top_positive.name} by {top_positive.artist} (+{getattr(top_positive, 'feedback_adjusted', 0):.2f})"
-                )
-                logger.info(
-                    f"🔻 Most penalized: {top_negative.name} by {top_negative.artist} ({getattr(top_negative, 'feedback_adjusted', 0):.2f})"
+                    f"🔻 Most penalized: {top_negative.name} by {top_negative.artist} ({top_negative.feedback_adjusted or 0:.2f})"
                 )
             # 6. Filter by similarity threshold and deduplicate using PlaylistDeduplicator
             filtered_results = self.deduplicator.filter_and_deduplicate_results(
