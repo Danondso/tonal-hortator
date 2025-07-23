@@ -1,4 +1,10 @@
+import logging
+
 import ollama
+
+logger = logging.getLogger(__name__)
+
+LLM_PROMPT_PATH = "llm_prompt.txt"
 
 
 class LocalLLMClient:
@@ -6,8 +12,12 @@ class LocalLLMClient:
     Lightweight wrapper around local Ollama for generating structured responses
     """
 
-    def __init__(self, model_name: str = "llama3:8b"):
+    def __init__(
+        self, model_name: str = "llama3:8b", prompt_path: str = LLM_PROMPT_PATH
+    ):
         self.model_name = model_name
+        self.prompt_path = prompt_path
+        self.load_prompt()
 
     def generate(self, prompt: str, max_tokens: int = 512) -> str:
         """
@@ -32,3 +42,19 @@ class LocalLLMClient:
             return response["message"]["content"]  # type: ignore
         except Exception as e:
             raise RuntimeError(f"Failed to generate response from LLM: {e}")
+
+    def load_prompt(self) -> None:
+        """Load prompt from file, handling case where file doesn't exist."""
+        try:
+            with open(self.prompt_path, "r") as f:
+                self.prompt = f.read()
+                logger.debug(f"Loaded prompt from {self.prompt_path}")
+        except FileNotFoundError:
+            self.prompt = ""
+            logger.warning(
+                f"Prompt file not found: {self.prompt_path}. Using empty prompt."
+            )
+
+    def reload_prompt(self) -> None:
+        self.load_prompt()
+        print("Prompt reloaded!")

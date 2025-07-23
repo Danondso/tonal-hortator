@@ -492,3 +492,82 @@ SELECT * FROM tracks WHERE id IN ({placeholders}) ORDER BY id
 DELETE_TRACK_EMBEDDINGS_BY_IDS_TEMPLATE = """
 DELETE FROM track_embeddings WHERE track_id IN ({placeholders})
 """
+
+# Training Data Aggregator Queries
+GET_USER_FEEDBACK_FOR_TRAINING = """
+SELECT query, query_type, parsed_genres, parsed_mood, generated_tracks, user_rating, user_actions
+FROM user_feedback
+"""
+
+# Embedding Management Queries
+DELETE_ALL_TRACK_EMBEDDINGS = """
+DELETE FROM track_embeddings
+"""
+
+GET_TRACKS_WITH_MUSICAL_ANALYSIS = """
+SELECT id, name, artist, album, genre, bpm, musical_key, key_scale, mood
+FROM tracks
+WHERE bpm IS NOT NULL OR musical_key IS NOT NULL OR mood IS NOT NULL
+LIMIT 1
+"""
+
+# Feedback Service Queries
+INSERT_FEEDBACK_SIMPLE = """
+INSERT INTO feedback (track_id, feedback, adjustment, timestamp, query_context)
+VALUES (?, ?, ?, ?, ?)
+"""
+
+# Test/Utility Queries
+GET_BASIC_TRACK_INFO = """
+SELECT id, name, artist FROM tracks
+"""
+
+GET_TRACK_INFO_WITH_GENRE = """
+SELECT id, name, artist, genre FROM tracks
+"""
+
+GET_LIMITED_TRACK_IDS = """
+SELECT id FROM tracks LIMIT ?
+"""
+
+GET_TRACK_BY_NAME = """
+SELECT * FROM tracks WHERE name = ?
+"""
+
+GET_TABLE_COUNT = """
+SELECT COUNT(*) FROM {table_name}
+"""
+
+GET_TRACK_NAME_BY_ID = """
+SELECT name FROM tracks WHERE id = ?
+"""
+
+GET_TRACK_NAME_ARTIST_BY_ID = """
+SELECT name, artist FROM tracks WHERE id = ?
+"""
+
+# Schema inspection queries
+GET_TABLE_NAMES = """
+SELECT name FROM sqlite_master WHERE type='table'
+"""
+
+GET_ALL_USER_FEEDBACK_BY_QUERY = """
+SELECT * FROM user_feedback WHERE query = ?
+"""
+
+# Statistics queries for tests
+GET_USER_FEEDBACK_COUNT = """
+SELECT COUNT(*) FROM user_feedback
+"""
+
+GET_USER_PREFERENCES_COUNT = """
+SELECT COUNT(*) FROM user_preferences
+"""
+
+GET_TRACK_RATINGS_COUNT = """
+SELECT COUNT(*) FROM track_ratings
+"""
+
+GET_QUERY_LEARNING_COUNT = """
+SELECT COUNT(*) FROM query_learning
+"""

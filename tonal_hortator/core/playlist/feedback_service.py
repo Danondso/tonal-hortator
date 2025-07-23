@@ -13,6 +13,7 @@ from typing import Protocol
 
 from tonal_hortator.core.config import get_config
 from tonal_hortator.core.database import GET_FEEDBACK_BY_TRACK_ID
+from tonal_hortator.core.database.queries import INSERT_FEEDBACK_SIMPLE
 
 
 class FeedbackService(Protocol):
@@ -67,10 +68,7 @@ class PlaylistFeedbackService:
         conn = sqlite3.connect(self.db_path)
         cur = conn.cursor()
         cur.execute(
-            """
-            INSERT INTO feedback (track_id, feedback, adjustment, timestamp, query_context)
-            VALUES (?, ?, ?, ?, ?)
-        """,
+            INSERT_FEEDBACK_SIMPLE,
             (track_id, feedback, adjustment, timestamp, query_context),
         )
         conn.commit()
