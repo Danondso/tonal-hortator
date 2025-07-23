@@ -410,31 +410,18 @@ class TestOllamaEmbeddingService(unittest.TestCase):
 
         service = OllamaEmbeddingService()
 
-        # Test with play count
-        track_data = {
-            "name": "Popular Song",
-            "artist": "Popular Artist",
-            "play_count": 150,
-        }
-        result = service.create_track_embedding_text(Track.from_dict(track_data))
-        self.assertIn("frequently played", result)
-
-        # Test with track rating
+        # Test with engagement data
         track_data = {
             "name": "Highly Rated Song",
             "artist": "Great Artist",
-            "track_rating": 4.8,
-        }
-        result = service.create_track_embedding_text(Track.from_dict(track_data))
-        self.assertIn("highly rated", result)
-
-        # Test with average rating
-        track_data = {
-            "name": "User Favorite",
-            "artist": "Beloved Artist",
+            "play_count": 150,
             "avg_rating": 4.7,
         }
+
         result = service.create_track_embedding_text(Track.from_dict(track_data))
+
+        # Should contain engagement indicators
+        self.assertIn("frequently played", result)
         self.assertIn("user favorite", result)
 
     @patch("tonal_hortator.core.embeddings.embeddings.ollama.Client")
@@ -493,29 +480,6 @@ class TestOllamaEmbeddingService(unittest.TestCase):
 
         service = OllamaEmbeddingService()
 
-        # Test track_rating categories
-        track_rating_cases = [
-            (4.8, "highly rated"),
-            (4.2, "well rated"),
-            (3.5, "moderately rated"),
-            (1.5, "poorly rated"),
-            (2.5, None),  # Should not add rating text for middle range
-        ]
-
-        for rating, expected_text in track_rating_cases:
-            track_data = {
-                "name": "Test Song",
-                "artist": "Test Artist",
-                "track_rating": rating,
-            }
-            result = service.create_track_embedding_text(Track.from_dict(track_data))
-
-            if expected_text:
-                self.assertIn(expected_text, result)
-            else:
-                # Should not contain any rating related text
-                self.assertNotIn("rated", result)
-
         # Test avg_rating categories
         avg_rating_cases = [
             (4.8, "user favorite"),
@@ -562,7 +526,6 @@ class TestOllamaEmbeddingService(unittest.TestCase):
             "genre": "Rock",
             "year": "2023",
             "play_count": 200,
-            "track_rating": 4.9,
             "avg_rating": 4.8,
         }
 
@@ -570,7 +533,6 @@ class TestOllamaEmbeddingService(unittest.TestCase):
 
         # Should contain all engagement indicators
         self.assertIn("frequently played", result)
-        self.assertIn("highly rated", result)
         self.assertIn("user favorite", result)
 
         # Should contain basic metadata

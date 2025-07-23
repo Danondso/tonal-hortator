@@ -66,6 +66,7 @@ class PlaylistFilter:
                 boosted_score = min(max_score, similarity_score + genre_boost_score)
                 track_dict = track.to_dict()
                 track_dict["similarity_score"] = boosted_score
+                track_dict["genre_boosted"] = True
                 boosted_track = Track.from_dict(track_dict)
                 genre_matches.append(boosted_track)
             else:

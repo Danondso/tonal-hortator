@@ -1260,20 +1260,26 @@ class TestFeedbackManager(unittest.TestCase):
 
             # Validate recent feedback entries (they are tuples, not dictionaries)
             for entry in recent_feedback:
-            self.assertIsInstance(
-                entry, tuple, "Each recent feedback entry should be tuple"
-            )
-            self.assertGreaterEqual(
-                len(entry), 15, "Each feedback tuple should have at least 15 columns"
-            )
+                self.assertIsInstance(
+                    entry, tuple, "Each recent feedback entry should be tuple"
+                )
+                self.assertGreaterEqual(
+                    len(entry),
+                    15,
+                    "Each feedback tuple should have at least 15 columns",
+                )
 
-            # Validate key fields in the tuple (based on user_feedback table structure)
-            # entry[0] = id, entry[1] = query, entry[2] = query_type, entry[8] = user_rating, entry[15] = created_at
-            self.assertIsInstance(entry[1], str, "Query should be string")
-            self.assertIsInstance(entry[2], str, "Query type should be string")
-            if entry[8] is not None:  # user_rating can be None
-                self.assertIsInstance(entry[8], int, "User rating should be integer")
-            self.assertIsInstance(entry[15], str, "Created timestamp should be string")
+                # Validate key fields in the tuple (based on user_feedback table structure)
+                # entry[0] = id, entry[1] = query, entry[2] = query_type, entry[8] = user_rating, entry[15] = created_at
+                self.assertIsInstance(entry[1], str, "Query should be string")
+                self.assertIsInstance(entry[2], str, "Query type should be string")
+                if entry[8] is not None:  # user_rating can be None
+                    self.assertIsInstance(
+                        entry[8], int, "User rating should be integer"
+                    )
+                self.assertIsInstance(
+                    entry[15], str, "Created timestamp should be string"
+                )
 
     def test_get_feedback_stats_empty_database(self) -> None:
         """Test getting feedback stats from empty database"""

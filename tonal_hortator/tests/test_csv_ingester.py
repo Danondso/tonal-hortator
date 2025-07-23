@@ -45,8 +45,8 @@ def test_insert_new_tracks() -> None:
         cursor.execute(TEST_GET_TRACK, (1,))
         result = cursor.fetchone()
         assert result is not None
-        assert result[1] == "Test Song 1"  # name column
-        assert result[2] == "Test Artist 1"  # artist column
+        assert result[0] == "Test Song 1"  # name column
+        assert result[1] == "Test Artist 1"  # artist column
 
     finally:
         import os

@@ -71,6 +71,7 @@ class Track:
     avg_rating: Optional[float] = None
     rating_count: Optional[int] = None
     similarity_score: Optional[float] = None
+    genre_boosted: Optional[bool] = None
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Track":

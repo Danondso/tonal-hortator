@@ -126,11 +126,11 @@ class TestLLMQueryParser(unittest.TestCase):
         # Mock response with count
         mock_response = {
             "query_type": "general",
+            "genres": ["jazz"],
             "artist": None,
             "reference_artist": None,
-            "genres": ["jazz"],
             "mood": None,
-            "count": 15,
+            "track_count": 15,
             "unplayed": False,
             "vague": False,
         }

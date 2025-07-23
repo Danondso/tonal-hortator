@@ -148,10 +148,10 @@ class PlaylistDeduplicator:
 
         # Assign weights proportional to similarity score (shifted to be >=0)
         min_similarity_score = min(
-            (t.get("similarity_score", 0) for t in candidates), default=0
+            (getattr(t, "similarity_score", 0) for t in candidates), default=0
         )
         weights = [
-            max(0.0, t.get("similarity_score", 0) - min_similarity_score + 1e-6)
+            max(0.0, getattr(t, "similarity_score", 0) - min_similarity_score + 1e-6)
             for t in candidates
         ]
 
@@ -169,7 +169,8 @@ class PlaylistDeduplicator:
                 pick = rng.choice(candidates)
 
             pick_id = (
-                pick.get("id") or f"{pick.get('name', '')}-{pick.get('artist', '')}"
+                getattr(pick, "id", None)
+                or f"{getattr(pick, 'name', '')}-{getattr(pick, 'artist', '')}"
             )
             if pick_id not in selected:
                 final_tracks.append(pick)
@@ -183,12 +184,18 @@ class PlaylistDeduplicator:
             remaining_candidates = [
                 t
                 for t in candidates
-                if (t.get("id") or f"{t.get('name', '')}-{t.get('artist', '')}")
+                if (
+                    getattr(t, "id", None)
+                    or f"{getattr(t, 'name', '')}-{getattr(t, 'artist', '')}"
+                )
                 not in selected
             ]
             rng.shuffle(remaining_candidates)
             for t in remaining_candidates:
-                t_id = t.get("id") or f"{t.get('name', '')}-{t.get('artist', '')}"
+                t_id = (
+                    getattr(t, "id", None)
+                    or f"{getattr(t, 'name', '')}-{getattr(t, 'artist', '')}"
+                )
                 if t_id not in selected:
                     final_tracks.append(t)
                     selected.add(t_id)

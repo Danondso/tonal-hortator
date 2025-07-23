@@ -11,6 +11,7 @@ from unittest.mock import Mock, patch
 import numpy as np
 import pytest
 
+from tonal_hortator.core.models import Track
 from tonal_hortator.core.playlist.playlist_generator import LocalPlaylistGenerator
 
 
@@ -198,8 +199,6 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
     ) -> None:
         """Test artist randomization when query is not vague"""
-        from tonal_hortator.core.models import Track
-
         generator = LocalPlaylistGenerator()
 
         tracks = [
@@ -221,8 +220,6 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
     ) -> None:
         """Test artist randomization when query is vague"""
-        from tonal_hortator.core.models import Track
-
         generator = LocalPlaylistGenerator()
 
         tracks = [
@@ -251,8 +248,6 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
     ) -> None:
         """Test smart name deduplication"""
-        from tonal_hortator.core.models import Track
-
         generator = LocalPlaylistGenerator()
 
         tracks = [
@@ -316,8 +311,12 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         )
         # Return real list of dicts for similarity_search
         mock_embedding_service.similarity_search.return_value = [
-            {"id": 1, "name": "Song1", "artist": "Artist1", "similarity_score": 0.8},
-            {"id": 2, "name": "Song2", "artist": "Artist2", "similarity_score": 0.7},
+            Track.from_dict(
+                {"id": 1, "name": "Song1", "artist": "Artist1", "similarity_score": 0.8}
+            ),
+            Track.from_dict(
+                {"id": 2, "name": "Song2", "artist": "Artist2", "similarity_score": 0.7}
+            ),
         ]
 
         generator = LocalPlaylistGenerator()
@@ -330,8 +329,6 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
     ) -> None:
         """Test artist diversity enforcement"""
-        from tonal_hortator.core.models import Track
-
         generator = LocalPlaylistGenerator()
 
         # Create test tracks with multiple tracks from the same artist
@@ -395,8 +392,6 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
     ) -> None:
         """Test artist distribution"""
-        from tonal_hortator.core.models import Track
-
         generator = LocalPlaylistGenerator()
 
         # Create test tracks with different artists
