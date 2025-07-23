@@ -615,6 +615,256 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
             "Electronic Playlist",
         )
 
+    @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
+    @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
+    def test_playlist_preview_matches_export_count(
+        self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
+    ) -> None:
+        """Test that playlist preview count matches exported file count.
+
+        This test validates that the bug where CLI showed X tracks but only Y tracks
+        were saved to the file has been fixed. Both should use the same deduplication method.
+        """
+        # Setup mocks
+        mock_embedding_service = Mock()
+        mock_embedding_service_class.return_value = mock_embedding_service
+
+        mock_track_embedder = Mock()
+        mock_track_embedder_class.return_value = mock_track_embedder
+
+        # Create generator instance
+        generator = LocalPlaylistGenerator()
+
+        # Create test tracks with similarity scores
+        mock_tracks = [
+            Track(
+                id=1,
+                name="Desert Highway",
+                artist="Desert Rock Band",
+                album="Desert Album",
+                genre="Rock",
+                location="/path/to/track1.mp3",
+                similarity_score=0.95,
+            ),
+            Track(
+                id=2,
+                name="Sandstorm",
+                artist="Desert Rock Band",
+                album="Desert Album",
+                genre="Rock",
+                location="/path/to/track2.mp3",
+                similarity_score=0.92,
+            ),
+            Track(
+                id=3,
+                name="Cactus Blues",
+                artist="Different Artist",
+                album="Different Album",
+                genre="Blues",
+                location="/path/to/track3.mp3",
+                similarity_score=0.88,
+            ),
+            Track(
+                id=4,
+                name="Mesa Drive",
+                artist="Desert Rock Band",
+                album="Desert Album",
+                genre="Rock",
+                location="/path/to/track4.mp3",
+                similarity_score=0.85,
+            ),
+            Track(
+                id=5,
+                name="Dune Rider",
+                artist="Another Artist",
+                album="Another Album",
+                genre="Electronic",
+                location="/path/to/track5.mp3",
+                similarity_score=0.82,
+            ),
+        ]
+
+        # Test parameters
+        max_tracks = 3
+        min_similarity = 0.3
+
+        # Test the internal deduplication method directly
+        # This simulates what happens during preview
+        preview_tracks = generator._filter_and_deduplicate_results(
+            mock_tracks, min_similarity, max_tracks, False, 0.5
+        )
+
+        # Test the external deduplicator method (the old buggy path)
+        # This simulates what was happening during export
+        # Pass the same callback functions that the internal method uses
+        export_tracks = generator.deduplicator.filter_and_deduplicate_results(
+            mock_tracks,
+            min_similarity,
+            max_tracks,
+            False,
+            0.5,
+            sample_with_randomization=generator._sample_with_randomization,
+            smart_name_deduplication=generator._smart_name_deduplication,
+            enforce_artist_diversity=generator._enforce_artist_diversity,
+            distribute_artists=generator._distribute_artists,
+            logger=generator.logger if hasattr(generator, "logger") else None,
+        )
+
+        # The key assertion: both methods should return the same number of tracks
+        self.assertEqual(
+            len(preview_tracks),
+            len(export_tracks),
+            f"Preview count ({len(preview_tracks)}) should match export count ({len(export_tracks)})",
+        )
+
+        # Additional validation: both should respect max_tracks
+        self.assertLessEqual(
+            len(preview_tracks),
+            max_tracks,
+            f"Preview should not exceed max_tracks ({max_tracks})",
+        )
+        self.assertLessEqual(
+            len(export_tracks),
+            max_tracks,
+            f"Export should not exceed max_tracks ({max_tracks})",
+        )
+
+        # Verify that all returned tracks are from the input set and unique
+        input_ids = {track.id for track in mock_tracks}
+        preview_ids = {track.id for track in preview_tracks}
+        export_ids = {track.id for track in export_tracks}
+        self.assertTrue(
+            preview_ids.issubset(input_ids), "Preview tracks must be from input set"
+        )
+        self.assertTrue(
+            export_ids.issubset(input_ids), "Export tracks must be from input set"
+        )
+        self.assertEqual(
+            len(preview_ids), len(preview_tracks), "Preview tracks must be unique"
+        )
+        self.assertEqual(
+            len(export_ids), len(export_tracks), "Export tracks must be unique"
+        )
+
+        # Verify that both methods return some tracks (not empty)
+        self.assertGreater(len(preview_tracks), 0, "Preview should return some tracks")
+        self.assertGreater(len(export_tracks), 0, "Export should return some tracks")
+
+        # Additional validation: both should return exactly max_tracks (since we have enough tracks)
+        self.assertEqual(
+            len(preview_tracks),
+            max_tracks,
+            f"Preview should return exactly {max_tracks} tracks",
+        )
+        self.assertEqual(
+            len(export_tracks),
+            max_tracks,
+            f"Export should return exactly {max_tracks} tracks",
+        )
+
+    @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
+    @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
+    def test_playlist_generation_consistency_with_different_parameters(
+        self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
+    ) -> None:
+        """Test playlist generation consistency across different parameter combinations."""
+
+        # Setup mocks
+        mock_embedding_service = Mock()
+        mock_embedding_service_class.return_value = mock_embedding_service
+
+        mock_track_embedder = Mock()
+        mock_track_embedder_class.return_value = mock_track_embedder
+
+        # Mock the track embedder methods that are called during playlist generation
+        mock_track_embedder.get_all_embeddings.return_value = (
+            [],
+            [],
+        )  # Empty embeddings and track data
+        mock_track_embedder.get_tracks_without_embeddings.return_value = []
+
+        # Create generator instance
+        generator = LocalPlaylistGenerator()
+
+        # Create a larger set of mock tracks for more realistic testing
+        mock_tracks = []
+        for i in range(20):
+            mock_tracks.append(
+                Track(
+                    id=i + 1,
+                    name=f"Track {i + 1}",
+                    artist=f"Artist {(i % 5) + 1}",  # 5 different artists
+                    album=f"Album {(i % 3) + 1}",  # 3 different albums
+                    genre=f"Genre {(i % 4) + 1}",  # 4 different genres
+                    location=f"/path/to/track{i + 1}.mp3",
+                    similarity_score=0.9 - (i * 0.02),  # Decreasing similarity scores
+                )
+            )
+
+        mock_embedding_service.similarity_search.return_value = mock_tracks
+
+        # Test different parameter combinations
+        test_cases = [
+            {"max_tracks": 5, "min_similarity": 0.3, "search_breadth": 10},
+            {"max_tracks": 10, "min_similarity": 0.5, "search_breadth": 15},
+            {"max_tracks": 3, "min_similarity": 0.7, "search_breadth": 5},
+            {"max_tracks": 15, "min_similarity": 0.2, "search_breadth": 20},
+        ]
+
+        for params in test_cases:
+            with self.subTest(**params):
+                # Generate playlist with current parameters
+                result = generator.generate_playlist(
+                    query="test query",
+                    max_tracks=int(params["max_tracks"]),
+                    min_similarity=params["min_similarity"],
+                    search_breadth_factor=int(params["search_breadth"]),
+                )
+
+                # Verify result respects max_tracks
+                self.assertLessEqual(
+                    len(result),
+                    params["max_tracks"],
+                    f"Result length {len(result)} should not exceed max_tracks {params['max_tracks']}",
+                )
+
+                # Verify all tracks meet minimum similarity
+                for track in result:
+                    self.assertGreaterEqual(
+                        track.similarity_score or 0,
+                        params["min_similarity"],
+                        f"Track {track.id} similarity {track.similarity_score} should be >= {params['min_similarity']}",
+                    )
+
+                # Test internal vs external deduplication consistency
+                preview_tracks = generator._filter_and_deduplicate_results(
+                    mock_tracks,
+                    params["min_similarity"],
+                    int(params["max_tracks"]),
+                    False,
+                    0.5,
+                )
+
+                export_tracks = generator.deduplicator.filter_and_deduplicate_results(
+                    mock_tracks,
+                    params["min_similarity"],
+                    int(params["max_tracks"]),
+                    False,
+                    0.5,
+                    sample_with_randomization=generator._sample_with_randomization,
+                    smart_name_deduplication=generator._smart_name_deduplication,
+                    enforce_artist_diversity=generator._enforce_artist_diversity,
+                    distribute_artists=generator._distribute_artists,
+                    logger=generator.logger if hasattr(generator, "logger") else None,
+                )
+
+                # Both should return the same count
+                self.assertEqual(
+                    len(preview_tracks),
+                    len(export_tracks),
+                    f"Preview/export count mismatch for params {params}",
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

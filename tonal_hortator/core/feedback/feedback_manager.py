@@ -30,6 +30,7 @@ from tonal_hortator.core.database import (
     DatabaseManager,
 )
 from tonal_hortator.core.feedback.feedback_validator import FeedbackValidator
+from tonal_hortator.core.models import Track
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +53,7 @@ class FeedbackManager:
         query: str,
         query_type: str,
         parsed_data: Dict[str, Any],
-        generated_tracks: List[Dict[str, Any]],
+        generated_tracks: List[Track],
         user_rating: Optional[int] = None,
         user_comments: Optional[str] = None,
         user_actions: Optional[List[str]] = None,
@@ -130,9 +131,7 @@ class FeedbackManager:
             parsed_mood = parsed_data.get("mood")
 
             # Extract track IDs
-            track_ids = [
-                track.get("id") for track in generated_tracks if track.get("id")
-            ]
+            track_ids = [track.id for track in generated_tracks if track.id]
             generated_tracks_json = json.dumps(track_ids)
 
             # Prepare user actions
@@ -497,23 +496,17 @@ class FeedbackManager:
     def _get_itunes_score(self, track: dict) -> float:
         score = 0.0
         play_count = track.get("play_count", 0)
-        rating = track.get("rating", 0)
-        skip_count = track.get("skip_count", 0)
+        avg_rating = track.get("avg_rating", 0)
 
-        if play_count > 50:
+        if play_count and play_count > 50:
             score += 0.1
-        elif play_count > 20:
+        elif play_count and play_count > 20:
             score += 0.05
 
-        if rating >= 80:
+        if avg_rating and avg_rating >= 4.0:
             score += 0.1
-        elif rating >= 60:
+        elif avg_rating and avg_rating >= 3.0:
             score += 0.05
-
-        if skip_count > 25:
-            score -= 0.1
-        elif skip_count > 10:
-            score -= 0.05
 
         return score
 
