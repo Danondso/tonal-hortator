@@ -28,6 +28,7 @@ class LLMQueryParser:
 
         self.model_name = model_name
         self.client = LocalLLMClient(model_name)
+        self.training_examples = self._load_training_examples()
 
     def parse(self, query: str) -> LLMQueryResult:
         prompt = self._build_prompt(query)
@@ -37,6 +38,40 @@ class LLMQueryParser:
         response = self.client.generate(prompt, max_tokens=max_tokens)
         parsed_dict = self._extract_json(response)
         return LLMQueryResult.from_dict(parsed_dict)
+
+    def _load_training_examples(self) -> str:
+        """Load training examples from the prompt tuning file."""
+        try:
+            with open("llm_prompt.txt", "r", encoding="utf-8") as f:
+                examples = f.read().strip()
+                if examples:
+                    logger.info(
+                        f"📚 Loaded {examples.count('User:')} training examples for query parsing"
+                    )
+                    return examples
+                else:
+                    logger.warning("⚠️  llm_prompt.txt exists but is empty")
+                    return ""
+        except FileNotFoundError:
+            logger.warning(
+                "⚠️  llm_prompt.txt not found - query parsing will use base instructions only"
+            )
+            return ""
+        except Exception as e:
+            logger.error(f"❌ Error loading training examples: {e}")
+            return ""
+
+    def _format_training_examples(self) -> str:
+        """Format training examples for inclusion in the prompt."""
+        if not self.training_examples:
+            return ""
+
+        # Add a header for the examples section
+        formatted = "\nHere are examples of correct query parsing:\n\n"
+        formatted += self.training_examples
+        formatted += "\n\nNow parse the following query:"
+
+        return formatted
 
     def _build_prompt(self, query: str) -> str:
         # Get query parsing configuration
@@ -86,6 +121,8 @@ Output JSON with these fields:
 - count: number | null (if user specified track count like "10 songs")
 - unplayed: boolean (if user wants only unplayed tracks)
 - vague: boolean (true if query is very general/vague)
+
+{self._format_training_examples()}
 
 Output pure JSON only, no additional text:"""
 

@@ -18,6 +18,7 @@ from rich.text import Text
 
 from tonal_hortator.core.embeddings.track_embedder import LocalTrackEmbedder
 from tonal_hortator.core.feedback import FeedbackManager
+from tonal_hortator.core.llm.llm_client import LocalLLMClient
 from tonal_hortator.core.playlist.playlist_generator import LocalPlaylistGenerator
 from tonal_hortator.utils.apple_music import open_in_apple_music
 from tonal_hortator.utils.csv_ingester import MusicCSVIngester
@@ -137,6 +138,70 @@ def yeet(
 
 
 @app.command()
+def tune_prompt(
+    db_path: str = typer.Option(DEFAULT_DB_PATH, "--db", "-d", help="Database path"),
+    jsonl_out: str = typer.Option(
+        "playlist_training_data.jsonl", "--out", "-o", help="Output JSONL path"
+    ),
+    prompt_out: str = typer.Option(
+        "llm_prompt.txt", "--prompt", "-p", help="Output prompt file path"
+    ),
+    auto_reload: bool = typer.Option(
+        False, "--reload", help="Auto-reload prompt in running LLM client"
+    ),
+) -> None:
+    """🔄 Aggregate feedback, generate prompt, and (optionally) reload LLM prompt"""
+    console.print("[bold cyan]🔄 Tuning LLM prompt with latest feedback...[/bold cyan]")
+
+    try:
+        # Step 1: Aggregate training data
+        from tonal_hortator.core.database import DatabaseManager
+        from tonal_hortator.core.feedback.training_data_aggregator import (
+            TrainingDataAggregator,
+        )
+
+        db = DatabaseManager(db_path)
+        aggregator = TrainingDataAggregator(db)
+        aggregator.aggregate(jsonl_out)
+        console.print(f"[green]✅ Aggregated feedback to {jsonl_out}[/green]")
+
+        # Step 2: Generate prompt file
+        import json
+
+        def generate_prompt_from_jsonl(
+            jsonl_path: str, output_prompt_path: str
+        ) -> None:
+            with open(jsonl_path) as f:
+                # Parse JSON once per line and filter
+                all_examples = [json.loads(line) for line in f]
+                examples = [ex for ex in all_examples if ex.get("label") == 1]
+            with open(output_prompt_path, "w") as f:
+                for ex in examples:
+                    f.write(f"User: {ex['input']}\n")
+                    f.write(f"LLM: {json.dumps(ex['system_parsed'])}\n\n")
+            console.print(f"[green]✅ Wrote prompt to {output_prompt_path}[/green]")
+
+        generate_prompt_from_jsonl(jsonl_out, prompt_out)
+
+        # Step 3: Optionally auto-reload LLM prompt
+        if auto_reload:
+            try:
+                llm_client = LocalLLMClient(prompt_path=prompt_out)
+                llm_client.reload_prompt()
+                console.print("[green]✅ LLM prompt reloaded![/green]")
+            except Exception as reload_err:
+                console.print(
+                    f"[yellow]Prompt generated but reload failed: {reload_err}[/yellow]"
+                )
+
+        console.print("[bold green]🎉 LLM prompt tuning complete![/bold green]")
+
+    except Exception as e:
+        console.print(f"[red]❌ Failed to tune prompt: {e}[/red]")
+        raise typer.Exit(1)
+
+
+@app.command()
 def generate(
     query: Optional[str] = typer.Argument(
         None, help="Playlist query (e.g., 'jazz for studying')"
@@ -225,12 +290,22 @@ def _generate_single_playlist(
     filepath = generator.save_playlist_m3u(tracks, query)
     console.print(f"✅ Playlist saved: {filepath}")
 
-    # Collect user feedback
-    _collect_playlist_feedback(generator.feedback_manager, query, tracks)
+    # Open in Apple Music first so user can listen before rating
+    playlist_opened = False
+    if auto_open:
+        console.print("🎵 Auto-opening playlist in Apple Music...")
+        playlist_opened = open_in_apple_music(filepath)
+    elif Confirm.ask("🎵 Open in Apple Music to listen before rating?"):
+        playlist_opened = open_in_apple_music(filepath)
 
-    # Open in Apple Music
-    if auto_open or Confirm.ask("🎵 Open in Apple Music?"):
-        open_in_apple_music(filepath)
+    if playlist_opened:
+        console.print("🎧 [green]Playlist opened in Apple Music![/green]")
+        console.print(
+            "🎵 [italic]Take your time to listen, then come back here to rate it![/italic]"
+        )
+
+    # Collect user feedback after they've had a chance to listen
+    _collect_playlist_feedback(generator.feedback_manager, query, tracks)
 
 
 @app.command()
@@ -865,16 +940,22 @@ def _collect_playlist_feedback(
     feedback_manager: FeedbackManager, query: str, tracks: list
 ) -> None:
     """Collect user feedback for a generated playlist."""
-    if not Confirm.ask("📝 Would you like to provide feedback for this playlist?"):
+    console.print(f'\n[bold cyan]🎵 Playlist Feedback for: "{query}"[/bold cyan]')
+
+    if not Confirm.ask(
+        "📝 Ready to provide feedback? (This helps improve future playlists!)"
+    ):
+        console.print(
+            "[yellow]⚠️ Skipping feedback - but your input helps make better playlists![/yellow]"
+        )
         return
 
-    console.print(f"\n[bold cyan]🎵 Playlist Feedback for: {query}[/bold cyan]")
-
     # Overall playlist rating
+    console.print("\n[bold]How did this playlist match your expectations?[/bold]")
     rating = Prompt.ask(
-        "Rate this playlist (1-5 stars)", choices=["1", "2", "3", "4", "5"]
+        "Rate this playlist (1-5 stars) ", choices=["1", "2", "3", "4", "5"]
     )
-    comments = Prompt.ask("Comments (optional)")
+    comments = Prompt.ask("Comments (optional, but helpful!) ")
 
     # Record playlist feedback
     feedback_manager.record_playlist_feedback(
@@ -887,22 +968,37 @@ def _collect_playlist_feedback(
         playlist_length=len(tracks),
     )
 
-    console.print(f"[green]✅ Playlist feedback recorded (Rating: {rating})[/green]")
+    console.print(
+        f"[green]✅ Playlist feedback recorded (Rating: {rating} stars)[/green]"
+    )
 
     # Individual track ratings
-    if Confirm.ask("Would you like to rate individual tracks?"):
+    if Confirm.ask(
+        "💫 Rate individual tracks? (Optional - helps fine-tune recommendations)"
+    ):
+        console.print(
+            "\n[italic]For each track, press Enter to skip or rate 1-5 stars[/italic]"
+        )
         for i, track in enumerate(tracks):
-            console.print(f"\n{i+1}. {track['name']} - {track['artist']}")
-            if Confirm.ask("Rate this track?"):
-                track_rating = Prompt.ask(
-                    "Rating (1-5 stars)", choices=["1", "2", "3", "4", "5"]
-                )
+            console.print(
+                f"\n🎵 {i+1}. [bold]{track['name']}[/bold] - {track['artist']}"
+            )
+            track_rating_str = Prompt.ask(
+                "Rating (1-5 stars, or Enter to skip)",
+                choices=["1", "2", "3", "4", "5", ""],
+                default="",
+            )
+            if track_rating_str:  # Only record if they provided a rating
                 feedback_manager.record_track_rating(
                     track_id=track.get("id", 0),
-                    rating=int(track_rating),
+                    rating=int(track_rating_str),
                     context=f"Playlist: {query}",
                 )
-                console.print("[green]✅ Track rating recorded[/green]")
+                console.print(f"[green]✅ Rated {track_rating_str} stars[/green]")
+
+        console.print(
+            "\n[green]🎉 All track ratings recorded! Thanks for the detailed feedback.[/green]"
+        )
 
 
 def _update_embeddings_for_tracks(
