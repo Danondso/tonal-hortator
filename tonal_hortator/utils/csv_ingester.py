@@ -23,6 +23,7 @@ from tonal_hortator.core.database.query_helpers import (
     build_insert_track_query,
     build_update_track_query,
 )
+from tonal_hortator.core.models import Track
 from tonal_hortator.utils.loader import create_progress_spinner
 
 # Configure logging
@@ -62,7 +63,7 @@ class MusicCSVIngester:
         else:
             logger.info("✅ Tracks table already exists")
 
-    def _normalize_track_data(self, csv_row: Dict[str, str]) -> Dict[str, Any]:
+    def _normalize_track_data(self, csv_row: Dict[str, str]) -> Track:
         normalized: Dict[str, Any] = {}
         for csv_field, db_field in CSV_FIELD_MAPPING.items():
             value = csv_row.get(csv_field, None)
@@ -85,7 +86,7 @@ class MusicCSVIngester:
             normalized["name"] = "Unknown Track"
         if not normalized.get("artist"):
             normalized["artist"] = "Unknown Artist"
-        return normalized
+        return Track.from_dict(normalized)
 
     def _check_track_exists(self, location: str) -> Optional[int]:
         cursor = self.conn.cursor()
@@ -93,11 +94,12 @@ class MusicCSVIngester:
         result = cursor.fetchone()
         return result[0] if result else None
 
-    def _update_track(self, track_id: int, track_data: Dict[str, Any]) -> bool:
+    def _update_track(self, track_id: int, track_data: Track) -> bool:
         cursor = self.conn.cursor()
         fields = []
         values = []
-        for field, value in track_data.items():
+        track_dict = track_data.to_dict()
+        for field, value in track_dict.items():
             if field != "location" and value is not None:
                 fields.append(field)
                 values.append(value)
@@ -109,11 +111,12 @@ class MusicCSVIngester:
         self.conn.commit()
         return True
 
-    def _insert_track(self, track_data: Dict[str, Any]) -> Optional[int]:
+    def _insert_track(self, track_data: Track) -> Optional[int]:
         cursor = self.conn.cursor()
         fields = []
         values = []
-        for field, value in track_data.items():
+        track_dict = track_data.to_dict()
+        for field, value in track_dict.items():
             if value is not None:
                 fields.append(field)
                 values.append(value)
@@ -164,14 +167,14 @@ class MusicCSVIngester:
             for row in rows:
                 try:
                     track_data = self._normalize_track_data(row)
-                    if not track_data.get("location"):
+                    if not track_data.location:
                         logger.warning(
-                            f"Skipping track without location: {track_data.get('name', 'Unknown')}"
+                            f"Skipping track without location: {track_data.name or 'Unknown'}"
                         )
                         stats["skipped"] += 1
                         spinner.update(1)
                         continue
-                    existing_id = self._check_track_exists(track_data["location"])
+                    existing_id = self._check_track_exists(track_data.location)
                     if existing_id:
                         if not dry_run:
                             self._update_track(existing_id, track_data)

@@ -501,12 +501,14 @@ class TestLibraryParser(unittest.TestCase):
 
         result = parser._extract_track_data(mock_track)
         self.assertIsNotNone(result)
-        from typing import Any, Dict, cast
+        from typing import cast
 
-        result = cast(Dict[str, Any], result)
-        self.assertEqual(result["name"], "Test Song")
-        self.assertEqual(result["artist"], "Test Artist")
-        self.assertEqual(result["album"], "Test Album")
+        from tonal_hortator.core.models import Track
+
+        result = cast(Track, result)
+        self.assertEqual(result.name, "Test Song")
+        self.assertEqual(result.artist, "Test Artist")
+        self.assertEqual(result.album, "Test Album")
 
     def test_extract_track_data_no_name(self) -> None:
         """Test track data extraction without name."""
@@ -574,8 +576,11 @@ class TestLibraryParser(unittest.TestCase):
             },
         ]
 
+        from tonal_hortator.core.models import Track
+
+        track_objects = [Track.from_dict(track) for track in tracks]
         with patch.object(parser.metadata_reader, "update_track_metadata"):
-            result = parser._insert_tracks(iter(tracks))
+            result = parser._insert_tracks(iter(track_objects))
 
         self.assertEqual(result, 2)
 
@@ -613,8 +618,11 @@ class TestLibraryParser(unittest.TestCase):
             }
         ]
 
+        from tonal_hortator.core.models import Track
+
+        track_objects1 = [Track.from_dict(track) for track in tracks1]
         with patch.object(parser.metadata_reader, "update_track_metadata"):
-            result1 = parser._insert_tracks(iter(tracks1))
+            result1 = parser._insert_tracks(iter(track_objects1))
 
         self.assertEqual(result1, 1)
 
@@ -637,8 +645,9 @@ class TestLibraryParser(unittest.TestCase):
             }
         ]
 
+        track_objects2 = [Track.from_dict(track) for track in tracks2]
         with patch.object(parser.metadata_reader, "update_track_metadata"):
-            result2 = parser._insert_tracks(iter(tracks2))
+            result2 = parser._insert_tracks(iter(track_objects2))
 
         self.assertEqual(result2, 0)
 
@@ -651,6 +660,8 @@ class TestLibraryParser(unittest.TestCase):
 
     def test_insert_tracks_no_location(self) -> None:
         """Test track insertion without location."""
+        from tonal_hortator.core.models import Track
+
         with patch(
             "tonal_hortator.utils.library_parser.MetadataReader"
         ) as mock_metadata_reader:
@@ -675,13 +686,16 @@ class TestLibraryParser(unittest.TestCase):
             }
         ]
 
+        track_objects = [Track.from_dict(track) for track in tracks]
         with patch.object(parser.metadata_reader, "update_track_metadata"):
-            result = parser._insert_tracks(iter(tracks))
+            result = parser._insert_tracks(iter(track_objects))
 
         self.assertEqual(result, 0)
 
     def test_insert_tracks_database_error(self) -> None:
         """Test track insertion with database error."""
+        from tonal_hortator.core.models import Track
+
         with patch(
             "tonal_hortator.utils.library_parser.MetadataReader"
         ) as mock_metadata_reader:
@@ -706,17 +720,20 @@ class TestLibraryParser(unittest.TestCase):
             }
         ]
 
+        track_objects = [Track.from_dict(track) for track in tracks]
         with patch(
             "tonal_hortator.utils.library_parser.sqlite3.connect"
         ) as mock_connect:
             mock_connect.side_effect = sqlite3.Error("Database error")
 
-            result = parser._insert_tracks(iter(tracks))
+            result = parser._insert_tracks(iter(track_objects))
 
         self.assertEqual(result, 0)
 
     def test_insert_tracks_metadata_error(self) -> None:
         """Test track insertion with metadata reading error."""
+        from tonal_hortator.core.models import Track
+
         with patch(
             "tonal_hortator.utils.library_parser.MetadataReader"
         ) as mock_metadata_reader:
@@ -741,12 +758,13 @@ class TestLibraryParser(unittest.TestCase):
             }
         ]
 
+        track_objects = [Track.from_dict(track) for track in tracks]
         with patch.object(
             parser.metadata_reader, "update_track_metadata"
         ) as mock_update:
             mock_update.side_effect = Exception("Metadata error")
 
-            result = parser._insert_tracks(iter(tracks))
+            result = parser._insert_tracks(iter(track_objects))
 
         # Should still insert the track even if metadata fails
         self.assertEqual(result, 1)

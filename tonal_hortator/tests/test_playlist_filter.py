@@ -15,27 +15,45 @@ class TestPlaylistFilter(unittest.TestCase):
         """Test genre filtering functionality in PlaylistFilter"""
         filter_obj = PlaylistFilter()
 
+        from tonal_hortator.core.models import Track
+
         tracks = [
-            {"name": "Song1", "genre": "Rock", "similarity_score": 0.8},
-            {"name": "Song2", "genre": "Jazz", "similarity_score": 0.7},
-            {"name": "Song3", "genre": "Rock", "similarity_score": 0.6},
+            Track.from_dict(
+                {"name": "Song1", "genre": "Rock", "similarity_score": 0.8}
+            ),
+            Track.from_dict(
+                {"name": "Song2", "genre": "Jazz", "similarity_score": 0.7}
+            ),
+            Track.from_dict(
+                {"name": "Song3", "genre": "Rock", "similarity_score": 0.6}
+            ),
         ]
 
         result = filter_obj.apply_genre_filtering(["rock"], tracks)
 
         # Should filter to only rock tracks (with boosting)
-        self.assertTrue(any(track["genre"].lower() == "rock" for track in result))
+        self.assertTrue(any((track.genre or "").lower() == "rock" for track in result))
         # Should have boosted similarity scores for rock tracks
-        rock_tracks = [track for track in result if track["genre"].lower() == "rock"]
-        self.assertTrue(all(track.get("genre_boosted", False) for track in rock_tracks))
+        rock_tracks = [
+            track for track in result if (track.genre or "").lower() == "rock"
+        ]
+        self.assertTrue(
+            all(getattr(track, "genre_boosted", False) for track in rock_tracks)
+        )
 
     def test_apply_genre_filtering_no_genre_keywords(self) -> None:
         """Test genre filtering with no genre keywords"""
         filter_obj = PlaylistFilter()
 
+        from tonal_hortator.core.models import Track
+
         tracks = [
-            {"name": "Song1", "genre": "Rock", "similarity_score": 0.8},
-            {"name": "Song2", "genre": "Jazz", "similarity_score": 0.7},
+            Track.from_dict(
+                {"name": "Song1", "genre": "Rock", "similarity_score": 0.8}
+            ),
+            Track.from_dict(
+                {"name": "Song2", "genre": "Jazz", "similarity_score": 0.7}
+            ),
         ]
 
         result = filter_obj.apply_genre_filtering([], tracks)
@@ -57,26 +75,36 @@ class TestPlaylistFilter(unittest.TestCase):
         """Test genre filtering with multiple genres"""
         filter_obj = PlaylistFilter()
 
+        from tonal_hortator.core.models import Track
+
         tracks = [
-            {"name": "Song1", "genre": "Rock", "similarity_score": 0.8},
-            {"name": "Song2", "genre": "Jazz", "similarity_score": 0.7},
-            {"name": "Song3", "genre": "Pop", "similarity_score": 0.6},
-            {"name": "Song4", "genre": "Electronic", "similarity_score": 0.5},
+            Track.from_dict(
+                {"name": "Song1", "genre": "Rock", "similarity_score": 0.8}
+            ),
+            Track.from_dict(
+                {"name": "Song2", "genre": "Jazz", "similarity_score": 0.7}
+            ),
+            Track.from_dict({"name": "Song3", "genre": "Pop", "similarity_score": 0.6}),
+            Track.from_dict(
+                {"name": "Song4", "genre": "Electronic", "similarity_score": 0.5}
+            ),
         ]
 
         result = filter_obj.apply_genre_filtering(["rock", "jazz"], tracks)
 
         # Should include rock and jazz tracks
-        genres_in_result = {track["genre"].lower() for track in result}
+        genres_in_result = {(track.genre or "").lower() for track in result}
         self.assertIn("rock", genres_in_result)
         self.assertIn("jazz", genres_in_result)
 
         # Should boost matching tracks
         rock_and_jazz_tracks = [
-            track for track in result if track["genre"].lower() in ["rock", "jazz"]
+            track for track in result if (track.genre or "").lower() in ["rock", "jazz"]
         ]
         self.assertTrue(
-            all(track.get("genre_boosted", False) for track in rock_and_jazz_tracks)
+            all(
+                getattr(track, "genre_boosted", False) for track in rock_and_jazz_tracks
+            )
         )
 
 

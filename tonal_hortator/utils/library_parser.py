@@ -18,6 +18,7 @@ from tonal_hortator.core.database import (
     CREATE_TRACKS_TABLE,
     INSERT_TRACK,
 )
+from tonal_hortator.core.models import Track
 
 # Import metadata reader
 from tonal_hortator.utils.metadata_reader import MetadataReader
@@ -85,7 +86,7 @@ class LibraryParser:
         )
         return inserted_count
 
-    def _parse_tracks(self, file_path: str) -> Iterator[Dict[str, Any]]:
+    def _parse_tracks(self, file_path: str) -> Iterator[Track]:
         """
         Parses the XML file and yields track dictionaries using an iterparse
         strategy to keep memory usage low.
@@ -190,7 +191,7 @@ class LibraryParser:
                 value_elem
             )
 
-    def _extract_track_data(self, track_dict: Element) -> Optional[Dict[str, Any]]:
+    def _extract_track_data(self, track_dict: Element) -> Optional[Track]:
         """
         Extracts relevant data for a single track from its XML element.
 
@@ -222,9 +223,9 @@ class LibraryParser:
             value_elem = next(it)
             self._process_track_field(key_name, value_elem, data)
 
-        return data if data["name"] else None
+        return Track.from_dict(data) if data["name"] else None
 
-    def _insert_tracks(self, tracks: Iterator[Dict[str, Any]]) -> int:
+    def _insert_tracks(self, tracks: Iterator[Track]) -> int:
         """
         Inserts tracks into the database, avoiding duplicates based on location.
 
@@ -242,10 +243,10 @@ class LibraryParser:
                 cursor = conn.cursor()
                 for track in tracks:
                     if (
-                        track.get("location")
+                        track.location
                         and cursor.execute(
                             CHECK_TRACK_EXISTS,
-                            (track.get("location"),),
+                            (track.location,),
                         ).fetchone()
                         is None
                     ):
@@ -253,19 +254,19 @@ class LibraryParser:
                         cursor.execute(
                             INSERT_TRACK,
                             (
-                                track.get("name"),
-                                track.get("artist"),
-                                track.get("album_artist"),
-                                track.get("composer"),
-                                track.get("album"),
-                                track.get("genre"),
-                                track.get("year"),
-                                track.get("total_time"),
-                                track.get("track_number"),
-                                track.get("disc_number"),
-                                track.get("play_count"),
-                                track.get("date_added"),
-                                track.get("location"),
+                                track.name,
+                                track.artist,
+                                track.album_artist,
+                                track.composer,
+                                track.album,
+                                track.genre,
+                                track.year,
+                                track.total_time,
+                                track.track_number,
+                                track.disc_number,
+                                track.play_count,
+                                track.date_added,
+                                track.location,
                             ),
                         )
 
@@ -275,16 +276,16 @@ class LibraryParser:
                         # Read and populate metadata if file exists
                         if (
                             track_id is not None
-                            and track.get("location")
-                            and Path(track["location"]).exists()
+                            and track.location
+                            and Path(track.location).exists()
                         ):
                             try:
                                 self.metadata_reader.update_track_metadata(
-                                    track_id, track["location"]
+                                    track_id, track.location
                                 )
                             except Exception as e:
                                 logger.warning(
-                                    f"Failed to read metadata for {track['location']}: {e}"
+                                    f"Failed to read metadata for {track.location}: {e}"
                                 )
 
                         count += 1

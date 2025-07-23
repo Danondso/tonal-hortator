@@ -45,8 +45,8 @@ def test_insert_new_tracks() -> None:
         cursor.execute(TEST_GET_TRACK, (1,))
         result = cursor.fetchone()
         assert result is not None
-        assert result["name"] == "Test Song 1"
-        assert result["artist"] == "Test Artist 1"
+        assert result[0] == "Test Song 1"  # name column
+        assert result[1] == "Test Artist 1"  # artist column
 
     finally:
         import os
@@ -275,14 +275,14 @@ def test_normalize_track_data() -> None:
 
     normalized = ingester._normalize_track_data(csv_row)
 
-    assert normalized["name"] == "Test Song"
-    assert normalized["artist"] == "Test Artist"
-    assert normalized["album"] == "Test Album"
-    assert normalized["year"] == 2020
-    assert normalized["total_time"] == 180
-    assert normalized["play_count"] == 5
-    assert normalized["genre"] == "Rock"
-    assert normalized["location"] == "/path/to/song.mp3"
+    assert normalized.name == "Test Song"
+    assert normalized.artist == "Test Artist"
+    assert normalized.album == "Test Album"
+    assert normalized.year == 2020
+    assert normalized.total_time == 180
+    assert normalized.play_count == 5
+    assert normalized.genre == "Rock"
+    assert normalized.location == "/path/to/song.mp3"
 
 
 def test_normalize_track_data_with_missing_values() -> None:
@@ -305,14 +305,14 @@ def test_normalize_track_data_with_missing_values() -> None:
 
     normalized = ingester._normalize_track_data(csv_row)
 
-    assert normalized["name"] == "Unknown Track"
-    assert normalized["artist"] == "Unknown Artist"
-    assert normalized["album"] == "Test Album"
-    assert normalized["year"] is None
-    assert normalized["total_time"] is None
-    assert normalized["play_count"] is None
-    assert normalized["genre"] == "Rock"
-    assert normalized["location"] == "/path/to/song.mp3"
+    assert normalized.name == "Unknown Track"
+    assert normalized.artist == "Unknown Artist"
+    assert normalized.album == "Test Album"
+    assert normalized.year is None
+    assert normalized.total_time is None
+    assert normalized.play_count is None
+    assert normalized.genre == "Rock"
+    assert normalized.location == "/path/to/song.mp3"
 
 
 def test_file_not_found() -> None:

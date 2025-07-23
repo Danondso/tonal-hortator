@@ -5,9 +5,10 @@ Handles genre filtering, boosting, and track filtering logic.
 """
 
 import logging
-from typing import Any, Dict, List
+from typing import List
 
 from tonal_hortator.core.config import get_config
+from tonal_hortator.core.models import Track
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +21,8 @@ class PlaylistFilter:
         self.config = get_config()
 
     def apply_genre_filtering(
-        self, genre_keywords: List[str], tracks: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        self, genre_keywords: List[str], tracks: List[Track]
+    ) -> List[Track]:
         """
         Apply genre filtering and boosting to tracks while maintaining diversity.
 
@@ -30,7 +31,7 @@ class PlaylistFilter:
 
         Args:
             genre_keywords: List of genre keywords to filter/boost
-            tracks: List of track dictionaries
+            tracks: List of track objects
 
         Returns:
             Combined list of boosted genre matches and other tracks for diversity
@@ -50,10 +51,10 @@ class PlaylistFilter:
         genre_matches = []
         other_tracks = []
 
-        # Separate tracks into genre matches and others
+        # Separate tracks into genre matches and others, using mutable updates
         for track in tracks:
-            track_genre = track.get("genre", "").lower() if track.get("genre") else ""
-            similarity_score = track.get("similarity_score", 0)
+            track_genre = (track.genre or "").lower()
+            similarity_score = track.similarity_score or 0
 
             # Check if track genre matches any of the specified keywords
             genre_match = any(
@@ -61,17 +62,14 @@ class PlaylistFilter:
             )
 
             if genre_match:
-                # Create a copy and boost the similarity score
-                boosted_track = track.copy()
+                # Update the track in-place for better performance
                 boosted_score = min(max_score, similarity_score + genre_boost_score)
-                boosted_track["similarity_score"] = boosted_score
-                boosted_track["genre_boosted"] = True
-                genre_matches.append(boosted_track)
+                track.similarity_score = boosted_score
+                track.genre_boosted = True
+                genre_matches.append(track)
             else:
-                # Mark as not boosted but keep for diversity
-                track_copy = track.copy()
-                track_copy["genre_boosted"] = False
-                other_tracks.append(track_copy)
+                # Keep track for diversity (no boosting)
+                other_tracks.append(track)
 
         # Include genre matches plus some other tracks for diversity
         # Use at least 5 other tracks or half the number of genre matches

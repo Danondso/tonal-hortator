@@ -11,6 +11,7 @@ from typing import Any, Dict, Optional
 
 from tonal_hortator.core.config import get_config
 from tonal_hortator.core.llm.llm_client import LocalLLMClient
+from tonal_hortator.core.models import LLMQueryResult
 
 logger = logging.getLogger(__name__)
 
@@ -29,13 +30,14 @@ class LLMQueryParser:
         self.client = LocalLLMClient(model_name)
         self.training_examples = self._load_training_examples()
 
-    def parse(self, query: str) -> dict:
+    def parse(self, query: str) -> LLMQueryResult:
         prompt = self._build_prompt(query)
 
         # Get max tokens from configuration
         max_tokens = self.config.get("llm.max_tokens", 1000)
         response = self.client.generate(prompt, max_tokens=max_tokens)
-        return self._extract_json(response)
+        parsed_dict = self._extract_json(response)
+        return LLMQueryResult.from_dict(parsed_dict)
 
     def _load_training_examples(self) -> str:
         """Load training examples from the prompt tuning file."""

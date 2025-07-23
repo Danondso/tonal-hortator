@@ -4,13 +4,14 @@ Local embedding service using Ollama
 Provides embeddings for music tracks without requiring internet or HuggingFace
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
 import numpy as np
 import ollama
 from loguru import logger
 
 from tonal_hortator.core.config import get_config
+from tonal_hortator.core.models import Track
 from tonal_hortator.utils.loader import create_progress_spinner
 
 # Fallback constant if config is not available
@@ -239,7 +240,7 @@ class OllamaEmbeddingService:
     def get_embeddings_batch_with_progress(
         self,
         texts: List[str],
-        tracks: List[Dict[str, Any]],
+        tracks: List[Track],
         spinner: Optional[Any] = None,
         batch_size: int = 500,
     ) -> List[np.ndarray]:
@@ -292,10 +293,10 @@ class OllamaEmbeddingService:
 
         return all_embeddings
 
-    def _get_track_display_info(self, track: Dict[str, Any]) -> str:
+    def _get_track_display_info(self, track: Track) -> str:
         """Create a display string for the current track being processed"""
-        name = track.get("name", "Unknown Track")
-        artist = track.get("artist", "Unknown Artist")
+        name = track.name or "Unknown Track"
+        artist = track.artist or "Unknown Artist"
 
         # Truncate long names to keep the display clean
         if len(name) > 30:
@@ -305,43 +306,40 @@ class OllamaEmbeddingService:
 
         return f"🎵 {name} by {artist}"
 
-    def create_track_embedding_text(self, track: Dict[str, Any]) -> str:
+    def create_track_embedding_text(self, track: Track) -> str:
         """Create text representation of track for embedding with musical analysis"""
         # Basic metadata
         basic_parts = [
-            track.get("name"),
-            track.get("artist"),
-            track.get("album"),
-            track.get("album_artist"),
-            track.get("composer"),
-            track.get("genre"),
-            str(track.get("year")) if track.get("year") else None,
+            track.name,
+            track.artist,
+            track.album,
+            track.album_artist,
+            track.composer,
+            track.genre,
+            str(track.year) if track.year else None,
         ]
 
         # Musical analysis data
         musical_parts = []
 
         # Tempo and rhythm
-        if track.get("bpm"):
-            musical_parts.append(f"tempo {track.get('bpm')} BPM")
+        if track.bpm:
+            musical_parts.append(f"tempo {track.bpm} BPM")
 
         # Musical key and scale
-        if track.get("musical_key") and track.get("key_scale"):
-            musical_parts.append(
-                f"key {track.get('musical_key')} {track.get('key_scale')}"
-            )
-        elif track.get("musical_key"):
-            musical_parts.append(f"key {track.get('musical_key')}")
+        if track.musical_key and track.key_scale:
+            musical_parts.append(f"key {track.musical_key} {track.key_scale}")
+        elif track.musical_key:
+            musical_parts.append(f"key {track.musical_key}")
 
         # Mood and emotional characteristics
-        if track.get("mood"):
-            musical_parts.append(f"mood {track.get('mood')}")
+        if track.mood:
+            musical_parts.append(f"mood {track.mood}")
 
         # Chord complexity
-        chord_rate = track.get("chord_changes_rate")
-        if chord_rate is not None:
+        if track.chord_changes_rate is not None:
             try:
-                rate = float(chord_rate)
+                rate = float(track.chord_changes_rate)
                 if rate > 0.3:
                     complexity = "complex chord progression"
                 elif rate > 0.1:
@@ -354,53 +352,35 @@ class OllamaEmbeddingService:
 
         # Production and recording info
         production_parts = []
-        if track.get("label"):
-            production_parts.append(f"label {track.get('label')}")
-        if track.get("producer"):
-            production_parts.append(f"produced by {track.get('producer')}")
-        if track.get("arranger"):
-            production_parts.append(f"arranged by {track.get('arranger')}")
-        if track.get("lyricist"):
-            production_parts.append(f"lyrics by {track.get('lyricist')}")
-        if track.get("release_country"):
-            production_parts.append(f"released in {track.get('release_country')}")
+        if track.label:
+            production_parts.append(f"label {track.label}")
+        if track.producer:
+            production_parts.append(f"produced by {track.producer}")
+        if track.arranger:
+            production_parts.append(f"arranged by {track.arranger}")
+        if track.lyricist:
+            production_parts.append(f"lyrics by {track.lyricist}")
+        if track.release_country:
+            production_parts.append(f"released in {track.release_country}")
 
         # User engagement and preference data
         engagement_parts = []
 
         # Play count (indicates popularity/usage)
-        play_count = track.get("play_count")
-        if play_count and play_count > 0:
-            if play_count > 100:
+        if track.play_count and track.play_count > 0:
+            if track.play_count > 100:
                 engagement_parts.append("frequently played")
-            elif play_count > 50:
+            elif track.play_count > 50:
                 engagement_parts.append("moderately played")
-            elif play_count > 10:
+            elif track.play_count > 10:
                 engagement_parts.append("occasionally played")
             else:
                 engagement_parts.append("rarely played")
 
-        # Track rating (if available)
-        track_rating = track.get("track_rating")
-        if track_rating:
-            try:
-                rating = float(track_rating)
-                if rating >= 4.5:
-                    engagement_parts.append("highly rated")
-                elif rating >= 4.0:
-                    engagement_parts.append("well rated")
-                elif rating >= 3.0:
-                    engagement_parts.append("moderately rated")
-                elif rating < 2.0:
-                    engagement_parts.append("poorly rated")
-            except (ValueError, TypeError):
-                pass
-
         # Average rating from track_ratings table (if available)
-        avg_rating = track.get("avg_rating")
-        if avg_rating:
+        if track.avg_rating:
             try:
-                rating = float(avg_rating)
+                rating = float(track.avg_rating)
                 if rating >= 4.5:
                     engagement_parts.append("user favorite")
                 elif rating >= 4.0:
@@ -418,9 +398,9 @@ class OllamaEmbeddingService:
         self,
         query: str,
         embeddings: List[np.ndarray],
-        track_data: List[Dict[str, Any]],
+        track_data: List[Track],
         top_k: int = 50,
-    ) -> List[Dict[str, Any]]:
+    ) -> List[Track]:
         """
         Perform similarity search using cosine similarity
 
@@ -457,9 +437,12 @@ class OllamaEmbeddingService:
         # Get top results
         results = []
         for similarity, idx in similarities[:top_k]:
-            track = track_data[idx].copy()
-            track["similarity_score"] = float(similarity)
-            results.append(track)
+            track = track_data[idx]
+            # Create a new Track with similarity score
+            track_dict = track.to_dict()
+            track_dict["similarity_score"] = float(similarity)
+            track_with_score = Track.from_dict(track_dict)
+            results.append(track_with_score)
 
         logger.info(f"🔍 Found {len(results)} similar tracks for query: '{query}'")
         return results
@@ -501,7 +484,10 @@ def test_ollama_embeddings() -> bool:
             "play_count": 42,
         }
 
-        track_text = service.create_track_embedding_text(test_track)
+        from tonal_hortator.core.models import Track
+
+        test_track_obj = Track.from_dict(test_track)
+        track_text = service.create_track_embedding_text(test_track_obj)
         print(f"✅ Track text creation test passed: {track_text}")
 
         print("🎉 All Ollama embedding tests passed!")

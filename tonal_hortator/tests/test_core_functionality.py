@@ -157,7 +157,7 @@ class TestCoreFunctionality(unittest.TestCase):
         self.assertIsNotNone(playlist)
         self.assertGreater(len(playlist), 0)  # Should have at least one track
         # Check that the playlist contains tracks with the expected names
-        track_names = [track["name"] for track in playlist]
+        track_names = [track.name or "" for track in playlist]
         self.assertTrue(any("Test Song" in name for name in track_names))
 
     @unittest.skipIf(
@@ -167,9 +167,12 @@ class TestCoreFunctionality(unittest.TestCase):
     def test_parallel_embedding(self) -> None:
         """Test that parallel embedding works correctly with multiple workers."""
         # Test with 2 workers and small batch size to ensure parallel processing
+        from tonal_hortator.core.models import Track
+
         embedder = LocalTrackEmbedder(db_path=self.db_path, conn=self.conn)
+        test_tracks = [Track.from_dict(track) for track in self.get_test_tracks()]
         embedded_count = embedder.embed_tracks_batch(
-            self.get_test_tracks(), batch_size=1, max_workers=2
+            test_tracks, batch_size=1, max_workers=2
         )
 
         # Should embed all 3 tracks

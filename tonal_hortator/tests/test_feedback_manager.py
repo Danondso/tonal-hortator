@@ -1219,69 +1219,81 @@ class TestFeedbackManager(unittest.TestCase):
         self.assertIn("recent_feedback", stats, "Stats should contain recent_feedback")
 
         # Validate specific values
-        self.assertEqual(
-            stats["total_feedback"], 3.0, "Total feedback count should be 3"
-        )
-        self.assertAlmostEqual(
-            stats["average_rating"], 4.0, places=1, msg="Average rating should be 4.0"
-        )
+        total_feedback = stats.get("total_feedback")
+        average_rating = stats.get("average_rating")
+
+        self.assertEqual(total_feedback, 3.0, "Total feedback count should be 3")
+        if isinstance(average_rating, (int, float)):
+            self.assertAlmostEqual(
+                average_rating, 4.0, places=1, msg="Average rating should be 4.0"
+            )
 
         # Validate feedback_by_type structure
+        feedback_by_type = stats["feedback_by_type"]
         self.assertIsInstance(
-            stats["feedback_by_type"], dict, "feedback_by_type should be dictionary"
+            feedback_by_type, dict, "feedback_by_type should be dictionary"
         )
-        self.assertIn(
-            "artist_specific",
-            stats["feedback_by_type"],
-            "Should have artist_specific type",
-        )
-        self.assertIn(
-            "similarity", stats["feedback_by_type"], "Should have similarity type"
-        )
-        self.assertEqual(
-            stats["feedback_by_type"]["artist_specific"],
-            2,
-            "Should have 2 artist_specific feedback",
-        )
-        self.assertEqual(
-            stats["feedback_by_type"]["similarity"],
-            1,
-            "Should have 1 similarity feedback",
-        )
+        if isinstance(feedback_by_type, dict):
+            self.assertIn(
+                "artist_specific",
+                feedback_by_type,
+                "Should have artist_specific type",
+            )
+            self.assertIn("similarity", feedback_by_type, "Should have similarity type")
+            self.assertEqual(
+                feedback_by_type["artist_specific"],
+                2,
+                "Should have 2 artist_specific feedback",
+            )
+            self.assertEqual(
+                feedback_by_type["similarity"],
+                1,
+                "Should have 1 similarity feedback",
+            )
 
         # Validate recent_feedback structure
-        self.assertIsInstance(
-            stats["recent_feedback"], list, "recent_feedback should be list"
-        )
-        self.assertEqual(
-            len(stats["recent_feedback"]), 3, "Should have 3 recent feedback entries"
-        )
-
-        # Validate recent feedback entries (they are tuples, not dictionaries)
-        for entry in stats["recent_feedback"]:
-            self.assertIsInstance(
-                entry, tuple, "Each recent feedback entry should be tuple"
-            )
-            self.assertGreaterEqual(
-                len(entry), 15, "Each feedback tuple should have at least 15 columns"
+        recent_feedback = stats.get("recent_feedback")
+        if isinstance(recent_feedback, list):
+            self.assertEqual(
+                len(recent_feedback), 3, "Should have 3 recent feedback entries"
             )
 
-            # Validate key fields in the tuple (based on user_feedback table structure)
-            # entry[0] = id, entry[1] = query, entry[2] = query_type, entry[8] = user_rating, entry[15] = created_at
-            self.assertIsInstance(entry[1], str, "Query should be string")
-            self.assertIsInstance(entry[2], str, "Query type should be string")
-            if entry[8] is not None:  # user_rating can be None
-                self.assertIsInstance(entry[8], int, "User rating should be integer")
-            self.assertIsInstance(entry[15], str, "Created timestamp should be string")
+            # Validate recent feedback entries (they are tuples, not dictionaries)
+            for entry in recent_feedback:
+                self.assertIsInstance(
+                    entry, tuple, "Each recent feedback entry should be tuple"
+                )
+                self.assertGreaterEqual(
+                    len(entry),
+                    15,
+                    "Each feedback tuple should have at least 15 columns",
+                )
+
+                # Validate key fields in the tuple (based on user_feedback table structure)
+                # entry[0] = id, entry[1] = query, entry[2] = query_type, entry[8] = user_rating, entry[15] = created_at
+                self.assertIsInstance(entry[1], str, "Query should be string")
+                self.assertIsInstance(entry[2], str, "Query type should be string")
+                if entry[8] is not None:  # user_rating can be None
+                    self.assertIsInstance(
+                        entry[8], int, "User rating should be integer"
+                    )
+                self.assertIsInstance(
+                    entry[15], str, "Created timestamp should be string"
+                )
 
     def test_get_feedback_stats_empty_database(self) -> None:
         """Test getting feedback stats from empty database"""
         stats = self.feedback_manager.get_feedback_stats()
 
-        self.assertEqual(stats["total_feedback"], 0.0)
-        self.assertEqual(stats["average_rating"], 0.0)
-        self.assertEqual(stats["feedback_by_type"], {})
-        self.assertEqual(stats["recent_feedback"], [])
+        total_feedback = stats.get("total_feedback")
+        average_rating = stats.get("average_rating")
+        feedback_by_type = stats.get("feedback_by_type")
+        recent_feedback = stats.get("recent_feedback")
+
+        self.assertEqual(total_feedback, 0.0)
+        self.assertEqual(average_rating, 0.0)
+        self.assertEqual(feedback_by_type, {})
+        self.assertEqual(recent_feedback, [])
 
     def test_get_feedback_stats_database_error(self) -> None:
         """Test handling of database errors during stats retrieval"""

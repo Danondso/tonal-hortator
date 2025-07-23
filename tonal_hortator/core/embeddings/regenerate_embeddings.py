@@ -87,7 +87,10 @@ def test_enhanced_embeddings(db_path: str = "music_library.db") -> None:
                 )
 
                 service = OllamaEmbeddingService()
-                embedding_text = service.create_track_embedding_text(track_dict)
+                from tonal_hortator.core.models import Track
+
+                track_obj = Track.from_dict(track_dict)
+                embedding_text = service.create_track_embedding_text(track_obj)
 
                 logger.info(
                     f"📝 Sample track: {track_dict['name']} by {track_dict['artist']}"

@@ -18,6 +18,7 @@ from tonal_hortator.core.config import get_config
 from tonal_hortator.core.embeddings.embeddings import OllamaEmbeddingService
 from tonal_hortator.core.embeddings.track_embedder import LocalTrackEmbedder
 from tonal_hortator.core.feedback import FeedbackManager
+from tonal_hortator.core.models import Track
 
 from .feedback_service import FeedbackService, PlaylistFeedbackService
 from .llm_query_parser import LLMQueryParser
@@ -94,7 +95,7 @@ class LocalPlaylistGenerator:
         min_similarity: Optional[float] = None,
         max_artist_ratio: Optional[float] = None,
         search_breadth_factor: Optional[int] = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> List[Track]:
         """
         Generate a music playlist based on a user query using local embeddings
 
@@ -156,10 +157,15 @@ class LocalPlaylistGenerator:
                 )
             else:
                 # Extract intent from query using LLM
-                parsed = self.query_parser.parse(query)
-                parsed_artist: Optional[str] = parsed.get("artist")
-                genres = parsed.get("genres", [])
-                is_vague = parsed.get("vague", False)
+                parsed_result = self.query_parser.parse(query)
+                parsed_artist: Optional[str] = parsed_result.artist
+                genres = parsed_result.genres or []
+                is_vague = parsed_result.vague or False
+                parsed = (
+                    parsed_result.to_dict()
+                    if hasattr(parsed_result, "to_dict")
+                    else parsed_result.__dict__
+                )
                 logger.info(f"🧠 Parsed intent: {parsed}")
 
             # Determine final max_tracks value
@@ -227,7 +233,7 @@ class LocalPlaylistGenerator:
                     results = [
                         track
                         for track in results
-                        if (track.get("artist") or "").strip().lower()
+                        if (track.artist or "").strip().lower()
                         != reference_artist.lower()
                     ]
                     filtered_count = len(results)
@@ -250,20 +256,22 @@ class LocalPlaylistGenerator:
 
             # 5. Apply feedback + iTunes score adjustments
             for track in results:
-                track_id = track.get("id")
+                track_id = track.id
                 if track_id is not None:
+                    track_dict = track.to_dict()
                     adjustment = self.feedback_manager.get_adjusted_score(
-                        track_id, track
+                        track_id, track_dict
                     )
-                    original_score = track.get("similarity_score", 0)
+                    original_score = track.similarity_score or 0
                     adjusted_score = max(0.0, min(1.0, original_score + adjustment))
-                    track["similarity_score"] = adjusted_score
-                    track["feedback_adjusted"] = adjustment
+                    # Update track in-place for better performance
+                    track.similarity_score = adjusted_score
+                    track.feedback_adjusted = adjustment
             # 🧮 Summarize adjustment impact
             adjustments = [
-                track["feedback_adjusted"]
+                track.feedback_adjusted
                 for track in results
-                if "feedback_adjusted" in track
+                if track.feedback_adjusted is not None
             ]
             logger.info(f"🔄 Adjustments: {adjustments}")
             if adjustments:
@@ -275,13 +283,13 @@ class LocalPlaylistGenerator:
                 logger.info(
                     f"📈 Feedback summary: avg_adj={avg_adj:.3f}, +{pos_count}, -{neg_count}, max={max_adj:.3f}, min={min_adj:.3f}"
                 )
-                top_positive = max(results, key=lambda t: t.get("feedback_adjusted", 0))
-                top_negative = min(results, key=lambda t: t.get("feedback_adjusted", 0))
+                top_positive = max(results, key=lambda t: t.feedback_adjusted or 0)
+                top_negative = min(results, key=lambda t: t.feedback_adjusted or 0)
                 logger.info(
-                    f"🔺 Most boosted: {top_positive.get('title')} by {top_positive.get('artist')} (+{top_positive['feedback_adjusted']:.2f})"
+                    f"🔺 Most boosted: {top_positive.name} by {top_positive.artist} (+{top_positive.feedback_adjusted or 0:.2f})"
                 )
                 logger.info(
-                    f"🔻 Most penalized: {top_negative.get('title')} by {top_negative.get('artist')} ({top_negative['feedback_adjusted']:.2f})"
+                    f"🔻 Most penalized: {top_negative.name} by {top_negative.artist} ({top_negative.feedback_adjusted or 0:.2f})"
                 )
             # 6. Filter by similarity threshold and deduplicate using PlaylistDeduplicator
             filtered_results = self.deduplicator.filter_and_deduplicate_results(
@@ -556,8 +564,8 @@ class LocalPlaylistGenerator:
         return True
 
     def _sample_with_randomization(
-        self, tracks: List[Dict[str, Any]], max_count: int, top_ratio: float = 0.3
-    ) -> List[Dict[str, Any]]:
+        self, tracks: List[Track], max_count: int, top_ratio: float = 0.3
+    ) -> List[Track]:
         """
         Sample tracks with a mix of top similarity and random selection
 
@@ -573,7 +581,7 @@ class LocalPlaylistGenerator:
             return tracks
 
         # Sort by similarity first
-        tracks.sort(key=lambda t: t.get("similarity_score", 0), reverse=True)
+        tracks.sort(key=lambda t: t.similarity_score or 0, reverse=True)
 
         # Take top tracks by similarity, then random from the rest
         top_count = int(max_count * top_ratio)
@@ -594,18 +602,18 @@ class LocalPlaylistGenerator:
 
     def _filter_and_deduplicate_results(  # noqa: C901
         self,
-        results: List[Dict[str, Any]],
+        results: List[Track],
         min_similarity: float,
         max_tracks: int,
         is_artist_specific: bool,
         max_artist_ratio: float = 0.3,
-    ) -> List[Dict[str, Any]]:
+    ) -> List[Track]:
         """Filter results by similarity and remove duplicates using multiple strategies"""
         # Filter by similarity threshold
         filtered = [
             track
             for track in results
-            if track.get("similarity_score", 0) >= min_similarity
+            if (track.similarity_score or 0) >= min_similarity
         ]
 
         logger.info(
@@ -617,7 +625,7 @@ class LocalPlaylistGenerator:
         location_deduplicated = []
 
         for track in filtered:
-            location = self._normalize_file_location(track.get("location", ""))
+            location = self._normalize_file_location(track.location or "")
             if location and location not in seen_locations:
                 seen_locations.add(location)
                 location_deduplicated.append(track)
@@ -633,8 +641,8 @@ class LocalPlaylistGenerator:
         combination_deduplicated = []
 
         for track in location_deduplicated:
-            title = track.get("name", "").strip().lower()
-            artist = track.get("artist", "").strip().lower()
+            title = (track.name or "").strip().lower()
+            artist = (track.artist or "").strip().lower()
             combination = f"{title}|{artist}"
 
             if combination and combination not in seen_combinations:
@@ -652,7 +660,7 @@ class LocalPlaylistGenerator:
         final_deduplicated = []
 
         for track in combination_deduplicated:
-            track_id = track.get("id")
+            track_id = track.id
             if track_id not in seen_ids:
                 seen_ids.add(track_id)
                 final_deduplicated.append(track)
@@ -716,16 +724,16 @@ class LocalPlaylistGenerator:
 
         # Assign weights proportional to similarity score (shifted to be >=0)
         min_similarity_score = min(
-            (t.get("similarity_score", 0) for t in candidates), default=0
+            (t.similarity_score or 0 for t in candidates), default=0
         )
         weights = [
-            max(0.0, t.get("similarity_score", 0) - min_similarity_score + 1e-6)
+            max(0.0, (t.similarity_score or 0) - min_similarity_score + 1e-6)
             for t in candidates
         ]
 
         # Sample exactly max_tracks unique tracks
         selected = set()
-        final_tracks: list[dict[str, Any]] = []
+        final_tracks: List[Track] = []
         attempts = 0
         max_attempts = top_k * 3  # Increase attempts to ensure we get enough tracks
         rng = secrets.SystemRandom()
@@ -739,9 +747,7 @@ class LocalPlaylistGenerator:
                 # If no weights or all weights are zero, use uniform random selection
                 pick = rng.choice(candidates)
 
-            pick_id = (
-                pick.get("id") or f"{pick.get('name', '')}-{pick.get('artist', '')}"
-            )
+            pick_id = pick.id or f"{pick.name or ''}-{pick.artist or ''}"
             if pick_id not in selected:
                 final_tracks.append(pick)
                 selected.add(pick_id)
@@ -756,15 +762,14 @@ class LocalPlaylistGenerator:
             remaining_candidates = [
                 t
                 for t in candidates
-                if (t.get("id") or f"{t.get('name', '')}-{t.get('artist', '')}")
-                not in selected
+                if (t.id or f"{t.name or ''}-{t.artist or ''}") not in selected
             ]
 
             # Shuffle remaining candidates for variety
             rng.shuffle(remaining_candidates)
 
             for t in remaining_candidates:
-                t_id = t.get("id") or f"{t.get('name', '')}-{t.get('artist', '')}"
+                t_id = t.id or f"{t.name or ''}-{t.artist or ''}"
                 if t_id not in selected:
                     final_tracks.append(t)
                     selected.add(t_id)
@@ -779,11 +784,11 @@ class LocalPlaylistGenerator:
         )
         return final_tracks
 
-    def _group_tracks_by_artist(self, tracks: List[Dict[str, Any]]) -> dict[str, list]:
+    def _group_tracks_by_artist(self, tracks: List[Track]) -> dict[str, list]:
         """Group tracks by artist for deduplication"""
         artist_groups: dict[str, list] = {}
         for track in tracks:
-            artist = track.get("artist", "").strip().lower()
+            artist = (track.artist or "").strip().lower()
             if artist:
                 if artist not in artist_groups:
                     artist_groups[artist] = []
@@ -791,24 +796,22 @@ class LocalPlaylistGenerator:
         return artist_groups
 
     def _find_best_track_for_base_name(
-        self, artist_tracks: List[Dict[str, Any]], base_name: str
-    ) -> Optional[Dict[str, Any]]:
+        self, artist_tracks: List[Track], base_name: str
+    ) -> Optional[Track]:
         """Find the track with the highest similarity score for a given base name"""
         best_track = None
-        best_score = -1
+        best_score = -1.0
         for track in artist_tracks:
-            name = track.get("name", "").strip().lower()
+            name = (track.name or "").strip().lower()
             track_base = self._extract_base_name(name)
             if track_base == base_name:
-                score = track.get("similarity_score", 0)
+                score = track.similarity_score or 0
                 if score > best_score:
                     best_score = score
                     best_track = track
         return best_track
 
-    def _process_artist_tracks(
-        self, artist_tracks: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+    def _process_artist_tracks(self, artist_tracks: List[Track]) -> List[Track]:
         """Process tracks for a single artist to remove duplicates"""
         if len(artist_tracks) == 1:
             return [artist_tracks[0]]
@@ -817,7 +820,7 @@ class LocalPlaylistGenerator:
         processed_names = set()
 
         for track in artist_tracks:
-            name = track.get("name", "").strip().lower()
+            name = (track.name or "").strip().lower()
             base_name = self._extract_base_name(name)
 
             if base_name and base_name not in processed_names:
@@ -832,19 +835,17 @@ class LocalPlaylistGenerator:
 
         return deduplicated
 
-    def _smart_name_deduplication(
-        self, tracks: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+    def _smart_name_deduplication(self, tracks: List[Track]) -> List[Track]:
         """Remove duplicate tracks based on name and artist similarity"""
         if not tracks:
             return tracks
 
         # Group tracks by base name and artist
-        name_artist_groups: Dict[str, List[Dict[str, Any]]] = {}
+        name_artist_groups: Dict[str, List[Track]] = {}
 
         for track in tracks:
-            base_name = self._extract_base_name(track.get("name", ""))
-            artist = track.get("artist", "")
+            base_name = self._extract_base_name(track.name or "")
+            artist = track.artist or ""
             key = f"{base_name}|{artist}"
 
             if key not in name_artist_groups:
@@ -858,7 +859,7 @@ class LocalPlaylistGenerator:
                 deduplicated.append(group[0])
             else:
                 # Sort by similarity score (descending) and keep the best
-                best_track = max(group, key=lambda t: t.get("similarity_score", 0))
+                best_track = max(group, key=lambda t: t.similarity_score or 0)
                 deduplicated.append(best_track)
 
         return deduplicated
@@ -888,7 +889,7 @@ class LocalPlaylistGenerator:
         return normalized
 
     def save_playlist_m3u(
-        self, tracks: List[Dict[str, Any]], query: str, output_dir: str = "playlists"
+        self, tracks: List[Track], query: str, output_dir: str = "playlists"
     ) -> str:
         """Delegate to PlaylistExporter."""
         return self.exporter.save_playlist_m3u(tracks, query, output_dir)
@@ -981,17 +982,17 @@ class LocalPlaylistGenerator:
 
         return playlist_name.strip()
 
-    def print_playlist_summary(self, tracks: List[Dict[str, Any]], query: str) -> None:
+    def print_playlist_summary(self, tracks: List[Track], query: str) -> None:
         """Print a summary of the generated playlist"""
         print(f"\n🎵 Playlist for: '{query}'")
         print(f"📊 {len(tracks)} tracks found")
         print("-" * 60)
 
         for i, track in enumerate(tracks, 1):
-            artist = track.get("artist", "Unknown")
-            name = track.get("name", "Unknown")
-            album = track.get("album", "Unknown")
-            similarity = track.get("similarity_score", 0)
+            artist = track.artist or "Unknown"
+            name = track.name or "Unknown"
+            album = track.album or "Unknown"
+            similarity = track.similarity_score or 0
 
             print(f"{i:2d}. {artist} - {name}")
             print(f"    Album: {album}")
@@ -999,9 +1000,7 @@ class LocalPlaylistGenerator:
             print()
 
         if tracks:
-            avg_similarity = sum(t.get("similarity_score", 0) for t in tracks) / len(
-                tracks
-            )
+            avg_similarity = sum(t.similarity_score or 0 for t in tracks) / len(tracks)
             print(f"📈 Average similarity: {avg_similarity:.3f}")
         print("-" * 60)
 
@@ -1063,8 +1062,8 @@ class LocalPlaylistGenerator:
         return False
 
     def _apply_artist_randomization(
-        self, tracks: List[Dict[str, Any]], max_tracks: int, is_vague: bool
-    ) -> List[Dict[str, Any]]:
+        self, tracks: List[Track], max_tracks: int, is_vague: bool
+    ) -> List[Track]:
         """
         Apply artist randomization to increase diversity for vague queries
 
@@ -1080,9 +1079,9 @@ class LocalPlaylistGenerator:
             return tracks[:max_tracks]
 
         # Group tracks by artist
-        artist_groups: dict[str, list[dict[str, Any]]] = {}
+        artist_groups: dict[str, list[Track]] = {}
         for track in tracks:
-            artist = track.get("artist", "").strip()
+            artist = (track.artist or "").strip()
             if artist:
                 if artist not in artist_groups:
                     artist_groups[artist] = []
@@ -1099,9 +1098,7 @@ class LocalPlaylistGenerator:
             # Sort artists by their best track's similarity score
             artist_scores = []
             for artist, artist_tracks in artist_groups.items():
-                best_score = max(
-                    track.get("similarity_score", 0) for track in artist_tracks
-                )
+                best_score = max(track.similarity_score or 0 for track in artist_tracks)
                 artist_scores.append((artist, best_score, artist_tracks))
 
             # Sort by score (descending)
@@ -1122,9 +1119,7 @@ class LocalPlaylistGenerator:
             randomized_tracks = []
             for artist, _, artist_tracks in top_artists:
                 # Sort tracks by similarity score and take the best one
-                best_track = max(
-                    artist_tracks, key=lambda t: t.get("similarity_score", 0)
-                )
+                best_track = max(artist_tracks, key=lambda t: t.similarity_score or 0)
                 randomized_tracks.append(best_track)
 
                 if len(randomized_tracks) >= max_tracks:
@@ -1137,10 +1132,10 @@ class LocalPlaylistGenerator:
 
     def _enforce_artist_diversity(
         self,
-        tracks: List[Dict[str, Any]],
+        tracks: List[Track],
         max_tracks: int,
         max_tracks_per_artist: int = 3,
-    ) -> List[Dict[str, Any]]:
+    ) -> List[Track]:
         """
         Enforce artist diversity by limiting tracks per artist
 
@@ -1156,9 +1151,9 @@ class LocalPlaylistGenerator:
             return tracks
 
         # Group tracks by artist
-        artist_groups: dict[str, list[dict[str, Any]]] = {}
+        artist_groups: dict[str, list[Track]] = {}
         for track in tracks:
-            artist = track.get("artist", "").strip()
+            artist = (track.artist or "").strip()
             if artist:
                 if artist not in artist_groups:
                     artist_groups[artist] = []
@@ -1180,7 +1175,7 @@ class LocalPlaylistGenerator:
                 # Sort by similarity score and take the best tracks
                 sorted_tracks = sorted(
                     artist_tracks,
-                    key=lambda t: t.get("similarity_score", 0),
+                    key=lambda t: t.similarity_score or 0,
                     reverse=True,
                 )
                 # Take only the best tracks up to the limit
@@ -1196,9 +1191,7 @@ class LocalPlaylistGenerator:
         # Instead of always taking top tracks by similarity, add randomization
         if len(diverse_tracks) > max_tracks:
             # Sort by similarity first
-            diverse_tracks.sort(
-                key=lambda t: t.get("similarity_score", 0), reverse=True
-            )
+            diverse_tracks.sort(key=lambda t: t.similarity_score or 0, reverse=True)
 
             # Use shared sampling logic
             final_tracks = self._sample_with_randomization(diverse_tracks, max_tracks)
@@ -1215,8 +1208,8 @@ class LocalPlaylistGenerator:
         return distributed_tracks
 
     def _distribute_artists(
-        self, tracks: List[Dict[str, Any]], max_tracks: Optional[int] = None
-    ) -> List[Dict[str, Any]]:
+        self, tracks: List[Track], max_tracks: Optional[int] = None
+    ) -> List[Track]:
         """
         Distribute artists throughout the playlist to avoid grouping
 
@@ -1242,7 +1235,7 @@ class LocalPlaylistGenerator:
         )
 
         # Create a distribution pattern to spread artists evenly
-        distributed: List[Dict[str, Any]] = []
+        distributed: List[Track] = []
         artist_queues = self._create_artist_queues(artist_groups)
 
         # Distribute tracks using round-robin with randomization
@@ -1261,20 +1254,20 @@ class LocalPlaylistGenerator:
         return distributed
 
     def _create_artist_queues(
-        self, artist_groups: dict[str, list[dict[str, Any]]]
-    ) -> dict[str, list[dict[str, Any]]]:
+        self, artist_groups: dict[str, list[Track]]
+    ) -> dict[str, list[Track]]:
         """Create queues for each artist's tracks"""
-        artist_queues: dict[str, list[dict[str, Any]]] = {}
+        artist_queues: dict[str, list[Track]] = {}
         for artist, artist_tracks in artist_groups.items():
             artist_queues[artist] = artist_tracks.copy()
         return artist_queues
 
     def _round_robin_distribute(
         self,
-        artist_queues: dict[str, list[dict[str, Any]]],
-        tracks: List[Dict[str, Any]],
-        distributed: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
+        artist_queues: dict[str, list[Track]],
+        tracks: List[Track],
+        distributed: List[Track],
+    ) -> List[Track]:
         """Distribute tracks using round-robin with randomization"""
         while artist_queues and len(distributed) < len(tracks):
             # Get all artists that still have tracks
@@ -1303,28 +1296,26 @@ class LocalPlaylistGenerator:
 
     def _add_remaining_tracks(
         self,
-        artist_queues: dict[str, list[dict[str, Any]]],
-        tracks: List[Dict[str, Any]],
-        distributed: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
+        artist_queues: dict[str, list[Track]],
+        tracks: List[Track],
+        distributed: List[Track],
+    ) -> List[Track]:
         """Add any remaining tracks to the distributed list"""
         # If we still have space and tracks left, add remaining tracks
-        remaining_tracks: List[Dict[str, Any]] = []
+        remaining_tracks: List[Track] = []
         for artist_tracks in artist_queues.values():
             remaining_tracks.extend(artist_tracks)
 
         # Add remaining tracks at the end, maintaining artist diversity
         if remaining_tracks and len(distributed) < len(tracks):
             # Sort remaining tracks by similarity and add them
-            remaining_tracks.sort(
-                key=lambda t: t.get("similarity_score", 0), reverse=True
-            )
+            remaining_tracks.sort(key=lambda t: t.similarity_score or 0, reverse=True)
             space_left = len(tracks) - len(distributed)
             distributed.extend(remaining_tracks[:space_left])
 
         return distributed
 
-    def _get_tracks_by_artist(self, artist_name: str) -> List[Dict[str, Any]]:
+    def _get_tracks_by_artist(self, artist_name: str) -> List[Track]:
         """
         Get all tracks from the database for a specific artist.
         This bypasses the embedding search and uses direct database queries.
@@ -1361,7 +1352,7 @@ class LocalPlaylistGenerator:
         query: str,
         query_type: str,
         parsed_data: Dict[str, Any],
-        generated_tracks: List[Dict[str, Any]],
+        generated_tracks: List[Track],
         playlist_length: int,
         requested_length: int,
         similarity_threshold: float,
@@ -1373,11 +1364,13 @@ class LocalPlaylistGenerator:
         """
         try:
             # Record playlist feedback using the feedback manager
+            # Convert Track objects to dicts for feedback manager
+            tracks_as_dicts = [track.to_dict() for track in generated_tracks]
             self.feedback_manager.record_playlist_feedback(
                 query=query,
                 query_type=query_type,
                 parsed_data=parsed_data,
-                generated_tracks=generated_tracks,
+                generated_tracks=tracks_as_dicts,
                 playlist_length=playlist_length,
                 requested_length=requested_length,
                 similarity_threshold=similarity_threshold,
@@ -1416,9 +1409,9 @@ def _process_playlist_request(generator: LocalPlaylistGenerator, query: str) -> 
 
         # Ask for feedback on each track
         for track in tracks:
-            artist = track.get("artist", "Unknown")
-            name = track.get("name", "Unknown")
-            track_id = track.get("id", "")
+            artist = track.artist or "Unknown"
+            name = track.name or "Unknown"
+            track_id = str(track.id) if track.id is not None else ""
             print(f"\nTrack: {artist} - {name}")
             fb = (
                 input("Feedback? (l = like, d = dislike, b = block, enter to skip): ")

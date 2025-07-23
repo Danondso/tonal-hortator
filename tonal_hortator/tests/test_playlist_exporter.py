@@ -17,23 +17,29 @@ class TestPlaylistExporter(unittest.TestCase):
         """Test saving playlist as M3U file"""
         exporter = PlaylistExporter()
 
+        from tonal_hortator.core.models import Track
+
         tracks = [
-            {
-                "name": "Song1",
-                "artist": "Artist1",
-                "album": "Album1",
-                "duration_ms": 180000,
-                "similarity_score": 0.8,
-                "location": "/path/to/song1.mp3",
-            },
-            {
-                "name": "Song2",
-                "artist": "Artist2",
-                "album": "Album2",
-                "duration_ms": 200000,
-                "similarity_score": 0.7,
-                "location": "/path/to/song2.mp3",
-            },
+            Track.from_dict(
+                {
+                    "name": "Song1",
+                    "artist": "Artist1",
+                    "album": "Album1",
+                    "duration_ms": 180000,
+                    "similarity_score": 0.8,
+                    "location": "/path/to/song1.mp3",
+                }
+            ),
+            Track.from_dict(
+                {
+                    "name": "Song2",
+                    "artist": "Artist2",
+                    "album": "Album2",
+                    "duration_ms": 200000,
+                    "similarity_score": 0.7,
+                    "location": "/path/to/song2.mp3",
+                }
+            ),
         ]
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -52,18 +58,22 @@ class TestPlaylistExporter(unittest.TestCase):
 
     def test_save_playlist_m3u_creates_clean_filename(self) -> None:
         """Test that save_playlist_m3u creates clean filenames"""
+        from tonal_hortator.core.models import Track
+
         exporter = PlaylistExporter()
 
         # Mock track data
         tracks = [
-            {
-                "artist": "Test Artist",
-                "name": "Test Song",
-                "album": "Test Album",
-                "duration_ms": 180000,
-                "similarity_score": 0.8,
-                "location": "/path/to/song.mp3",
-            }
+            Track.from_dict(
+                {
+                    "artist": "Test Artist",
+                    "name": "Test Song",
+                    "album": "Test Album",
+                    "duration_ms": 180000,
+                    "similarity_score": 0.8,
+                    "location": "/path/to/song.mp3",
+                }
+            )
         ]
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -86,17 +96,21 @@ class TestPlaylistExporter(unittest.TestCase):
 
     def test_save_playlist_m3u_handles_special_characters(self) -> None:
         """Test that save_playlist_m3u handles special characters in filenames"""
+        from tonal_hortator.core.models import Track
+
         exporter = PlaylistExporter()
 
         tracks = [
-            {
-                "artist": "Test Artist",
-                "name": "Test Song",
-                "album": "Test Album",
-                "duration_ms": 180000,
-                "similarity_score": 0.8,
-                "location": "/path/to/song.mp3",
-            }
+            Track.from_dict(
+                {
+                    "artist": "Test Artist",
+                    "name": "Test Song",
+                    "album": "Test Album",
+                    "duration_ms": 180000,
+                    "similarity_score": 0.8,
+                    "location": "/path/to/song.mp3",
+                }
+            )
         ]
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -118,17 +132,21 @@ class TestPlaylistExporter(unittest.TestCase):
 
     def test_save_playlist_m3u_handles_missing_location(self) -> None:
         """Test that save_playlist_m3u handles tracks with missing location"""
+        from tonal_hortator.core.models import Track
+
         exporter = PlaylistExporter()
 
         tracks = [
-            {
-                "artist": "Test Artist",
-                "name": "Test Song",
-                "album": "Test Album",
-                "duration_ms": 180000,
-                "similarity_score": 0.8,
-                "location": "",  # Missing location
-            }
+            Track.from_dict(
+                {
+                    "artist": "Test Artist",
+                    "name": "Test Song",
+                    "album": "Test Album",
+                    "duration_ms": 180000,
+                    "similarity_score": 0.8,
+                    "location": "",  # Missing location
+                }
+            )
         ]
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -146,17 +164,21 @@ class TestPlaylistExporter(unittest.TestCase):
 
     def test_save_playlist_m3u_handles_file_protocol(self) -> None:
         """Test that save_playlist_m3u handles file:// protocol URLs"""
+        from tonal_hortator.core.models import Track
+
         exporter = PlaylistExporter()
 
         tracks = [
-            {
-                "artist": "Test Artist",
-                "name": "Test Song",
-                "album": "Test Album",
-                "duration_ms": 180000,
-                "similarity_score": 0.8,
-                "location": "file:///Users/test/Music/song.mp3",
-            }
+            Track.from_dict(
+                {
+                    "artist": "Test Artist",
+                    "name": "Test Song",
+                    "album": "Test Album",
+                    "duration_ms": 180000,
+                    "similarity_score": 0.8,
+                    "location": "file:///Users/test/Music/song.mp3",
+                }
+            )
         ]
 
         with tempfile.TemporaryDirectory() as temp_dir:

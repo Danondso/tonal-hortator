@@ -26,6 +26,7 @@ from tonal_hortator.core.database import (
     INSERT_TRACK_EMBEDDING,
 )
 from tonal_hortator.core.embeddings.embeddings import OllamaEmbeddingService
+from tonal_hortator.core.models import Track
 from tonal_hortator.utils.loader import create_progress_spinner
 
 # Configure logging
@@ -87,7 +88,7 @@ class LocalTrackEmbedder:
             logger.error(f"❌ Error ensuring embeddings table: {e}")
             raise
 
-    def get_tracks_without_embeddings(self) -> List[Dict[str, Any]]:
+    def get_tracks_without_embeddings(self) -> List[Track]:
         """Get all tracks that don't have embeddings yet"""
         try:
             cursor = self.conn.cursor()
@@ -103,7 +104,10 @@ class LocalTrackEmbedder:
                 # Use a simpler query without ratings
                 cursor.execute(GET_TRACKS_WITHOUT_EMBEDDINGS_SIMPLE)
 
-            tracks = [dict(row) for row in cursor.fetchall()]
+            # Use batch constructor for better performance
+            rows = cursor.fetchall()
+            data_list = [dict(row) for row in rows]
+            tracks = Track.from_dict_batch(data_list)
             logger.info(f"🔍 Found {len(tracks)} tracks without embeddings")
             return tracks
 
@@ -111,14 +115,14 @@ class LocalTrackEmbedder:
             logger.error(f"❌ Error getting tracks without embeddings: {e}")
             raise
 
-    def create_track_embedding_text(self, track: Dict[str, Any]) -> str:
+    def create_track_embedding_text(self, track: Track) -> str:
         """Create text representation of track for embedding"""
         return self.embedding_service.create_track_embedding_text(track)
 
-    def _get_track_display_info(self, track: Dict[str, Any]) -> str:
+    def _get_track_display_info(self, track: Track) -> str:
         """Create a display string for the current track being processed"""
-        name = track.get("name", "Unknown Track")
-        artist = track.get("artist", "Unknown Artist")
+        name = track.name or "Unknown Track"
+        artist = track.artist or "Unknown Artist"
 
         # Truncate long names to keep the display clean
         if len(name) > 30:
@@ -129,7 +133,7 @@ class LocalTrackEmbedder:
         return f"🎵 {name} by {artist}"
 
     def _process_batch(
-        self, batch_tracks: List[Dict[str, Any]], spinner: Optional[Any] = None
+        self, batch_tracks: List[Track], spinner: Optional[Any] = None
     ) -> int:
         """Process a single batch of tracks (for parallel execution)"""
         try:
@@ -146,7 +150,10 @@ class LocalTrackEmbedder:
 
                 # Get embeddings from Ollama with real-time updates
                 embeddings = self.embedding_service.get_embeddings_batch_with_progress(
-                    embedding_texts, batch_tracks, spinner, batch_size=2000
+                    embedding_texts,
+                    batch_tracks,
+                    spinner,
+                    batch_size=2000,
                 )
 
                 # Store embeddings in database using thread-specific connection
@@ -164,7 +171,7 @@ class LocalTrackEmbedder:
             return 0
 
     def embed_tracks_batch(
-        self, tracks: List[Dict[str, Any]], batch_size: int = 500, max_workers: int = 4
+        self, tracks: List[Track], batch_size: int = 500, max_workers: int = 4
     ) -> int:
         """
         Embed a batch of tracks using parallel processing with progress spinner
@@ -217,7 +224,7 @@ class LocalTrackEmbedder:
 
     def _store_embeddings_batch(
         self,
-        tracks: List[Dict[str, Any]],
+        tracks: List[Track],
         embeddings: List[np.ndarray],
         embedding_texts: List[str],
         conn: Optional[sqlite3.Connection] = None,
@@ -234,10 +241,10 @@ class LocalTrackEmbedder:
                 try:
                     # Convert embedding to bytes for storage
                     embedding_bytes = embedding.tobytes()
-                    insert_data.append((track["id"], embedding_bytes, text))
+                    insert_data.append((track.id, embedding_bytes, text))
                 except Exception as e:
                     logger.error(
-                        f"❌ Error preparing embedding for track {track['id']}: {e}"
+                        f"❌ Error preparing embedding for track {track.id}: {e}"
                     )
                     continue
 
@@ -254,7 +261,7 @@ class LocalTrackEmbedder:
             logger.error(f"❌ Error storing embeddings batch: {e}")
             return 0
 
-    def get_all_embeddings(self) -> Tuple[List[np.ndarray], List[Dict[str, Any]]]:
+    def get_all_embeddings(self) -> Tuple[List[np.ndarray], List[Track]]:
         """Get all embeddings and corresponding track data from the database"""
         try:
             cursor = self.conn.cursor()
@@ -274,15 +281,15 @@ class LocalTrackEmbedder:
             embeddings = []
             track_data = []
 
-            for row in rows:
-                # Convert row to dict for easier access
-                row_dict = dict(row)
+            # Process rows in batches for better performance
+            row_dicts = [dict(row) for row in rows]
 
+            for row_dict in row_dicts:
                 # Handle embedding data
                 if row_dict["embedding"] is not None:
                     embedding = np.frombuffer(row_dict["embedding"], dtype=np.float32)
                     embeddings.append(embedding)
-                    track_data.append(row_dict)
+                    track_data.append(Track.from_dict(row_dict))
                 else:
                     # Skip tracks without embeddings
                     continue
@@ -294,7 +301,7 @@ class LocalTrackEmbedder:
             logger.error(f"❌ Error getting embeddings: {e}")
             raise
 
-    def get_all_tracks_by_artist(self, artist_name: str) -> List[Dict[str, Any]]:
+    def get_all_tracks_by_artist(self, artist_name: str) -> List[Track]:
         """
         Get all tracks from the database for a specific artist.
         This bypasses the embedding search and uses direct database queries.
@@ -312,7 +319,11 @@ class LocalTrackEmbedder:
             query = GET_TRACKS_BY_ARTIST
 
             cursor.execute(query, (artist_name,))
-            tracks = [dict(row) for row in cursor.fetchall()]
+
+            # Use batch constructor for better performance
+            rows = cursor.fetchall()
+            data_list = [dict(row) for row in rows]
+            tracks = Track.from_dict_batch(data_list)
 
             logger.info(f"🎤 Found {len(tracks)} tracks by artist '{artist_name}'")
             return tracks
