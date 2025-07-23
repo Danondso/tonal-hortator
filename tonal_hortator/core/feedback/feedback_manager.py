@@ -31,15 +31,6 @@ from tonal_hortator.core.database import (
 )
 from tonal_hortator.core.feedback.feedback_validator import FeedbackValidator
 
-# from tonal_hortator.core.models import (
-#     DatabaseProtocol,
-#     QueryLearning,
-#     Track,
-#     TrackRating,
-#     UserFeedback,
-#     UserPreference,
-# )
-
 logger = logging.getLogger(__name__)
 
 

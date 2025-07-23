@@ -31,7 +31,7 @@ class PlaylistFilter:
 
         Args:
             genre_keywords: List of genre keywords to filter/boost
-            tracks: List of track dictionaries
+            tracks: List of track objects
 
         Returns:
             Combined list of boosted genre matches and other tracks for diversity
@@ -51,7 +51,7 @@ class PlaylistFilter:
         genre_matches = []
         other_tracks = []
 
-        # Separate tracks into genre matches and others
+        # Separate tracks into genre matches and others, using mutable updates
         for track in tracks:
             track_genre = (track.genre or "").lower()
             similarity_score = track.similarity_score or 0
@@ -62,13 +62,11 @@ class PlaylistFilter:
             )
 
             if genre_match:
-                # Create a new Track with boosted similarity score
+                # Update the track in-place for better performance
                 boosted_score = min(max_score, similarity_score + genre_boost_score)
-                track_dict = track.to_dict()
-                track_dict["similarity_score"] = boosted_score
-                track_dict["genre_boosted"] = True
-                boosted_track = Track.from_dict(track_dict)
-                genre_matches.append(boosted_track)
+                track.similarity_score = boosted_score
+                track.genre_boosted = True
+                genre_matches.append(track)
             else:
                 # Keep track for diversity (no boosting)
                 other_tracks.append(track)

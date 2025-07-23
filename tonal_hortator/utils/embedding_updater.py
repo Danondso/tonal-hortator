@@ -638,7 +638,11 @@ class EmbeddingUpdater:
         cursor = self.embedder.conn.cursor()
         query = build_get_tracks_by_ids_query(track_ids)
         cursor.execute(query, track_ids)
-        return [Track.from_dict(dict(row)) for row in cursor.fetchall()]
+
+        # Use batch constructor for better performance
+        rows = cursor.fetchall()
+        data_list = [dict(row) for row in rows]
+        return Track.from_dict_batch(data_list)
 
     def _clear_embeddings_for_tracks(self, track_ids: List[int]) -> None:
         if not track_ids:

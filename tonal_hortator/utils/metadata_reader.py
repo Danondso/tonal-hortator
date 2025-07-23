@@ -25,8 +25,6 @@ from mutagen.wave import WAVE
 
 from tonal_hortator.core.database import GET_EMBEDDING_STATS
 
-# from tonal_hortator.core.models import FileMetadata  # TODO: Integrate FileMetadata usage
-
 # Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"

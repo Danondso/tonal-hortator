@@ -104,7 +104,10 @@ class LocalTrackEmbedder:
                 # Use a simpler query without ratings
                 cursor.execute(GET_TRACKS_WITHOUT_EMBEDDINGS_SIMPLE)
 
-            tracks = [Track.from_dict(dict(row)) for row in cursor.fetchall()]
+            # Use batch constructor for better performance
+            rows = cursor.fetchall()
+            data_list = [dict(row) for row in rows]
+            tracks = Track.from_dict_batch(data_list)
             logger.info(f"🔍 Found {len(tracks)} tracks without embeddings")
             return tracks
 
@@ -278,10 +281,10 @@ class LocalTrackEmbedder:
             embeddings = []
             track_data = []
 
-            for row in rows:
-                # Convert row to dict for easier access
-                row_dict = dict(row)
+            # Process rows in batches for better performance
+            row_dicts = [dict(row) for row in rows]
 
+            for row_dict in row_dicts:
                 # Handle embedding data
                 if row_dict["embedding"] is not None:
                     embedding = np.frombuffer(row_dict["embedding"], dtype=np.float32)
@@ -316,7 +319,11 @@ class LocalTrackEmbedder:
             query = GET_TRACKS_BY_ARTIST
 
             cursor.execute(query, (artist_name,))
-            tracks = [Track.from_dict(dict(row)) for row in cursor.fetchall()]
+
+            # Use batch constructor for better performance
+            rows = cursor.fetchall()
+            data_list = [dict(row) for row in rows]
+            tracks = Track.from_dict_batch(data_list)
 
             logger.info(f"🎤 Found {len(tracks)} tracks by artist '{artist_name}'")
             return tracks

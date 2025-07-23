@@ -81,6 +81,23 @@ class Track:
         filtered_data = {k: v for k, v in data.items() if k in valid_fields}
         return cls(**filtered_data)
 
+    @classmethod
+    def from_dict_batch(cls, data_list: List[Dict[str, Any]]) -> List["Track"]:
+        """Create multiple Track objects from a list of dictionaries efficiently."""
+        if not data_list:
+            return []
+
+        # Get valid fields once
+        valid_fields = {f.name for f in cls.__dataclass_fields__.values()}
+
+        tracks = []
+        for data in data_list:
+            # Filter out keys that don't exist in the dataclass
+            filtered_data = {k: v for k, v in data.items() if k in valid_fields}
+            tracks.append(cls(**filtered_data))
+
+        return tracks
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert Track to dictionary, excluding None values."""
         return {k: v for k, v in self.__dict__.items() if v is not None}
