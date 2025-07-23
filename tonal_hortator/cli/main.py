@@ -634,8 +634,9 @@ def _show_feedback_stats(feedback_manager: FeedbackManager) -> None:
     else:
         table.add_row("Average Rating", "N/A")
 
-    if "feedback_by_type" in stats:
-        for query_type, count in stats["feedback_by_type"].items():
+    feedback_by_type = stats.get("feedback_by_type")
+    if feedback_by_type and isinstance(feedback_by_type, dict):
+        for query_type, count in feedback_by_type.items():
             table.add_row(f"Feedback ({query_type})", str(count))
 
     console.print(table)

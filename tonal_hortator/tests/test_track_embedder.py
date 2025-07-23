@@ -167,10 +167,10 @@ class TestLocalTrackEmbedder(unittest.TestCase):
             tracks = embedder.get_tracks_without_embeddings()
 
             self.assertEqual(len(tracks), 3)
-            self.assertEqual(tracks[0]["id"], 1)
-            self.assertEqual(tracks[0]["name"], "Test Song 1")
-            self.assertEqual(tracks[1]["id"], 2)
-            self.assertEqual(tracks[2]["id"], 3)
+            self.assertEqual(tracks[0].id, 1)
+            self.assertEqual(tracks[0].name, "Test Song 1")
+            self.assertEqual(tracks[1].id, 2)
+            self.assertEqual(tracks[2].id, 3)
 
     def test_get_tracks_without_embeddings_with_existing_embeddings(self) -> None:
         """Test getting tracks without embeddings when some tracks have embeddings"""
@@ -204,8 +204,8 @@ class TestLocalTrackEmbedder(unittest.TestCase):
             tracks = embedder.get_tracks_without_embeddings()
 
             self.assertEqual(len(tracks), 2)
-            self.assertEqual(tracks[0]["id"], 2)
-            self.assertEqual(tracks[1]["id"], 3)
+            self.assertEqual(tracks[0].id, 2)
+            self.assertEqual(tracks[1].id, 3)
 
     def test_create_track_embedding_text(self) -> None:
         """Test creating track embedding text"""
@@ -217,7 +217,9 @@ class TestLocalTrackEmbedder(unittest.TestCase):
         ):
             embedder = LocalTrackEmbedder(self.db_path, embedding_service=mock_service)
 
-            track = {"name": "Test Song", "artist": "Test Artist"}
+            from tonal_hortator.core.models import Track
+
+            track = Track.from_dict({"name": "Test Song", "artist": "Test Artist"})
             result = embedder.create_track_embedding_text(track)
 
             self.assertEqual(result, "Test embedding text")
@@ -226,6 +228,8 @@ class TestLocalTrackEmbedder(unittest.TestCase):
     @patch("tonal_hortator.core.embeddings.track_embedder.sqlite3.connect")
     def test_process_batch_success(self, mock_connect: Mock) -> None:
         """Test successful batch processing"""
+        from tonal_hortator.core.models import Track
+
         # Mock database connection and cursor
         mock_conn = Mock()
         mock_cursor = Mock()
@@ -248,8 +252,12 @@ class TestLocalTrackEmbedder(unittest.TestCase):
             embedder = LocalTrackEmbedder(self.db_path, embedding_service=mock_service)
 
             batch_tracks = [
-                {"id": 1, "name": "Test Song 1", "artist": "Test Artist 1"},
-                {"id": 2, "name": "Test Song 2", "artist": "Test Artist 2"},
+                Track.from_dict(
+                    {"id": 1, "name": "Test Song 1", "artist": "Test Artist 1"}
+                ),
+                Track.from_dict(
+                    {"id": 2, "name": "Test Song 2", "artist": "Test Artist 2"}
+                ),
             ]
 
             result = embedder._process_batch(batch_tracks, None)
@@ -261,6 +269,8 @@ class TestLocalTrackEmbedder(unittest.TestCase):
 
     def test_process_batch_error(self) -> None:
         """Test batch processing with error"""
+        from tonal_hortator.core.models import Track
+
         mock_service = Mock()
         mock_service.get_embeddings_batch.side_effect = Exception("Embedding error")
 
@@ -269,7 +279,7 @@ class TestLocalTrackEmbedder(unittest.TestCase):
         ):
             embedder = LocalTrackEmbedder(self.db_path, embedding_service=mock_service)
 
-            batch_tracks = [{"id": 1, "name": "Test Song 1"}]
+            batch_tracks = [Track.from_dict({"id": 1, "name": "Test Song 1"})]
 
             result = embedder._process_batch(batch_tracks, None)
 
@@ -293,6 +303,8 @@ class TestLocalTrackEmbedder(unittest.TestCase):
     @patch("tonal_hortator.core.embeddings.track_embedder.ThreadPoolExecutor")
     def test_embed_tracks_batch_success(self, mock_executor_class: Mock) -> None:
         """Test successful batch embedding"""
+        from tonal_hortator.core.models import Track
+
         # Mock ThreadPoolExecutor with proper context manager support
         mock_executor = Mock()
         mock_executor_class.return_value = mock_executor
@@ -322,9 +334,9 @@ class TestLocalTrackEmbedder(unittest.TestCase):
                 )
 
                 tracks = [
-                    {"id": 1, "name": "Test Song 1"},
-                    {"id": 2, "name": "Test Song 2"},
-                    {"id": 3, "name": "Test Song 3"},
+                    Track.from_dict({"id": 1, "name": "Test Song 1"}),
+                    Track.from_dict({"id": 2, "name": "Test Song 2"}),
+                    Track.from_dict({"id": 3, "name": "Test Song 3"}),
                 ]
 
                 result = embedder.embed_tracks_batch(
@@ -337,6 +349,8 @@ class TestLocalTrackEmbedder(unittest.TestCase):
     @patch("tonal_hortator.core.embeddings.track_embedder.ThreadPoolExecutor")
     def test_embed_tracks_batch_with_failures(self, mock_executor_class: Mock) -> None:
         """Test batch embedding with some failures"""
+        from tonal_hortator.core.models import Track
+
         # Mock ThreadPoolExecutor with proper context manager support
         mock_executor = Mock()
         mock_executor_class.return_value = mock_executor
@@ -366,9 +380,9 @@ class TestLocalTrackEmbedder(unittest.TestCase):
                 )
 
                 tracks = [
-                    {"id": 1, "name": "Test Song 1"},
-                    {"id": 2, "name": "Test Song 2"},
-                    {"id": 3, "name": "Test Song 3"},
+                    Track.from_dict({"id": 1, "name": "Test Song 1"}),
+                    Track.from_dict({"id": 2, "name": "Test Song 2"}),
+                    Track.from_dict({"id": 3, "name": "Test Song 3"}),
                 ]
 
                 result = embedder.embed_tracks_batch(
@@ -379,6 +393,8 @@ class TestLocalTrackEmbedder(unittest.TestCase):
 
     def test_store_embeddings_batch_success(self) -> None:
         """Test successful batch storage of embeddings"""
+        from tonal_hortator.core.models import Track
+
         mock_service = Mock()
 
         with patch(
@@ -387,8 +403,8 @@ class TestLocalTrackEmbedder(unittest.TestCase):
             embedder = LocalTrackEmbedder(self.db_path, embedding_service=mock_service)
 
             tracks = [
-                {"id": 1, "name": "Test Song 1"},
-                {"id": 2, "name": "Test Song 2"},
+                Track.from_dict({"id": 1, "name": "Test Song 1"}),
+                Track.from_dict({"id": 2, "name": "Test Song 2"}),
             ]
             embeddings = [
                 np.array([0.1, 0.2, 0.3], dtype=np.float32),
@@ -411,6 +427,8 @@ class TestLocalTrackEmbedder(unittest.TestCase):
 
     def test_store_embeddings_batch_with_errors(self) -> None:
         """Test batch storage with some embedding errors"""
+        from tonal_hortator.core.models import Track
+
         mock_service = Mock()
 
         with patch(
@@ -419,8 +437,8 @@ class TestLocalTrackEmbedder(unittest.TestCase):
             embedder = LocalTrackEmbedder(self.db_path, embedding_service=mock_service)
 
             tracks = [
-                {"id": 1, "name": "Test Song 1"},
-                {"id": 2, "name": "Test Song 2"},
+                Track.from_dict({"id": 1, "name": "Test Song 1"}),
+                Track.from_dict({"id": 2, "name": "Test Song 2"}),
             ]
             # One embedding that will cause an error (None instead of numpy array)
             embeddings = [
@@ -503,8 +521,8 @@ class TestLocalTrackEmbedder(unittest.TestCase):
 
             self.assertEqual(len(embeddings), 2)
             self.assertEqual(len(track_data), 2)
-            self.assertEqual(track_data[0]["id"], 1)
-            self.assertEqual(track_data[1]["id"], 2)
+            self.assertEqual(track_data[0].id, 1)
+            self.assertEqual(track_data[1].id, 2)
 
             # Check that embeddings are numpy arrays
             self.assertIsInstance(embeddings[0], np.ndarray)

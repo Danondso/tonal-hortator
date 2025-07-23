@@ -261,8 +261,11 @@ class TestOllamaEmbeddingService(unittest.TestCase):
             "genre": "Rock",
             "year": "2020",
         }
+        from tonal_hortator.core.models import Track
 
-        result = service.create_track_embedding_text(track_data)
+        track = Track.from_dict(track_data)
+
+        result = service.create_track_embedding_text(track)
 
         expected = "Test Song, Test Artist, Test Album, Rock, 2020"
         self.assertEqual(result, expected)
@@ -282,8 +285,11 @@ class TestOllamaEmbeddingService(unittest.TestCase):
         service = OllamaEmbeddingService()
 
         track_data = {"name": "Test Song", "artist": "Test Artist"}
+        from tonal_hortator.core.models import Track
 
-        result = service.create_track_embedding_text(track_data)
+        track = Track.from_dict(track_data)
+
+        result = service.create_track_embedding_text(track)
 
         expected = "Test Song, Test Artist"
         self.assertEqual(result, expected)
@@ -306,10 +312,12 @@ class TestOllamaEmbeddingService(unittest.TestCase):
             np.array([0.9, 0.8, 0.7], dtype=np.float32),
             np.array([0.2, 0.3, 0.4], dtype=np.float32),
         ]
+        from tonal_hortator.core.models import Track
+
         track_data = [
-            {"name": "Track 1", "artist": "Artist 1"},
-            {"name": "Track 2", "artist": "Artist 2"},
-            {"name": "Track 3", "artist": "Artist 3"},
+            Track.from_dict({"name": "Track 1", "artist": "Artist 1"}),
+            Track.from_dict({"name": "Track 2", "artist": "Artist 2"}),
+            Track.from_dict({"name": "Track 3", "artist": "Artist 3"}),
         ]
 
         # Mock the embedding generation for the query
@@ -322,8 +330,8 @@ class TestOllamaEmbeddingService(unittest.TestCase):
         )
 
         self.assertEqual(len(results), 2)
-        self.assertEqual(results[0]["name"], "Track 1")  # Highest similarity
-        self.assertEqual(results[1]["name"], "Track 3")  # Second highest similarity
+        self.assertEqual(results[0].name, "Track 1")  # Highest similarity
+        self.assertEqual(results[1].name, "Track 3")  # Second highest similarity
 
     @patch("tonal_hortator.core.embeddings.embeddings.ollama.Client")
     def test_similarity_search_empty_data(self, mock_client_class: Mock) -> None:
@@ -391,6 +399,8 @@ class TestOllamaEmbeddingService(unittest.TestCase):
         self, mock_client_class: Mock
     ) -> None:
         """Test track embedding text creation with engagement data"""
+        from tonal_hortator.core.models import Track
+
         mock_client = Mock()
         mock_client_class.return_value = mock_client
 
@@ -406,7 +416,7 @@ class TestOllamaEmbeddingService(unittest.TestCase):
             "artist": "Popular Artist",
             "play_count": 150,
         }
-        result = service.create_track_embedding_text(track_data)
+        result = service.create_track_embedding_text(Track.from_dict(track_data))
         self.assertIn("frequently played", result)
 
         # Test with track rating
@@ -415,7 +425,7 @@ class TestOllamaEmbeddingService(unittest.TestCase):
             "artist": "Great Artist",
             "track_rating": 4.8,
         }
-        result = service.create_track_embedding_text(track_data)
+        result = service.create_track_embedding_text(Track.from_dict(track_data))
         self.assertIn("highly rated", result)
 
         # Test with average rating
@@ -424,7 +434,7 @@ class TestOllamaEmbeddingService(unittest.TestCase):
             "artist": "Beloved Artist",
             "avg_rating": 4.7,
         }
-        result = service.create_track_embedding_text(track_data)
+        result = service.create_track_embedding_text(Track.from_dict(track_data))
         self.assertIn("user favorite", result)
 
     @patch("tonal_hortator.core.embeddings.embeddings.ollama.Client")
@@ -432,6 +442,8 @@ class TestOllamaEmbeddingService(unittest.TestCase):
         self, mock_client_class: Mock
     ) -> None:
         """Test play count categorization in embedding text"""
+        from tonal_hortator.core.models import Track
+
         mock_client = Mock()
         mock_client_class.return_value = mock_client
 
@@ -457,7 +469,7 @@ class TestOllamaEmbeddingService(unittest.TestCase):
                 "artist": "Test Artist",
                 "play_count": play_count,
             }
-            result = service.create_track_embedding_text(track_data)
+            result = service.create_track_embedding_text(Track.from_dict(track_data))
 
             if expected_text:
                 self.assertIn(expected_text, result)
@@ -470,6 +482,8 @@ class TestOllamaEmbeddingService(unittest.TestCase):
         self, mock_client_class: Mock
     ) -> None:
         """Test rating categorization in embedding text"""
+        from tonal_hortator.core.models import Track
+
         mock_client = Mock()
         mock_client_class.return_value = mock_client
 
@@ -494,7 +508,7 @@ class TestOllamaEmbeddingService(unittest.TestCase):
                 "artist": "Test Artist",
                 "track_rating": rating,
             }
-            result = service.create_track_embedding_text(track_data)
+            result = service.create_track_embedding_text(Track.from_dict(track_data))
 
             if expected_text:
                 self.assertIn(expected_text, result)
@@ -516,7 +530,7 @@ class TestOllamaEmbeddingService(unittest.TestCase):
                 "artist": "Test Artist",
                 "avg_rating": rating,
             }
-            result = service.create_track_embedding_text(track_data)
+            result = service.create_track_embedding_text(Track.from_dict(track_data))
 
             if expected_text:
                 self.assertIn(expected_text, result)
@@ -529,6 +543,8 @@ class TestOllamaEmbeddingService(unittest.TestCase):
         self, mock_client_class: Mock
     ) -> None:
         """Test comprehensive engagement data in embedding text"""
+        from tonal_hortator.core.models import Track
+
         mock_client = Mock()
         mock_client_class.return_value = mock_client
 
@@ -550,7 +566,7 @@ class TestOllamaEmbeddingService(unittest.TestCase):
             "avg_rating": 4.8,
         }
 
-        result = service.create_track_embedding_text(track_data)
+        result = service.create_track_embedding_text(Track.from_dict(track_data))
 
         # Should contain all engagement indicators
         self.assertIn("frequently played", result)
@@ -569,6 +585,8 @@ class TestOllamaEmbeddingService(unittest.TestCase):
         self, mock_client_class: Mock
     ) -> None:
         """Test handling of invalid rating data"""
+        from tonal_hortator.core.models import Track
+
         mock_client = Mock()
         mock_client_class.return_value = mock_client
 
@@ -586,7 +604,7 @@ class TestOllamaEmbeddingService(unittest.TestCase):
             "avg_rating": "not_a_number",
         }
 
-        result = service.create_track_embedding_text(track_data)
+        result = service.create_track_embedding_text(Track.from_dict(track_data))
 
         # Should not contain any rating text due to invalid data
         self.assertNotIn("rated", result)

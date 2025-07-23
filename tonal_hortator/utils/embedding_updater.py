@@ -25,6 +25,7 @@ from tonal_hortator.core.database.query_helpers import (
     build_get_tracks_by_ids_query,
 )
 from tonal_hortator.core.embeddings.track_embedder import LocalTrackEmbedder
+from tonal_hortator.core.models import Track
 
 # Configure logging
 logging.basicConfig(
@@ -162,7 +163,7 @@ class EmbeddingUpdater:
 
     def _update_embeddings_preserve_mode(
         self,
-        tracks: List[Dict[str, Any]],
+        tracks: List[Track],
         batch_size: int,
         max_workers: int,
         stats: Dict[str, Any],
@@ -188,7 +189,7 @@ class EmbeddingUpdater:
 
     def _update_embeddings_hybrid_mode(
         self,
-        tracks: List[Dict[str, Any]],
+        tracks: List[Track],
         batch_size: int,
         max_workers: int,
         stats: Dict[str, Any],
@@ -201,7 +202,10 @@ class EmbeddingUpdater:
 
         # Separate tracks with and without existing embeddings
         for track in tracks:
-            existing_embedding = self._get_existing_embedding(track["id"])
+            if track.id is None:
+                tracks_without_embeddings.append(track)
+                continue
+            existing_embedding = self._get_existing_embedding(track.id)
             if existing_embedding is not None:
                 tracks_with_embeddings.append((track, existing_embedding))
             else:
@@ -224,9 +228,11 @@ class EmbeddingUpdater:
             )
             stats["hybrid"] += hybrid_count
 
-    def _should_update_embedding(self, track: Dict[str, Any]) -> bool:
+    def _should_update_embedding(self, track: Track) -> bool:
         """Determine if an embedding should be updated based on metadata changes."""
-        embedding_info = self._get_embedding_info(track["id"])
+        if track.id is None:
+            return True
+        embedding_info = self._get_embedding_info(track.id)
         if not embedding_info:
             return True  # No existing embedding, create new one
 
@@ -246,7 +252,7 @@ class EmbeddingUpdater:
             return None
 
     def _has_metadata_changed(
-        self, track: Dict[str, Any], embedding_info: Dict[str, Any]
+        self, track: Track, embedding_info: Dict[str, Any]
     ) -> bool:
         """Check if metadata has changed significantly since the embedding was created."""
         # Key fields to check for changes
@@ -261,7 +267,8 @@ class EmbeddingUpdater:
 
         # Extract current metadata for comparison
         current_metadata = {
-            field: str(track.get(field, "")).lower().strip() for field in key_fields
+            field: str(getattr(track, field, "")).lower().strip()
+            for field in key_fields
         }
 
         # Try to extract metadata from embedding text (if it contains metadata)
@@ -275,7 +282,7 @@ class EmbeddingUpdater:
             # Update if embedding is older than 30 days
             if age_days > 30:
                 logger.debug(
-                    f"Track {track['id']} embedding is {age_days} days old, updating"
+                    f"Track {track.id} embedding is {age_days} days old, updating"
                 )
                 return True
 
@@ -286,19 +293,15 @@ class EmbeddingUpdater:
             for field, value in current_metadata.items():
                 if value and value not in embedding_text:
                     logger.debug(
-                        f"Track {track['id']} missing {field} in embedding, updating"
+                        f"Track {track.id} missing {field} in embedding, updating"
                     )
                     return True
 
-            logger.debug(
-                f"Track {track['id']} metadata unchanged, preserving embedding"
-            )
+            logger.debug(f"Track {track.id} metadata unchanged, preserving embedding")
             return False
 
         except Exception as e:
-            logger.warning(
-                f"Error checking metadata changes for track {track['id']}: {e}"
-            )
+            logger.warning(f"Error checking metadata changes for track {track.id}: {e}")
             return True  # Update to be safe
 
     def _get_existing_embedding(self, track_id: int) -> Optional[np.ndarray]:
@@ -318,7 +321,7 @@ class EmbeddingUpdater:
 
     def _create_hybrid_embeddings(
         self,
-        tracks_with_embeddings: List[Tuple[Dict[str, Any], np.ndarray]],
+        tracks_with_embeddings: List[Tuple[Track, np.ndarray]],
         batch_size: int,
         max_workers: int,
         strategy: HybridStrategy,
@@ -353,28 +356,29 @@ class EmbeddingUpdater:
 
                     # Store the hybrid embedding
                     try:
-                        self._store_hybrid_embedding(
-                            track["id"], hybrid_embedding, new_embedding_text
-                        )
+                        if track.id is not None:
+                            self._store_hybrid_embedding(
+                                track.id, hybrid_embedding, new_embedding_text
+                            )
                         successful_count += 1
                         logger.debug(
-                            f"Created hybrid embedding for track {track['id']} "
+                            f"Created hybrid embedding for track {track.id} "
                             f"(weights: old={old_weight:.2f}, new={new_weight:.2f})"
                         )
                     except Exception as e:
                         logger.error(
-                            f"Error storing hybrid embedding for track {track['id']}: {e}"
+                            f"Error storing hybrid embedding for track {track.id}: {e}"
                         )
             except Exception as e:
                 logger.error(
-                    f"Error creating hybrid embedding for track {track['id']}: {e}"
+                    f"Error creating hybrid embedding for track {track.id}: {e}"
                 )
 
         return successful_count
 
     def _calculate_weights(
         self,
-        track: Dict[str, Any],
+        track: Track,
         strategy: HybridStrategy,
         config: Dict[str, Any],
     ) -> Tuple[float, float]:
@@ -399,10 +403,12 @@ class EmbeddingUpdater:
         return 0.5, 0.5  # type: ignore
 
     def _calculate_age_weights(
-        self, track: Dict[str, Any], config: Dict[str, Any]
+        self, track: Track, config: Dict[str, Any]
     ) -> Tuple[float, float]:
         """Calculate weights based on embedding age."""
-        embedding_info = self._get_embedding_info(track["id"])
+        if track.id is None:
+            return 0.0, 1.0
+        embedding_info = self._get_embedding_info(track.id)
         if not embedding_info:
             return 0.0, 1.0  # No existing embedding, use only new
 
@@ -430,13 +436,11 @@ class EmbeddingUpdater:
             return old_weight, new_weight
 
         except Exception as e:
-            logger.warning(
-                f"Error calculating age weights for track {track['id']}: {e}"
-            )
+            logger.warning(f"Error calculating age weights for track {track.id}: {e}")
             return 0.5, 0.5
 
     def _calculate_metadata_weights(
-        self, track: Dict[str, Any], config: Dict[str, Any]
+        self, track: Track, config: Dict[str, Any]
     ) -> Tuple[float, float]:
         """Calculate weights based on metadata completeness."""
         # Key metadata fields to check
@@ -455,11 +459,13 @@ class EmbeddingUpdater:
         ]
 
         # Calculate completeness of current metadata
-        filled_fields = sum(1 for field in key_fields if track.get(field))
+        filled_fields = sum(1 for field in key_fields if getattr(track, field, None))
         completeness = filled_fields / len(key_fields)
 
         # Get existing embedding info to compare
-        embedding_info = self._get_embedding_info(track["id"])
+        if track.id is None:
+            return 0.0, 1.0
+        embedding_info = self._get_embedding_info(track.id)
         if not embedding_info:
             return 0.0, 1.0
 
@@ -468,7 +474,7 @@ class EmbeddingUpdater:
         old_completeness = sum(
             1
             for field in key_fields
-            if str(track.get(field, "")).lower() in embedding_text
+            if str(getattr(track, field, "")).lower() in embedding_text
         ) / len(key_fields)
 
         # Calculate weights
@@ -487,7 +493,7 @@ class EmbeddingUpdater:
         return old_weight, new_weight
 
     def _calculate_confidence_weights(
-        self, track: Dict[str, Any], config: Dict[str, Any]
+        self, track: Track, config: Dict[str, Any]
     ) -> Tuple[float, float]:
         """Calculate weights based on confidence indicators."""
         # Calculate confidence scores for old and new embeddings
@@ -511,25 +517,27 @@ class EmbeddingUpdater:
         return old_weight, new_weight
 
     def _calculate_old_embedding_confidence(
-        self, track: Dict[str, Any], config: Dict[str, Any]
+        self, track: Track, config: Dict[str, Any]
     ) -> float:
         """Calculate confidence score for existing embedding."""
         confidence = 0.0
 
         # Play count confidence (more plays = higher confidence)
-        play_count = track.get("play_count", 0)
+        play_count = track.play_count or 0
         if play_count > 0:
             play_count_weight = config.get("play_count_weight", 0.3)
             confidence += play_count_weight * min(1.0, play_count / 100.0)
 
         # Rating confidence (higher ratings = higher confidence)
-        avg_rating = track.get("avg_rating", 0)
+        avg_rating = track.avg_rating or 0
         if avg_rating > 0:
             rating_weight = config.get("rating_weight", 0.3)
             confidence += rating_weight * (avg_rating / 5.0)
 
         # Age confidence (newer = higher confidence, but with diminishing returns)
-        embedding_info = self._get_embedding_info(track["id"])
+        if track.id is None:
+            return 0.0
+        embedding_info = self._get_embedding_info(track.id)
         if embedding_info:
             try:
                 created_at = datetime.fromisoformat(
@@ -545,7 +553,7 @@ class EmbeddingUpdater:
         return confidence
 
     def _calculate_new_embedding_confidence(
-        self, track: Dict[str, Any], config: Dict[str, Any]
+        self, track: Track, config: Dict[str, Any]
     ) -> float:
         """Calculate confidence score for new embedding."""
         confidence = 0.0
@@ -561,7 +569,7 @@ class EmbeddingUpdater:
             "musical_key",
             "mood",
         ]
-        filled_fields = sum(1 for field in key_fields if track.get(field))
+        filled_fields = sum(1 for field in key_fields if getattr(track, field, None))
         completeness = filled_fields / len(key_fields)
 
         metadata_weight = float(config.get("metadata_completeness_weight", 0.4))
@@ -571,18 +579,20 @@ class EmbeddingUpdater:
         confidence += 0.3
 
         # Quality indicators
-        if track.get("play_count", 0) > 0:
+        if (track.play_count or 0) > 0:
             confidence += 0.1
-        if track.get("avg_rating", 0) > 0:
+        if (track.avg_rating or 0) > 0:
             confidence += 0.1
 
         return confidence
 
     def _calculate_exponential_decay_weights(
-        self, track: Dict[str, Any], config: Dict[str, Any]
+        self, track: Track, config: Dict[str, Any]
     ) -> Tuple[float, float]:
         """Calculate weights using exponential decay based on age."""
-        embedding_info = self._get_embedding_info(track["id"])
+        if track.id is None:
+            return 0.0, 1.0
+        embedding_info = self._get_embedding_info(track.id)
         if not embedding_info:
             return 0.0, 1.0
 
@@ -606,7 +616,7 @@ class EmbeddingUpdater:
 
         except Exception as e:
             logger.warning(
-                f"Error calculating exponential decay weights for track {track['id']}: {e}"
+                f"Error calculating exponential decay weights for track {track.id}: {e}"
             )
             return 0.5, 0.5
 
@@ -622,13 +632,13 @@ class EmbeddingUpdater:
         )
         self.embedder.conn.commit()
 
-    def _get_tracks_by_ids(self, track_ids: List[int]) -> List[Dict[str, Any]]:
+    def _get_tracks_by_ids(self, track_ids: List[int]) -> List[Track]:
         if not track_ids:
             return []
         cursor = self.embedder.conn.cursor()
         query = build_get_tracks_by_ids_query(track_ids)
         cursor.execute(query, track_ids)
-        return [dict(row) for row in cursor.fetchall()]
+        return [Track.from_dict(dict(row)) for row in cursor.fetchall()]
 
     def _clear_embeddings_for_tracks(self, track_ids: List[int]) -> None:
         if not track_ids:

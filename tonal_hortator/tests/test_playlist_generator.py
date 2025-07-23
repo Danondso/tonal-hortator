@@ -198,12 +198,14 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
     ) -> None:
         """Test artist randomization when query is not vague"""
+        from tonal_hortator.core.models import Track
+
         generator = LocalPlaylistGenerator()
 
         tracks = [
-            {"artist": "Artist1", "similarity_score": 0.8},
-            {"artist": "Artist2", "similarity_score": 0.7},
-            {"artist": "Artist1", "similarity_score": 0.6},
+            Track.from_dict({"artist": "Artist1", "similarity_score": 0.8}),
+            Track.from_dict({"artist": "Artist2", "similarity_score": 0.7}),
+            Track.from_dict({"artist": "Artist1", "similarity_score": 0.6}),
         ]
 
         result = generator._apply_artist_randomization(
@@ -219,12 +221,14 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
     ) -> None:
         """Test artist randomization when query is vague"""
+        from tonal_hortator.core.models import Track
+
         generator = LocalPlaylistGenerator()
 
         tracks = [
-            {"artist": "Artist1", "similarity_score": 0.8},
-            {"artist": "Artist2", "similarity_score": 0.7},
-            {"artist": "Artist1", "similarity_score": 0.6},
+            Track.from_dict({"artist": "Artist1", "similarity_score": 0.8}),
+            Track.from_dict({"artist": "Artist2", "similarity_score": 0.7}),
+            Track.from_dict({"artist": "Artist1", "similarity_score": 0.6}),
         ]
 
         result = generator._apply_artist_randomization(
@@ -233,7 +237,13 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
 
         # Should randomize when vague
         self.assertEqual(len(result), 3)
-        self.assertTrue(all("similarity_score" in track for track in result))
+        self.assertTrue(
+            all(
+                hasattr(track, "similarity_score")
+                and track.similarity_score is not None
+                for track in result
+            )
+        )
 
     @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")
     @patch("tonal_hortator.core.playlist.playlist_generator.LocalTrackEmbedder")
@@ -241,13 +251,23 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
     ) -> None:
         """Test smart name deduplication"""
+        from tonal_hortator.core.models import Track
+
         generator = LocalPlaylistGenerator()
 
         tracks = [
-            {"name": "Song (Remix)", "artist": "Artist1", "similarity_score": 0.8},
-            {"name": "Song (Live)", "artist": "Artist1", "similarity_score": 0.7},
-            {"name": "Song", "artist": "Artist1", "similarity_score": 0.9},
-            {"name": "Different Song", "artist": "Artist2", "similarity_score": 0.6},
+            Track.from_dict(
+                {"name": "Song (Remix)", "artist": "Artist1", "similarity_score": 0.8}
+            ),
+            Track.from_dict(
+                {"name": "Song (Live)", "artist": "Artist1", "similarity_score": 0.7}
+            ),
+            Track.from_dict(
+                {"name": "Song", "artist": "Artist1", "similarity_score": 0.9}
+            ),
+            Track.from_dict(
+                {"name": "Different Song", "artist": "Artist2", "similarity_score": 0.6}
+            ),
         ]
 
         result = generator._smart_name_deduplication(tracks)
@@ -255,10 +275,10 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         # Should keep only 2 tracks: the best "Song" variant by Artist1 and "Different Song" by Artist2
         self.assertEqual(len(result), 2)
         # The "Song" track with highest similarity score (0.9) should be kept
-        song_track = next(track for track in result if track["name"] == "Song")
-        self.assertEqual(song_track["similarity_score"], 0.9)
+        song_track = next(track for track in result if track.name == "Song")
+        self.assertEqual(song_track.similarity_score, 0.9)
         # The "Different Song" track should be kept
-        self.assertTrue(any(track["name"] == "Different Song" for track in result))
+        self.assertTrue(any(track.name == "Different Song" for track in result))
 
     @pytest.mark.skipif(
         os.environ.get("CI") == "true",
@@ -310,17 +330,33 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
     ) -> None:
         """Test artist diversity enforcement"""
+        from tonal_hortator.core.models import Track
+
         generator = LocalPlaylistGenerator()
 
         # Create test tracks with multiple tracks from the same artist
         tracks = [
-            {"name": "Song1", "artist": "Artist1", "similarity_score": 0.9},
-            {"name": "Song2", "artist": "Artist1", "similarity_score": 0.8},
-            {"name": "Song3", "artist": "Artist1", "similarity_score": 0.7},
-            {"name": "Song4", "artist": "Artist1", "similarity_score": 0.6},
-            {"name": "Song5", "artist": "Artist2", "similarity_score": 0.85},
-            {"name": "Song6", "artist": "Artist2", "similarity_score": 0.75},
-            {"name": "Song7", "artist": "Artist3", "similarity_score": 0.95},
+            Track.from_dict(
+                {"name": "Song1", "artist": "Artist1", "similarity_score": 0.9}
+            ),
+            Track.from_dict(
+                {"name": "Song2", "artist": "Artist1", "similarity_score": 0.8}
+            ),
+            Track.from_dict(
+                {"name": "Song3", "artist": "Artist1", "similarity_score": 0.7}
+            ),
+            Track.from_dict(
+                {"name": "Song4", "artist": "Artist1", "similarity_score": 0.6}
+            ),
+            Track.from_dict(
+                {"name": "Song5", "artist": "Artist2", "similarity_score": 0.85}
+            ),
+            Track.from_dict(
+                {"name": "Song6", "artist": "Artist2", "similarity_score": 0.75}
+            ),
+            Track.from_dict(
+                {"name": "Song7", "artist": "Artist3", "similarity_score": 0.95}
+            ),
         ]
 
         # Test with max 2 tracks per artist
@@ -331,23 +367,23 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         # Should have at most 2 tracks per artist, sorted by similarity
         artist_counts: dict[str, int] = {}
         for track in result:
-            artist = track["artist"]
+            artist = track.artist or ""
             artist_counts[artist] = artist_counts.get(artist, 0) + 1
 
         # Check that no artist has more than 2 tracks
         self.assertTrue(all(count <= 2 for count in artist_counts.values()))
 
         # Check that we got the best tracks (highest similarity scores)
-        artist1_tracks = [t for t in result if t["artist"] == "Artist1"]
+        artist1_tracks = [t for t in result if t.artist == "Artist1"]
         self.assertLessEqual(len(artist1_tracks), 2)
         if len(artist1_tracks) >= 2:
             scores: List[float] = [
-                float(cast(float, t["similarity_score"]))
+                float(cast(float, t.similarity_score))
                 for t in tracks
-                if t["artist"] == "Artist1"
+                if t.artist == "Artist1"
             ]
             result_scores: List[float] = [
-                float(cast(float, t["similarity_score"])) for t in artist1_tracks
+                float(cast(float, t.similarity_score)) for t in artist1_tracks
             ]
             scores = sorted(scores, reverse=True)
             result_scores = sorted(result_scores, reverse=True)
@@ -359,14 +395,24 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         self, mock_track_embedder_class: Mock, mock_embedding_service_class: Mock
     ) -> None:
         """Test artist distribution"""
+        from tonal_hortator.core.models import Track
+
         generator = LocalPlaylistGenerator()
 
         # Create test tracks with different artists
         tracks = [
-            {"artist": "Artist1", "name": "Song1", "similarity_score": 0.8},
-            {"artist": "Artist2", "name": "Song2", "similarity_score": 0.7},
-            {"artist": "Artist1", "name": "Song3", "similarity_score": 0.6},
-            {"artist": "Artist3", "name": "Song4", "similarity_score": 0.5},
+            Track.from_dict(
+                {"artist": "Artist1", "name": "Song1", "similarity_score": 0.8}
+            ),
+            Track.from_dict(
+                {"artist": "Artist2", "name": "Song2", "similarity_score": 0.7}
+            ),
+            Track.from_dict(
+                {"artist": "Artist1", "name": "Song3", "similarity_score": 0.6}
+            ),
+            Track.from_dict(
+                {"artist": "Artist3", "name": "Song4", "similarity_score": 0.5}
+            ),
         ]
 
         result = generator._distribute_artists(tracks, max_tracks=3)
@@ -375,7 +421,7 @@ class TestLocalPlaylistGenerator(unittest.TestCase):
         self.assertEqual(len(result), 3)
 
         # Check that artists are distributed (not all from same artist)
-        artists = [track["artist"] for track in result]
+        artists = [track.artist or "" for track in result]
         self.assertGreater(len(set(artists)), 1)
 
     @patch("tonal_hortator.core.playlist.playlist_generator.OllamaEmbeddingService")

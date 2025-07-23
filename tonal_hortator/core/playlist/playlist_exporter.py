@@ -9,7 +9,9 @@ import os
 import re
 import urllib.parse
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import List
+
+from tonal_hortator.core.models import Track
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +23,7 @@ class PlaylistExporter:
         pass
 
     def save_playlist_m3u(
-        self, tracks: List[Dict[str, Any]], query: str, output_dir: str = "playlists"
+        self, tracks: List[Track], query: str, output_dir: str = "playlists"
     ) -> str:
         try:
             os.makedirs(output_dir, exist_ok=True)
@@ -45,12 +47,14 @@ class PlaylistExporter:
                 f.write("# Format: M3U Extended\n")
                 f.write("# Target: Apple Music\n\n")
                 for i, track in enumerate(tracks, 1):
-                    artist = track.get("artist", "Unknown")
-                    name = track.get("name", "Unknown")
-                    album = track.get("album", "Unknown")
-                    duration = track.get("duration_ms", 0) // 1000
-                    similarity = track.get("similarity_score", 0)
-                    location = track.get("location", "")
+                    artist = track.artist or "Unknown"
+                    name = track.name or "Unknown"
+                    album = track.album or "Unknown"
+                    duration = (
+                        track.total_time or 0
+                    ) // 1000  # total_time is in milliseconds
+                    similarity = track.similarity_score or 0
+                    location = track.location or ""
                     f.write(f"#EXTINF:{duration},{artist} - {name}\n")
                     if location:
                         if location.startswith("file://"):

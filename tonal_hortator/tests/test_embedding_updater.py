@@ -123,10 +123,12 @@ Label', 'Test Producer')
     )
     def test_calculate_age_weights(self, temp_db: str) -> None:
         """Test age-based weight calculation."""
+        from tonal_hortator.core.models import Track
+
         updater = EmbeddingUpdater(temp_db)
 
         # Mock track data
-        track = {"id": 1, "name": "Test Song", "artist": "Test Artist"}
+        track = Track.from_dict({"id": 1, "name": "Test Song", "artist": "Test Artist"})
 
         # Test with default config
         config = updater._get_default_hybrid_config(HybridStrategy.AGE_WEIGHTED)
@@ -143,23 +145,27 @@ Label', 'Test Producer')
     )
     def test_calculate_metadata_weights(self, temp_db: str) -> None:
         """Test metadata-based weight calculation."""
+        from tonal_hortator.core.models import Track
+
         updater = EmbeddingUpdater(temp_db)
 
         # Track with complete metadata
-        complete_track = {
-            "id": 1,
-            "name": "Test Song",
-            "artist": "Test Artist",
-            "album": "Test Album",
-            "genre": "Rock",
-            "year": 2020,
-            "bpm": 120,
-            "musical_key": "C",
-            "mood": "Happy",
-            "label": "Test Label",
-            "producer": "Test Producer",
-            "play_count": 50,
-        }
+        complete_track = Track.from_dict(
+            {
+                "id": 1,
+                "name": "Test Song",
+                "artist": "Test Artist",
+                "album": "Test Album",
+                "genre": "Rock",
+                "year": 2020,
+                "bpm": 120,
+                "musical_key": "C",
+                "mood": "Happy",
+                "label": "Test Label",
+                "producer": "Test Producer",
+                "play_count": 50,
+            }
+        )
 
         config = updater._get_default_hybrid_config(HybridStrategy.METADATA_WEIGHTED)
         old_weight, new_weight = updater._calculate_metadata_weights(
@@ -177,16 +183,20 @@ Label', 'Test Producer')
     )
     def test_calculate_confidence_weights(self, temp_db: str) -> None:
         """Test confidence-based weight calculation."""
+        from tonal_hortator.core.models import Track
+
         updater = EmbeddingUpdater(temp_db)
 
         # Track with good engagement data
-        track = {
-            "id": 1,
-            "name": "Test Song",
-            "artist": "Test Artist",
-            "play_count": 100,
-            "avg_rating": 4.5,
-        }
+        track = Track.from_dict(
+            {
+                "id": 1,
+                "name": "Test Song",
+                "artist": "Test Artist",
+                "play_count": 100,
+                "avg_rating": 4.5,
+            }
+        )
 
         config = updater._get_default_hybrid_config(HybridStrategy.CONFIDENCE_WEIGHTED)
         old_weight, new_weight = updater._calculate_confidence_weights(track, config)
@@ -202,9 +212,11 @@ Label', 'Test Producer')
     )
     def test_calculate_exponential_decay_weights(self, temp_db: str) -> None:
         """Test exponential decay weight calculation."""
+        from tonal_hortator.core.models import Track
+
         updater = EmbeddingUpdater(temp_db)
 
-        track = {"id": 1, "name": "Test Song", "artist": "Test Artist"}
+        track = Track.from_dict({"id": 1, "name": "Test Song", "artist": "Test Artist"})
         config = updater._get_default_hybrid_config(HybridStrategy.EXPONENTIAL_DECAY)
         old_weight, new_weight = updater._calculate_exponential_decay_weights(
             track, config
@@ -221,9 +233,11 @@ Label', 'Test Producer')
     )
     def test_calculate_weights_all_strategies(self, temp_db: str) -> None:
         """Test weight calculation for all strategies."""
+        from tonal_hortator.core.models import Track
+
         updater = EmbeddingUpdater(temp_db)
 
-        track = {"id": 1, "name": "Test Song", "artist": "Test Artist"}
+        track = Track.from_dict({"id": 1, "name": "Test Song", "artist": "Test Artist"})
 
         for strategy in HybridStrategy:
             config = updater._get_default_hybrid_config(strategy)
@@ -306,6 +320,8 @@ Label', 'Test Producer')
     )
     def test_hybrid_config_customization(self, temp_db: str) -> None:
         """Test custom hybrid configuration."""
+        from tonal_hortator.core.models import Track
+
         updater = EmbeddingUpdater(temp_db)
 
         # Custom config for age-weighted strategy
@@ -315,7 +331,7 @@ Label', 'Test Producer')
             "max_old_weight": 0.9,  # Higher maximum
         }
 
-        track = {"id": 1, "name": "Test Song", "artist": "Test Artist"}
+        track = Track.from_dict({"id": 1, "name": "Test Song", "artist": "Test Artist"})
         old_weight, new_weight = updater._calculate_age_weights(track, custom_config)
 
         # Weights should sum to 1.0

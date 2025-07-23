@@ -59,9 +59,9 @@ class TestLLMQueryParser(unittest.TestCase):
         parser = LLMQueryParser()
         result = parser.parse("The Beatles")
 
-        self.assertEqual(result["query_type"], "artist_specific")
-        self.assertEqual(result["artist"], "The Beatles")
-        self.assertIsNone(result["reference_artist"])
+        self.assertEqual(result.query_type, "artist_specific")
+        self.assertEqual(result.artist, "The Beatles")
+        self.assertIsNone(result.reference_artist)
 
     @patch("tonal_hortator.core.playlist.llm_query_parser.LocalLLMClient")
     def test_parse_similarity_query(self, mock_llm_client_class: Mock) -> None:
@@ -85,9 +85,9 @@ class TestLLMQueryParser(unittest.TestCase):
         parser = LLMQueryParser()
         result = parser.parse("artists similar to Radiohead")
 
-        self.assertEqual(result["query_type"], "similarity")
-        self.assertIsNone(result["artist"])
-        self.assertEqual(result["reference_artist"], "Radiohead")
+        self.assertEqual(result.query_type, "similarity")
+        self.assertIsNone(result.artist)
+        self.assertEqual(result.reference_artist, "Radiohead")
 
     @patch("tonal_hortator.core.playlist.llm_query_parser.LocalLLMClient")
     def test_parse_general_query(self, mock_llm_client_class: Mock) -> None:
@@ -111,11 +111,11 @@ class TestLLMQueryParser(unittest.TestCase):
         parser = LLMQueryParser()
         result = parser.parse("upbeat rock music")
 
-        self.assertEqual(result["query_type"], "general")
-        self.assertIsNone(result["artist"])
-        self.assertIsNone(result["reference_artist"])
-        self.assertEqual(result["genres"], ["rock"])
-        self.assertEqual(result["mood"], "upbeat")
+        self.assertEqual(result.query_type, "general")
+        self.assertIsNone(result.artist)
+        self.assertIsNone(result.reference_artist)
+        self.assertEqual(result.genres, ["rock"])
+        self.assertEqual(result.mood, "upbeat")
 
     @patch("tonal_hortator.core.playlist.llm_query_parser.LocalLLMClient")
     def test_parse_with_track_count(self, mock_llm_client_class: Mock) -> None:
@@ -139,8 +139,8 @@ class TestLLMQueryParser(unittest.TestCase):
         parser = LLMQueryParser()
         result = parser.parse("15 jazz tracks")
 
-        self.assertEqual(result["count"], 15)
-        self.assertEqual(result["genres"], ["jazz"])
+        self.assertEqual(result.track_count, 15)
+        self.assertEqual(result.genres, ["jazz"])
 
     @patch("tonal_hortator.core.playlist.llm_query_parser.LocalLLMClient")
     def test_extract_json_valid(self, mock_llm_client_class: Mock) -> None:

@@ -10,7 +10,7 @@ import json
 import logging
 import sqlite3
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple, cast
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 from tonal_hortator.core.config import get_config
 from tonal_hortator.core.database import (
@@ -30,6 +30,15 @@ from tonal_hortator.core.database import (
     DatabaseManager,
 )
 from tonal_hortator.core.feedback.feedback_validator import FeedbackValidator
+
+# from tonal_hortator.core.models import (
+#     DatabaseProtocol,
+#     QueryLearning,
+#     Track,
+#     TrackRating,
+#     UserFeedback,
+#     UserPreference,
+# )
 
 logger = logging.getLogger(__name__)
 
@@ -314,7 +323,7 @@ class FeedbackManager:
             logger.error(f"❌ Error recording query learning: {e}")
             return False
 
-    def get_feedback_stats(self) -> Dict[str, Any]:
+    def get_feedback_stats(self) -> Dict[str, Union[Dict, List, float]]:
         """
         Get feedback statistics
 

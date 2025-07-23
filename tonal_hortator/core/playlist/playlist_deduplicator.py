@@ -6,7 +6,9 @@ Handles deduplication logic for playlists using multiple strategies.
 
 import logging
 import secrets
-from typing import Any, Callable, Dict, List, Optional, cast
+from typing import Any, Callable, List, Optional, cast
+
+from tonal_hortator.core.models import Track
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +21,7 @@ class PlaylistDeduplicator:
 
     def filter_and_deduplicate_results(
         self,
-        results: List[Dict[str, Any]],
+        results: List[Track],
         min_similarity: float,
         max_tracks: int,
         is_artist_specific: bool,
@@ -28,8 +30,8 @@ class PlaylistDeduplicator:
         smart_name_deduplication: Optional[Callable] = None,
         enforce_artist_diversity: Optional[Callable] = None,
         distribute_artists: Optional[Callable] = None,
-        logger: Optional[Any] = None,
-    ) -> List[Dict[str, Any]]:
+        logger: Any = None,
+    ) -> List[Track]:
         """Filter results by similarity and remove duplicates using multiple strategies"""
         from .playlist_utils import normalize_file_location_static
 
@@ -37,7 +39,7 @@ class PlaylistDeduplicator:
         filtered = [
             track
             for track in results
-            if track.get("similarity_score", 0) >= min_similarity
+            if (track.similarity_score or 0) >= min_similarity
         ]
 
         logger and logger and logger.info(
@@ -49,7 +51,7 @@ class PlaylistDeduplicator:
         location_deduplicated = []
 
         for track in filtered:
-            location = normalize_file_location_static(track.get("location", ""))
+            location = normalize_file_location_static(track.location or "")
             if location and location not in seen_locations:
                 seen_locations.add(location)
                 location_deduplicated.append(track)
@@ -65,8 +67,8 @@ class PlaylistDeduplicator:
         combination_deduplicated = []
 
         for track in location_deduplicated:
-            title = track.get("name", "").strip().lower()
-            artist = track.get("artist", "").strip().lower()
+            title = (track.name or "").strip().lower()
+            artist = (track.artist or "").strip().lower()
             combination = f"{title}|{artist}"
 
             if combination and combination not in seen_combinations:
@@ -84,7 +86,7 @@ class PlaylistDeduplicator:
         final_deduplicated = []
 
         for track in combination_deduplicated:
-            track_id = track.get("id")
+            track_id = track.id
             if track_id not in seen_ids:
                 seen_ids.add(track_id)
                 final_deduplicated.append(track)
@@ -142,7 +144,7 @@ class PlaylistDeduplicator:
             logger and logger and logger.warning(
                 f"⚠️ Only {len(candidates)} tracks available, requested {max_tracks}"
             )
-            return cast(List[Dict[str, Any]], candidates[:max_tracks])
+            return cast(List[Track], candidates[:max_tracks])
 
         # Assign weights proportional to similarity score (shifted to be >=0)
         min_similarity_score = min(
@@ -155,7 +157,7 @@ class PlaylistDeduplicator:
 
         # Sample exactly max_tracks unique tracks
         selected = set()
-        final_tracks: list[dict[str, Any]] = []
+        final_tracks: List[Track] = []
         attempts = 0
         max_attempts = top_k * 3
         rng = secrets.SystemRandom()
