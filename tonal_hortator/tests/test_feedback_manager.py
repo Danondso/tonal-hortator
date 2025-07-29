@@ -10,11 +10,14 @@ import json
 import os
 import sqlite3
 import tempfile
+import threading
+import time
 import unittest
 from typing import Any, Dict, List, cast
 from unittest.mock import patch
 
 from tonal_hortator.core.feedback.feedback_manager import FeedbackManager
+from tonal_hortator.core.models import Track
 
 
 class TestFeedbackManager(unittest.TestCase):
@@ -230,8 +233,8 @@ class TestFeedbackManager(unittest.TestCase):
             "mood": "epic",
         }
         generated_tracks = [
-            {"id": 1, "name": "Song 1", "artist": "Artist 1"},
-            {"id": 2, "name": "Song 2", "artist": "Artist 2"},
+            Track(id=1, name="Song 1", artist="Artist 1"),
+            Track(id=2, name="Song 2", artist="Artist 2"),
         ]
 
         result = self.feedback_manager.record_playlist_feedback(
@@ -484,7 +487,7 @@ class TestFeedbackManager(unittest.TestCase):
         self.assertTrue(result, "Should handle empty string queries")
 
         # Test with very large track list
-        large_track_list = [{"id": i, "name": f"Track {i}"} for i in range(1000)]
+        large_track_list = [Track(id=i, name=f"Track {i}") for i in range(1000)]
         result = self.feedback_manager.record_playlist_feedback(
             query="large track list test",
             query_type="similarity",
@@ -1156,7 +1159,7 @@ class TestFeedbackManager(unittest.TestCase):
                 "query": "songs like Bohemian Rhapsody",
                 "query_type": "artist_specific",
                 "parsed_data": {"artist": "Queen", "genres": ["Rock"]},
-                "generated_tracks": [{"id": 1}, {"id": 2}],
+                "generated_tracks": [Track(id=1), Track(id=2)],
                 "user_rating": 5,
                 "similarity_threshold": 0.8,
                 "search_breadth": 20,
@@ -1165,7 +1168,7 @@ class TestFeedbackManager(unittest.TestCase):
                 "query": "rock music from the 70s",
                 "query_type": "artist_specific",
                 "parsed_data": {"artist": None, "genres": ["Rock"]},
-                "generated_tracks": [{"id": 3}],
+                "generated_tracks": [Track(id=3)],
                 "user_rating": 4,
                 "similarity_threshold": 0.7,
                 "search_breadth": 15,
@@ -1174,7 +1177,7 @@ class TestFeedbackManager(unittest.TestCase):
                 "query": "similar to Led Zeppelin",
                 "query_type": "similarity",
                 "parsed_data": {"reference_artist": "Led Zeppelin"},
-                "generated_tracks": [{"id": 3}],
+                "generated_tracks": [Track(id=3)],
                 "user_rating": 3,
                 "similarity_threshold": 0.7,
                 "search_breadth": 15,
@@ -1186,9 +1189,7 @@ class TestFeedbackManager(unittest.TestCase):
                 query=str(feedback["query"]),
                 query_type=str(feedback["query_type"]),
                 parsed_data=cast(Dict[str, Any], feedback["parsed_data"]),
-                generated_tracks=cast(
-                    List[Dict[str, Any]], feedback["generated_tracks"]
-                ),
+                generated_tracks=cast(List[Track], feedback["generated_tracks"]),
                 user_rating=(
                     int(cast(int, feedback["user_rating"]))
                     if feedback["user_rating"] is not None
@@ -1462,7 +1463,7 @@ class TestFeedbackManager(unittest.TestCase):
             query="test query 1",
             query_type="artist_specific",
             parsed_data={"artist": "Artist 1"},
-            generated_tracks=[{"id": 1}],
+            generated_tracks=[Track(id=1)],
             user_rating=4,
             similarity_threshold=0.8,
             search_breadth=20,
@@ -1472,7 +1473,7 @@ class TestFeedbackManager(unittest.TestCase):
             query="test query 2",
             query_type="artist_specific",
             parsed_data={"artist": "Artist 2"},
-            generated_tracks=[{"id": 2}],
+            generated_tracks=[Track(id=2)],
             user_rating=5,
             similarity_threshold=0.9,
             search_breadth=25,
@@ -1541,7 +1542,7 @@ class TestFeedbackManager(unittest.TestCase):
             query=query,
             query_type="similarity",
             parsed_data={"artist": "Queen 🎸"},
-            generated_tracks=[{"id": 1, "name": "Song with émojis 🎵"}],
+            generated_tracks=[Track(id=1, name="Song with émojis 🎵")],
             user_comments=user_comments,
         )
 
@@ -1558,8 +1559,6 @@ class TestFeedbackManager(unittest.TestCase):
 
     def test_concurrent_feedback_recording(self) -> None:
         """Test concurrent feedback recording for thread safety"""
-        import threading
-        import time
 
         results = []
         errors = []
@@ -1571,7 +1570,7 @@ class TestFeedbackManager(unittest.TestCase):
                     query=f"concurrent test {thread_id}",
                     query_type="similarity",
                     parsed_data={"artist": f"Artist {thread_id}"},
-                    generated_tracks=[{"id": thread_id}],
+                    generated_tracks=[Track(id=thread_id)],
                     user_rating=thread_id % 5 + 1,
                 )
                 results.append((thread_id, result))
@@ -1687,7 +1686,7 @@ class TestFeedbackManager(unittest.TestCase):
             query="complex data test",
             query_type="similarity",
             parsed_data=complex_data,
-            generated_tracks=[{"id": 999, "name": "Complex Track"}],
+            generated_tracks=[Track(id=999, name="Complex Track")],
             user_rating=5,
             user_comments="Testing complex data storage",
             user_actions=["like", "favorite", "skip"],

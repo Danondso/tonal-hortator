@@ -5,23 +5,15 @@ This module contains all SQL queries used throughout the application
 to ensure consistency and maintainability.
 """
 
+from tonal_hortator.core.database.schema import METADATA_COLUMNS, TRACKS_TABLE_SCHEMA
+
 # Table Creation Queries
-CREATE_TRACKS_TABLE = """
+# Dynamically generate CREATE_TRACKS_TABLE with all columns
+all_columns = TRACKS_TABLE_SCHEMA + METADATA_COLUMNS
+columns_sql = ",\n    ".join([f"{name} {type}" for name, type in all_columns])
+CREATE_TRACKS_TABLE = f"""
 CREATE TABLE IF NOT EXISTS tracks (
-    id INTEGER PRIMARY KEY,
-    name TEXT,
-    artist TEXT,
-    album_artist TEXT,
-    composer TEXT,
-    album TEXT,
-    genre TEXT,
-    year INTEGER,
-    total_time INTEGER,
-    track_number INTEGER,
-    disc_number INTEGER,
-    play_count INTEGER,
-    date_added TEXT,
-    location TEXT UNIQUE
+    {columns_sql}
 )
 """
 

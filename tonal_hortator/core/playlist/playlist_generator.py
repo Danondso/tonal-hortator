@@ -291,18 +291,13 @@ class LocalPlaylistGenerator:
                 logger.info(
                     f"🔻 Most penalized: {top_negative.name} by {top_negative.artist} ({top_negative.feedback_adjusted or 0:.2f})"
                 )
-            # 6. Filter by similarity threshold and deduplicate using PlaylistDeduplicator
-            filtered_results = self.deduplicator.filter_and_deduplicate_results(
+            # 6. Filter by similarity threshold and deduplicate using local method
+            filtered_results = self._filter_and_deduplicate_results(
                 results,
                 min_similarity,
                 max_tracks,
                 is_artist_specific,
                 max_artist_ratio,
-                sample_with_randomization=self._sample_with_randomization,
-                smart_name_deduplication=self._smart_name_deduplication,
-                enforce_artist_diversity=self._enforce_artist_diversity,
-                distribute_artists=self._distribute_artists,
-                logger=logger,
             )
 
             # 7. Apply artist randomization (still in generator for now)
@@ -1364,13 +1359,11 @@ class LocalPlaylistGenerator:
         """
         try:
             # Record playlist feedback using the feedback manager
-            # Convert Track objects to dicts for feedback manager
-            tracks_as_dicts = [track.to_dict() for track in generated_tracks]
             self.feedback_manager.record_playlist_feedback(
                 query=query,
                 query_type=query_type,
                 parsed_data=parsed_data,
-                generated_tracks=tracks_as_dicts,
+                generated_tracks=generated_tracks,
                 playlist_length=playlist_length,
                 requested_length=requested_length,
                 similarity_threshold=similarity_threshold,

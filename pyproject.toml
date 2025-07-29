@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tonal-hortator"
-version = "3.1.0"
+version = "3.1.1"
 description = "AI-powered local music playlist generator"
 authors = [
     { name = "Danondso", email = "7014871+Danondso@users.noreply.github.com " },

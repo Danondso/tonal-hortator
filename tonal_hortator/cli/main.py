@@ -10,8 +10,16 @@ from pathlib import Path
 from typing import Optional
 
 import typer
+from rich.align import Align
 from rich.console import Console
 from rich.panel import Panel
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TimeElapsedColumn,
+)
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
 from rich.text import Text
@@ -46,30 +54,175 @@ DEFAULT_DB_PATH = "music_library.db"
 
 
 def show_banner() -> None:
-    """Display the app banner"""
-    banner = Text()
-    banner.append("🎵 ", style="bold magenta")
-    banner.append("Tonal Hortator", style="bold cyan")
-    banner.append(" - AI-Powered Local Music Playlist Generator", style="italic")
+    """Display the app banner with enhanced styling"""
+    banner_text = Text()
+    banner_text.append("🎵 ", style="bold magenta")
+    banner_text.append("Tonal Hortator", style="bold cyan")
+    banner_text.append("\n", style="reset")
+    banner_text.append("AI-Powered Local Music Playlist Generator", style="italic dim")
+    banner_text.append("\n", style="reset")
+    banner_text.append(
+        "Create amazing playlists from your local music library", style="green"
+    )
 
-    console.print(Panel(banner, style="cyan", padding=(1, 2)))
+    console.print(
+        Panel(
+            Align.center(banner_text),
+            style="cyan",
+            padding=(1, 2),
+            border_style="bright_cyan",
+        )
+    )
 
 
 def show_status(generator: LocalPlaylistGenerator) -> None:
-    """Show database and embedding status"""
+    """Show database and embedding status with enhanced styling"""
     stats = generator.track_embedder.get_embedding_stats()
 
+    # Create a more detailed status table
     table = Table(
-        title="📊 Database Status", show_header=True, header_style="bold magenta"
+        title="📊 Database Status",
+        show_header=True,
+        header_style="bold magenta",
+        border_style="cyan",
+        title_style="bold cyan",
     )
-    table.add_column("Metric", style="cyan")
-    table.add_column("Value", style="green")
+    table.add_column("Metric", style="cyan", width=20)
+    table.add_column("Value", style="green", width=15)
+    table.add_column("Status", style="yellow", width=20)
 
-    table.add_row("Total Tracks", str(stats["total_tracks"]))
-    table.add_row("Tracks with Embeddings", str(stats["tracks_with_embeddings"]))
-    table.add_row("Embedding Coverage", f"{stats['coverage_percentage']:.1f}%")
+    # Calculate status indicators
+    coverage = stats["coverage_percentage"]
+    if coverage >= 90:
+        status = "🟢 Excellent"
+        status_style = "bold green"
+    elif coverage >= 70:
+        status = "🟡 Good"
+        status_style = "bold yellow"
+    elif coverage >= 50:
+        status = "🟠 Fair"
+        status_style = "bold red"
+    else:
+        status = "🔴 Poor"
+        status_style = "bold red"
+
+    table.add_row("Total Tracks", str(stats["total_tracks"]), "📁 Library")
+    table.add_row(
+        "Tracks with Embeddings", str(stats["tracks_with_embeddings"]), "🧠 AI Ready"
+    )
+    table.add_row("Embedding Coverage", f"{coverage:.1f}%", status, style=status_style)
 
     console.print(table)
+
+    # Add a progress bar for coverage
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+        console=console,
+    ) as progress:
+        task = progress.add_task("Embedding Coverage", total=100)
+        progress.update(task, completed=coverage)
+
+
+def show_playlist_preview(tracks: list, query: str) -> None:
+    """Show a beautiful playlist preview"""
+    if not tracks:
+        console.print("❌ No tracks found for this query", style="bold red")
+        return
+
+    # Create playlist header
+    header = Text()
+    header.append("🎵 ", style="bold magenta")
+    header.append("Playlist Preview", style="bold cyan")
+    header.append(f" - {query}", style="italic")
+
+    console.print(Panel(header, style="cyan", border_style="bright_cyan"))
+
+    # Create tracks table
+    table = Table(
+        show_header=True,
+        header_style="bold magenta",
+        border_style="cyan",
+        show_edge=True,
+        show_lines=True,
+    )
+    table.add_column("#", style="dim", width=3)
+    table.add_column("Title", style="cyan", width=30)
+    table.add_column("Artist", style="green", width=25)
+    table.add_column("Score", style="yellow", width=8)
+    table.add_column("Genre", style="blue", width=15)
+
+    for i, track in enumerate(tracks[:20], 1):  # Show first 20 tracks
+        score = getattr(track, "similarity_score", 0) or 0
+        genre = getattr(track, "genre", "Unknown") or "Unknown"
+
+        # Color code the score
+        if score >= 0.8:
+            score_style = "bold green"
+        elif score >= 0.6:
+            score_style = "bold yellow"
+        else:
+            score_style = "bold red"
+
+        table.add_row(
+            str(i),
+            track.name or "Unknown",
+            track.artist or "Unknown",
+            f"{score:.2f}",
+            genre,
+            style=score_style,
+        )
+
+    console.print(table)
+
+    if len(tracks) > 20:
+        console.print(f"... and {len(tracks) - 20} more tracks", style="dim italic")
+
+
+def show_interactive_menu() -> None:
+    """Show an interactive menu with options"""
+    menu_text = """
+[bold cyan]🎵 Tonal Hortator Interactive Menu[/bold cyan]
+
+[bold]Available Commands:[/bold]
+[green]1.[/green] Generate Playlist
+[green]2.[/green] Import Music Library
+[green]3.[/green] Update Embeddings
+[green]4.[/green] View Status
+[green]5.[/green] Manage Feedback
+[green]6.[/green] YEET Everything (Reset)
+[green]7.[/green] Exit
+
+[dim]Use the command line options for more control[/dim]
+    """
+
+    console.print(Panel(menu_text, style="cyan", border_style="bright_cyan"))
+
+
+def show_progress_with_spinner(
+    description: str, total: Optional[int] = None
+) -> Progress:
+    """Create a progress bar with spinner for operations"""
+    if total:
+        progress = Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+            TextColumn("•"),
+            TimeElapsedColumn(),
+            console=console,
+        )
+    else:
+        progress = Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+        )
+
+    return progress
 
 
 @app.command()
@@ -229,7 +382,13 @@ def generate(
         # Check if embeddings exist
         stats = generator.track_embedder.get_embedding_stats()
         if stats["tracks_with_embeddings"] == 0:
-            console.print("[red]❌ No embeddings found. Run 'yeet' first![/red]")
+            console.print(
+                Panel(
+                    "[red]❌ No embeddings found. Run 'yeet' first to set up your library![/red]",
+                    style="red",
+                    border_style="red",
+                )
+            )
             raise typer.Exit(1)
 
         # Interactive mode if no query
@@ -238,9 +397,10 @@ def generate(
             console.print("Type 'quit' to exit\n")
 
             while True:
-                query = Prompt.ask("Enter your playlist query")
+                query = Prompt.ask("🎵 Enter your playlist query", default="")
 
                 if query.lower() in ["quit", "exit", "q"]:
+                    console.print("👋 Goodbye!", style="bold green")
                     break
 
                 if not query:
@@ -256,7 +416,9 @@ def generate(
             )
 
     except Exception as e:
-        console.print(f"[red]❌ Error: {e}[/red]")
+        console.print(
+            Panel(f"[red]❌ Error: {e}[/red]", style="red", border_style="red")
+        )
         raise typer.Exit(1)
 
 
@@ -268,10 +430,40 @@ def _generate_single_playlist(
     breadth: int,
     auto_open: bool,
 ) -> None:
-    """Generate a single playlist"""
-    with console.status(
-        f"[bold green]Generating playlist: {query}[/bold green]", spinner="dots"
-    ):
+    """Generate a single playlist with enhanced UI"""
+    console.print(f"\n[bold cyan]🎵 Generating playlist: {query}[/bold cyan]")
+
+    # Show generation parameters
+    params_table = Table(show_header=False, box=None, show_edge=False)
+    params_table.add_column("Parameter", style="cyan")
+    params_table.add_column("Value", style="green")
+
+    params_table.add_row("Query", query)
+    params_table.add_row("Max Tracks", str(max_tracks or "Auto"))
+    params_table.add_row("Similarity Threshold", f"{similarity:.2f}")
+    params_table.add_row("Search Breadth", str(breadth))
+
+    console.print(params_table)
+    console.print()
+
+    # Generate playlist with progress indicator
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+        TimeElapsedColumn(),
+        console=console,
+    ) as progress:
+        task = progress.add_task("Generating playlist...", total=100)
+
+        # Simulate progress (since we can't track actual progress easily)
+        for i in range(0, 101, 10):
+            progress.update(task, completed=i)
+            import time
+
+            time.sleep(0.1)
+
         tracks = generator.generate_playlist(
             query,
             max_tracks=max_tracks,
@@ -279,18 +471,35 @@ def _generate_single_playlist(
             search_breadth_factor=breadth,
         )
 
+        progress.update(task, completed=100)
+
     if not tracks:
-        console.print(f"[red]❌ No tracks found for: {query}[/red]")
+        console.print(
+            Panel(
+                f"[red]❌ No tracks found for: {query}[/red]",
+                style="red",
+                border_style="red",
+            )
+        )
         return
 
-    # Show results
-    generator.print_playlist_summary(tracks, query)
+    # Show beautiful playlist preview
+    show_playlist_preview(tracks, query)
 
-    # Save playlist
-    filepath = generator.save_playlist_m3u(tracks, query)
-    console.print(f"✅ Playlist saved: {filepath}")
+    # Save playlist with enhanced feedback
+    with console.status("[bold green]Saving playlist...", spinner="dots"):
+        filepath = generator.save_playlist_m3u(tracks, query)
 
-    # Open in Apple Music first so user can listen before rating
+    console.print(
+        Panel(
+            f"✅ [bold green]Playlist saved successfully![/bold green]\n"
+            f"📁 [cyan]Location:[/cyan] {filepath}",
+            style="green",
+            border_style="green",
+        )
+    )
+
+    # Open in Apple Music with enhanced UI
     playlist_opened = False
     if auto_open:
         console.print("🎵 Auto-opening playlist in Apple Music...")
@@ -299,9 +508,13 @@ def _generate_single_playlist(
         playlist_opened = open_in_apple_music(filepath)
 
     if playlist_opened:
-        console.print("🎧 [green]Playlist opened in Apple Music![/green]")
         console.print(
-            "🎵 [italic]Take your time to listen, then come back here to rate it![/italic]"
+            Panel(
+                "🎧 [bold green]Playlist opened in Apple Music![/bold green]\n"
+                "[italic]Take your time to listen, then come back here to rate it![/italic]",
+                style="green",
+                border_style="green",
+            )
         )
 
     # Collect user feedback after they've had a chance to listen
@@ -337,16 +550,74 @@ def embed(
     # Use adaptive batch sizing if not specified
     final_batch_size = get_batch_size_with_fallback(batch_size, base_size=500)
 
-    if batch_size is None:
-        console.print(f"[cyan]🔧 Auto-detected batch size: {final_batch_size}[/cyan]")
-    else:
-        console.print(f"[cyan]🔧 Using specified batch size: {final_batch_size}[/cyan]")
+    # Show configuration
+    config_table = Table(show_header=False, box=None, show_edge=False)
+    config_table.add_column("Setting", style="cyan")
+    config_table.add_column("Value", style="green")
 
-    with console.status("[bold green]Generating embeddings...", spinner="dots"):
+    if batch_size is None:
+        config_table.add_row("Batch Size", f"Auto-detected: {final_batch_size}")
+    else:
+        config_table.add_row("Batch Size", f"Manual: {final_batch_size}")
+
+    config_table.add_row("Workers", str(workers))
+    config_table.add_row("Memory Usage", "~1KB per track")
+
+    console.print(
+        Panel(
+            Align.center(config_table),
+            title="🔧 Embedding Configuration",
+            style="cyan",
+            border_style="bright_cyan",
+        )
+    )
+
+    # Show current status before embedding
+    generator = LocalPlaylistGenerator()
+    stats = generator.track_embedder.get_embedding_stats()
+
+    if stats["tracks_without_embeddings"] == 0:
+        console.print(
+            Panel(
+                "✅ [bold green]All tracks already have embeddings![/bold green]",
+                style="green",
+                border_style="green",
+            )
+        )
+        return
+
+    console.print(
+        f"📊 [cyan]Tracks to embed:[/cyan] {stats['tracks_without_embeddings']}"
+    )
+
+    # Start embedding with enhanced progress
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+        TextColumn("•"),
+        TimeElapsedColumn(),
+        console=console,
+    ) as progress:
+        task = progress.add_task(
+            "Generating embeddings...", total=stats["tracks_without_embeddings"]
+        )
+
         if embed_tracks(final_batch_size, max_workers=workers):
-            console.print("[bold green]✅ Embeddings complete![/bold green]")
+            progress.update(task, completed=stats["tracks_without_embeddings"])
+            console.print(
+                Panel(
+                    "✅ [bold green]Embeddings complete![/bold green]\n"
+                    "🧠 Your music library is now AI-ready!",
+                    style="green",
+                    border_style="green",
+                )
+            )
         else:
-            console.print("[red]❌ Embedding failed[/red]")
+            console.print(
+                Panel("[red]❌ Embedding failed[/red]", style="red", border_style="red")
+            )
             raise typer.Exit(1)
 
 
@@ -857,7 +1128,7 @@ def _show_recommended_settings(feedback_manager: FeedbackManager) -> None:
 
 @app.command()
 def interactive() -> None:
-    """🎮 Start interactive mode"""
+    """🎮 Start interactive mode with enhanced UI"""
     show_banner()
 
     try:
@@ -867,30 +1138,113 @@ def interactive() -> None:
         # Check embeddings
         stats = generator.track_embedder.get_embedding_stats()
         if stats["tracks_with_embeddings"] == 0:
-            console.print("[red]❌ No embeddings found. Run 'yeet' first![/red]")
+            console.print(
+                Panel(
+                    "[red]❌ No embeddings found. Run 'yeet' first to set up your library![/red]",
+                    style="red",
+                    border_style="red",
+                )
+            )
             raise typer.Exit(1)
 
         console.print("\n[bold cyan]🎮 Interactive Mode[/bold cyan]")
-        console.print("Commands: generate, status, quit\n")
+        show_interactive_menu()
 
         while True:
-            command = Prompt.ask(
-                "What would you like to do?", choices=["generate", "status", "quit"]
+            console.print()
+            choice = Prompt.ask(
+                "🎵 Choose an option",
+                choices=["1", "2", "3", "4", "5", "6", "7"],
+                default="1",
             )
 
-            if command == "quit":
+            if choice == "7":  # Exit
+                console.print(
+                    Panel(
+                        "👋 [bold green]Thanks for using Tonal Hortator![/bold green]",
+                        style="green",
+                        border_style="green",
+                    )
+                )
                 break
-            elif command == "status":
-                show_status(generator)
-            elif command == "generate":
-                query = Prompt.ask("Enter your playlist query")
+            elif choice == "1":  # Generate Playlist
+                query = Prompt.ask("🎵 Enter your playlist query")
                 if query:
                     _generate_single_playlist(generator, query, None, 0.3, 15, False)
-
-        console.print("[bold green]👋 Thanks for using Tonal Hortator![/bold green]")
+            elif choice == "2":  # Import Music Library
+                console.print(
+                    "[yellow]⚠️  Use 'yeet' command for complete library import[/yellow]"
+                )
+                xml_path = Prompt.ask("📁 Path to iTunes XML library file")
+                if xml_path and os.path.exists(xml_path):
+                    with console.status(
+                        "[bold green]Importing library...", spinner="dots"
+                    ):
+                        if import_library(xml_path):
+                            console.print(
+                                Panel(
+                                    "✅ [bold green]Library imported successfully![/bold green]",
+                                    style="green",
+                                    border_style="green",
+                                )
+                            )
+                        else:
+                            console.print(
+                                Panel(
+                                    "[red]❌ Library import failed[/red]",
+                                    style="red",
+                                    border_style="red",
+                                )
+                            )
+                else:
+                    console.print("[red]❌ File not found[/red]")
+            elif choice == "3":  # Update Embeddings
+                console.print(
+                    "[yellow]⚠️  Use 'embed' command for full embedding generation[/yellow]"
+                )
+                if Confirm.ask("🧠 Update embeddings for all tracks?"):
+                    with console.status(
+                        "[bold green]Updating embeddings...", spinner="dots"
+                    ):
+                        if embed_tracks():
+                            console.print(
+                                Panel(
+                                    "✅ [bold green]Embeddings updated![/bold green]",
+                                    style="green",
+                                    border_style="green",
+                                )
+                            )
+                        else:
+                            console.print(
+                                Panel(
+                                    "[red]❌ Embedding update failed[/red]",
+                                    style="red",
+                                    border_style="red",
+                                )
+                            )
+            elif choice == "4":  # View Status
+                show_status(generator)
+            elif choice == "5":  # Manage Feedback
+                console.print(
+                    "[yellow]⚠️  Use 'feedback' command for detailed feedback management[/yellow]"
+                )
+                feedback_manager = FeedbackManager()
+                _show_feedback_stats(feedback_manager)
+            elif choice == "6":  # YEET Everything
+                console.print(
+                    "[yellow]⚠️  Use 'yeet' command for complete reset[/yellow]"
+                )
+                if Confirm.ask("[red]Are you sure you want to YEET everything?"):
+                    xml_path = Prompt.ask("📁 Path to iTunes XML library file")
+                    if xml_path and os.path.exists(xml_path):
+                        yeet_everything(xml_path)
+                    else:
+                        console.print("[red]❌ File not found[/red]")
 
     except Exception as e:
-        console.print(f"[red]❌ Error: {e}[/red]")
+        console.print(
+            Panel(f"[red]❌ Error: {e}[/red]", style="red", border_style="red")
+        )
         raise typer.Exit(1)
 
 
@@ -980,9 +1334,7 @@ def _collect_playlist_feedback(
             "\n[italic]For each track, press Enter to skip or rate 1-5 stars[/italic]"
         )
         for i, track in enumerate(tracks):
-            console.print(
-                f"\n🎵 {i+1}. [bold]{track['name']}[/bold] - {track['artist']}"
-            )
+            console.print(f"\n🎵 {i+1}. [bold]{track.name}[/bold] - {track.artist}")
             track_rating_str = Prompt.ask(
                 "Rating (1-5 stars, or Enter to skip)",
                 choices=["1", "2", "3", "4", "5", ""],
@@ -990,7 +1342,7 @@ def _collect_playlist_feedback(
             )
             if track_rating_str:  # Only record if they provided a rating
                 feedback_manager.record_track_rating(
-                    track_id=track.get("id", 0),
+                    track_id=track.id or 0,
                     rating=int(track_rating_str),
                     context=f"Playlist: {query}",
                 )
