@@ -86,7 +86,7 @@ jobs:
         bandit -r tonal_hortator/ -f json -o bandit-report.json --exit-zero
     
     - name: Upload security reports
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: security-reports
         path: |
